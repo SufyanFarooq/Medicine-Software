@@ -37,7 +37,7 @@ export default async function handler(req, res) {
         break;
 
       case 'POST':
-        const { name, code, quantity, purchasePrice, sellingPrice, expiryDate, batchNo } = req.body;
+        const { name, code, quantity, purchasePrice, sellingPrice, discountPercentage, expiryDate, batchNo } = req.body;
 
         // Validate required fields
         if (!name || !code || quantity === undefined || !purchasePrice || !sellingPrice || !expiryDate) {
@@ -56,6 +56,7 @@ export default async function handler(req, res) {
           quantity: parseInt(quantity),
           purchasePrice: parseFloat(purchasePrice),
           sellingPrice: parseFloat(sellingPrice),
+          discountPercentage: discountPercentage ? parseFloat(discountPercentage) : 0,
           expiryDate: new Date(expiryDate),
           batchNo: batchNo || '',
           createdAt: new Date(),

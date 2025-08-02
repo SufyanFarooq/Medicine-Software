@@ -1,7 +1,31 @@
 import { getCollection } from '../../../lib/mongodb';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+// Helper function to verify token
+const verifyToken = (req) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  
+  const token = authHeader.substring(7);
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
+};
 
 export default async function handler(req, res) {
   const { method } = req;
+
+  // Verify authentication for all methods
+  const user = verifyToken(req);
+  if (!user) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
 
   try {
     const invoicesCollection = await getCollection('invoices');
@@ -29,6 +53,7 @@ export default async function handler(req, res) {
           date: new Date(date),
           createdAt: new Date(),
           updatedAt: new Date(),
+          createdBy: user.userId,
         };
 
         const result = await invoicesCollection.insertOne(newInvoice);

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import SearchBar from '../../components/SearchBar';
+import { apiRequest } from '../../lib/auth';
 
 export default function AddReturn() {
   const [medicines, setMedicines] = useState([]);
@@ -26,7 +27,7 @@ export default function AddReturn() {
 
   const fetchMedicines = async () => {
     try {
-      const response = await fetch('/api/medicines');
+      const response = await apiRequest('/api/medicines');
       if (response.ok) {
         const data = await response.json();
         setMedicines(data);
@@ -41,7 +42,7 @@ export default function AddReturn() {
 
   const fetchInvoices = async () => {
     try {
-      const response = await fetch('/api/invoices');
+      const response = await apiRequest('/api/invoices');
       if (response.ok) {
         const data = await response.json();
         setInvoices(data);
@@ -225,7 +226,7 @@ export default function AddReturn() {
 
       // Submit all return requests
       const promises = returnRequests.map(returnData => 
-        fetch('/api/returns', {
+        apiRequest('/api/returns', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

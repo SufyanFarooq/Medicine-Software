@@ -9,7 +9,10 @@
     "start": "next start",
     "lint": "next lint",
     "seed": "node scripts/seed-data.js",
-    "create-admin": "node scripts/create-admin.js"
+    "create-admin": "node scripts/create-admin.js",
+    "create-super-admin": "node scripts/create-admin.js",
+    "create-test-users": "node scripts/create-test-users.js",
+    "add-discount": "node scripts/add-discount-to-existing.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { getUser, clearAuth, isAuthenticated } from '../lib/auth';
+import { setCurrency } from '../lib/currency';
+import { apiRequest } from '../lib/auth';
+import { getNavigationItems, getBottomNavigationItems } from '../lib/permissions';
 
 export default function Layout({ children }) {
   const router = useRouter();
@@ -9,21 +12,6 @@ export default function Layout({ children }) {
   const [currentDate, setCurrentDate] = useState('');
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const navigation = [
-    { name: 'Dashboard', href: '/', icon: '🏠' },
-    { name: 'Medicines', href: '/medicines', icon: '💊' },
-    { name: 'Add Medicine', href: '/medicines/add', icon: '➕' },
-    { name: 'Generate Invoice', href: '/invoices/generate', icon: '🧾' },
-    { name: 'View Invoices', href: '/invoices', icon: '📋' },
-    { name: 'Returns', href: '/returns', icon: '🔄' },
-    { name: 'Add Return', href: '/returns/add', icon: '📝' },
-  ];
-
-  const bottomNavigation = [
-    { name: 'Settings', href: '/settings', icon: '⚙️' },
-    { name: 'Logout', href: '#', icon: '🚪', action: 'logout' },
-  ];
 
   const isActive = (href) => router.pathname === href;
 
@@ -47,11 +35,27 @@ export default function Layout({ children }) {
 
       const userObj = getUser();
       setUser(userObj);
+      
+      // Fetch settings and set global currency
+      fetchSettings();
     } catch (error) {
       console.error('Auth check error:', error);
       router.push('/login');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchSettings = async () => {
+    try {
+      const response = await apiRequest('/api/settings');
+      if (response.ok) {
+        const data = await response.json();
+        // Set global currency symbol
+        setCurrency(data.currency);
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error);
     }
   };
 
@@ -70,6 +74,10 @@ export default function Layout({ children }) {
       setSidebarOpen(false);
     }
   };
+
+  // Get navigation items based on user role
+  const navigation = user ? getNavigationItems(user.role) : [];
+  const bottomNavigation = user ? getBottomNavigationItems(user.role) : [];
 
   // Show loading or redirect if not authenticated
   if (isLoading) {
@@ -115,7 +123,7 @@ export default function Layout({ children }) {
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-900">{user.username}</p>
-                <p className="text-xs text-gray-500 capitalize">{user.role || 'User'}</p>
+                <p className="text-xs text-gray-500 capitalize">{user.role?.replace('_', ' ') || 'User'}</p>
               </div>
             </div>
           </div>
@@ -193,7 +201,7 @@ export default function Layout({ children }) {
               </div>
               <div className="ml-3">
                 <p className="text-sm font-medium text-gray-900">{user.username}</p>
-                <p className="text-xs text-gray-500 capitalize">{user.role || 'User'}</p>
+                <p className="text-xs text-gray-500 capitalize">{user.role?.replace('_', ' ') || 'User'}</p>
               </div>
             </div>
           </div>
@@ -270,6 +278,7 @@ export default function Layout({ children }) {
               </span>
               <div className="flex items-center gap-x-2">
                 <span className="text-sm text-gray-700">Welcome, {user.username}</span>
+                <span className="text-xs text-gray-500 capitalize">({user.role?.replace('_', ' ')})</span>
                 <button
                   onClick={handleLogout}
                   className="text-sm text-red-600 hover:text-red-800"

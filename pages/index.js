@@ -16,6 +16,11 @@ export default function Dashboard() {
     grossProfit: 0,
     totalCost: 0,
   });
+  const [settings, setSettings] = useState({
+    currency: '$',
+    discountPercentage: 3,
+    shopName: 'Medical Shop'
+  });
   const [recentActivity, setRecentActivity] = useState([]);
   const [chartData, setChartData] = useState({
     salesData: [],
@@ -27,10 +32,23 @@ export default function Dashboard() {
   const [timePeriod, setTimePeriod] = useState('monthly'); // 'daily', 'weekly', 'monthly'
 
   useEffect(() => {
+    fetchSettings();
     fetchStats();
     fetchRecentActivity();
     fetchChartData();
   }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const response = await apiRequest('/api/settings');
+      if (response.ok) {
+        const data = await response.json();
+        setSettings(data);
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -148,7 +166,7 @@ export default function Dashboard() {
             id: invoice._id,
             type: 'invoice',
             title: `Invoice ${invoice.invoiceNumber} generated`,
-            description: `${invoice.items.length} item(s) - $${invoice.total.toFixed(2)}`,
+            description: `${invoice.items.length} item(s) - ${settings.currency}${invoice.total.toFixed(2)}`,
             date: new Date(invoice.createdAt),
             icon: '🧾',
             color: 'text-green-600',
@@ -169,7 +187,7 @@ export default function Dashboard() {
             id: returnItem._id,
             type: 'return',
             title: `Return ${returnItem.returnNumber} processed`,
-            description: `${returnItem.medicineName} - ${returnItem.quantity} qty - $${returnItem.returnValue.toFixed(2)}`,
+            description: `${returnItem.medicineName} - ${returnItem.quantity} qty - ${settings.currency}${returnItem.returnValue.toFixed(2)}`,
             date: new Date(returnItem.createdAt),
             icon: '🔄',
             color: 'text-orange-600',
@@ -190,7 +208,7 @@ export default function Dashboard() {
             id: medicine._id,
             type: 'medicine',
             title: `${medicine.name} updated`,
-            description: `Stock: ${medicine.quantity} | Price: $${medicine.sellingPrice}`,
+            description: `Stock: ${medicine.quantity} | Price: ${settings.currency}${medicine.sellingPrice}`,
             date: new Date(medicine.updatedAt || medicine.createdAt),
             icon: '💊',
             color: 'text-blue-600',
@@ -425,35 +443,35 @@ export default function Dashboard() {
     },
     {
       title: 'Inventory Value',
-      value: `$${stats.inventoryValue.toFixed(2)}`,
+      value: `${settings.currency}${stats.inventoryValue.toFixed(2)}`,
       icon: '📦',
       color: 'bg-purple-500',
       href: '/medicines',
     },
     {
       title: 'Total Purchase Price',
-      value: `$${stats.totalPurchasePrice?.toFixed(2) || '0.00'}`,
+      value: `${settings.currency}${stats.totalPurchasePrice?.toFixed(2) || '0.00'}`,
       icon: '🛒',
       color: 'bg-indigo-500',
       href: '/medicines',
     },
     {
       title: 'Total Selling Price',
-      value: `$${stats.totalSellingPrice?.toFixed(2) || '0.00'}`,
+      value: `${settings.currency}${stats.totalSellingPrice?.toFixed(2) || '0.00'}`,
       icon: '💵',
       color: 'bg-teal-500',
       href: '/invoices',
     },
     {
       title: 'Gross Sales',
-      value: `$${stats.totalSales.toFixed(2)}`,
+      value: `${settings.currency}${stats.totalSales.toFixed(2)}`,
       icon: '💰',
       color: 'bg-green-500',
       href: '/invoices/generate',
     },
     {
       title: 'Gross Profit',
-      value: `$${stats.grossProfit.toFixed(2)}`,
+      value: `${settings.currency}${stats.grossProfit.toFixed(2)}`,
       icon: '📈',
       color: 'bg-emerald-500',
       href: '/invoices',
@@ -608,7 +626,7 @@ export default function Dashboard() {
                                   {periodLabel}
                                 </div>
                                 <div className="text-xs font-medium text-green-600">
-                                  ${period.sales.toFixed(0)}
+                                  {settings.currency}{period.sales.toFixed(0)}
                                 </div>
                               </div>
                             );
@@ -694,10 +712,10 @@ export default function Dashboard() {
                             </div>
                             <div className="text-right">
                               <div className="text-sm font-medium text-green-600">
-                                Sales: ${period.sales.toFixed(2)}
+                                Sales: {settings.currency}{period.sales.toFixed(2)}
                               </div>
                               <div className={`text-sm font-medium ${period.profit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                                Profit: ${period.profit.toFixed(2)}
+                                Profit: {settings.currency}{period.profit.toFixed(2)}
                               </div>
                             </div>
                           </div>

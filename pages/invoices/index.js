@@ -1,175 +1,66 @@
 import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
-import SearchBar from '../../components/SearchBar';
-import { format } from 'date-fns';
+import Link from 'next/link';
+import { apiRequest } from '../../lib/auth';
 
-export default function InvoicesList() {
+export default function Invoices() {
   const [invoices, setInvoices] = useState([]);
-  const [filteredInvoices, setFilteredInvoices] = useState([]);
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchInvoices();
-    fetchReturns();
+    fetchData();
   }, []);
 
-  const fetchInvoices = async () => {
+  const fetchData = async () => {
     try {
-      setLoading(true);
-      const response = await fetch('/api/invoices');
-      if (response.ok) {
-        const data = await response.json();
-        setInvoices(data);
-        setFilteredInvoices(data);
-      } else {
-        setError('Failed to fetch invoices');
+      const [invoicesRes, returnsRes] = await Promise.all([
+        apiRequest('/api/invoices'),
+        apiRequest('/api/returns'),
+      ]);
+
+      if (invoicesRes.ok) {
+        const invoicesData = await invoicesRes.json();
+        setInvoices(invoicesData);
+      }
+
+      if (returnsRes.ok) {
+        const returnsData = await returnsRes.json();
+        setReturns(returnsData);
       }
     } catch (error) {
-      setError('Error connecting to database');
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchReturns = async () => {
-    try {
-      const response = await fetch('/api/returns');
-      if (response.ok) {
-        const data = await response.json();
-        setReturns(data);
-      } else {
-        console.error('Failed to fetch returns');
-      }
-    } catch (error) {
-      console.error('Error fetching returns:', error);
-    }
-  };
-
-  const getInvoiceReturns = (invoiceId) => {
-    return returns.filter(r => r.invoiceId === invoiceId);
-  };
-
-  const getTotalReturnsValue = (invoiceId) => {
-    const invoiceReturns = getInvoiceReturns(invoiceId);
-    return invoiceReturns.reduce((sum, r) => sum + r.returnValue, 0);
-  };
-
-  const handleSearch = (searchTerm) => {
-    if (!searchTerm.trim()) {
-      setFilteredInvoices(invoices);
+  const handleDelete = async (id) => {
+    if (!confirm('Are you sure you want to delete this invoice?')) {
       return;
     }
 
-    const filtered = invoices.filter(invoice =>
-      invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.items.some(item => 
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.code.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    );
-    setFilteredInvoices(filtered);
-  };
+    try {
+      const response = await apiRequest(`/api/invoices/${id}`, {
+        method: 'DELETE',
+      });
 
-  const handlePrintInvoice = (invoice) => {
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Medical Shop Invoice</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .invoice-info { margin-bottom: 20px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            .total { font-weight: bold; margin-top: 20px; }
-            .footer { text-align: center; margin-top: 30px; font-size: 12px; color: #666; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>Medical Shop</h1>
-            <p>Invoice</p>
-          </div>
-          
-          <div class="invoice-info">
-            <p><strong>Invoice #:</strong> ${invoice.invoiceNumber}</p>
-            <p><strong>Date:</strong> ${format(new Date(invoice.date), 'MMM dd, yyyy')}</p>
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Qty</th>
-                <th>Price</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${invoice.items.map(item => `
-                <tr>
-                  <td>${item.name}</td>
-                  <td>${item.quantity}</td>
-                  <td>$${item.price}</td>
-                  <td>$${item.total.toFixed(2)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <div class="total">
-            <p>Subtotal: $${invoice.subtotal.toFixed(2)}</p>
-            <p>Discount (3%): -$${invoice.discount.toFixed(2)}</p>
-            <p>Total: $${invoice.total.toFixed(2)}</p>
-          </div>
-
-          <div class="footer">
-            <p>Thank you for your purchase!</p>
-            <p>Please keep this invoice for your records.</p>
-          </div>
-        </body>
-      </html>
-    `;
-
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.open();
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      
-      printWindow.onload = () => {
-        printWindow.focus();
-        printWindow.print();
-        printWindow.close();
-      };
+      if (response.ok) {
+        fetchData();
+      } else {
+        alert('Failed to delete invoice');
+      }
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      alert('Error deleting invoice');
     }
   };
 
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-lg text-gray-500">Loading invoices...</div>
-        </div>
-      </Layout>
-    );
-  }
-
-  if (error) {
-    return (
-      <Layout>
-        <div className="text-center py-8">
-          <div className="text-red-600 text-lg mb-4">{error}</div>
-          <button
-            onClick={fetchInvoices}
-            className="btn-primary"
-          >
-            Retry
-          </button>
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
         </div>
       </Layout>
     );
@@ -179,25 +70,23 @@ export default function InvoicesList() {
     <Layout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
             <p className="mt-1 text-sm text-gray-500">
-              View all generated invoices
+              View and manage customer invoices
             </p>
           </div>
+          <Link href="/invoices/generate" className="btn-primary">
+            Generate Invoice
+          </Link>
         </div>
 
-        {/* Search Bar */}
-        <div className="max-w-md">
-          <SearchBar onSearch={handleSearch} placeholder="Search invoices by number or medicine..." />
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div className="card">
             <div className="flex items-center">
-              <div className="flex-shrink-0 p-3 rounded-lg bg-green-500">
+              <div className="flex-shrink-0 p-3 rounded-lg bg-blue-500">
                 <span className="text-2xl text-white">🧾</span>
               </div>
               <div className="ml-4">
@@ -209,7 +98,7 @@ export default function InvoicesList() {
           
           <div className="card">
             <div className="flex items-center">
-              <div className="flex-shrink-0 p-3 rounded-lg bg-blue-500">
+              <div className="flex-shrink-0 p-3 rounded-lg bg-green-500">
                 <span className="text-2xl text-white">💰</span>
               </div>
               <div className="ml-4">
@@ -220,14 +109,27 @@ export default function InvoicesList() {
               </div>
             </div>
           </div>
+
+          <div className="card">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 p-3 rounded-lg bg-orange-500">
+                <span className="text-2xl text-white">🔄</span>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Total Returns</p>
+                <p className="text-2xl font-semibold text-gray-900">{returns.length}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Invoices Table */}
+        {/* Invoices List */}
         <div className="card">
-          {filteredInvoices.length === 0 ? (
+          {invoices.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">
-                {invoices.length === 0 ? 'No invoices found. Generate your first invoice!' : 'No invoices match your search.'}
+              <p className="text-gray-500">No invoices found</p>
+              <p className="text-sm text-gray-400 mt-2">
+                Generate your first invoice to get started
               </p>
             </div>
           ) : (
@@ -245,58 +147,31 @@ export default function InvoicesList() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredInvoices.map((invoice) => (
+                  {invoices.map((invoice) => (
                     <tr key={invoice._id} className="hover:bg-gray-50">
                       <td className="table-cell font-medium">{invoice.invoiceNumber}</td>
                       <td className="table-cell">
-                        {format(new Date(invoice.date), 'MMM dd, yyyy')}
+                        {new Date(invoice.date).toLocaleDateString()}
                       </td>
-                      <td className="table-cell">
-                        <div className="text-sm">
-                          {invoice.items.length} item(s)
-                          <div className="text-gray-500 mt-1">
-                            {invoice.items.slice(0, 2).map(item => item.name).join(', ')}
-                            {invoice.items.length > 2 && '...'}
-                          </div>
-                          {/* Show return information if any */}
-                          {(() => {
-                            const invoiceReturns = getInvoiceReturns(invoice._id);
-                            if (invoiceReturns.length > 0) {
-                              const totalReturnValue = getTotalReturnsValue(invoice._id);
-                              return (
-                                <div className="text-red-500 mt-1 text-xs">
-                                  {invoiceReturns.length} return(s) - ${totalReturnValue.toFixed(2)} returned
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                      </td>
+                      <td className="table-cell">{invoice.items.length}</td>
                       <td className="table-cell">${invoice.subtotal.toFixed(2)}</td>
-                      <td className="table-cell">-${invoice.discount.toFixed(2)}</td>
-                      <td className="table-cell font-bold">
-                        ${invoice.total.toFixed(2)}
-                        {/* Show if invoice was updated due to returns */}
-                        {(() => {
-                          const invoiceReturns = getInvoiceReturns(invoice._id);
-                          if (invoiceReturns.length > 0 && invoice.updatedAt && invoice.updatedAt !== invoice.createdAt) {
-                            return (
-                              <div className="text-xs text-gray-500 mt-1">
-                                Updated after returns
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </td>
+                      <td className="table-cell">${invoice.discount.toFixed(2)}</td>
+                      <td className="table-cell font-medium">${invoice.total.toFixed(2)}</td>
                       <td className="table-cell">
-                        <button
-                          onClick={() => handlePrintInvoice(invoice)}
-                          className="text-primary-600 hover:text-primary-900 text-sm font-medium"
-                        >
-                          Print
-                        </button>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => window.print()}
+                            className="text-blue-600 hover:text-blue-900 text-sm font-medium"
+                          >
+                            Print
+                          </button>
+                          <button
+                            onClick={() => handleDelete(invoice._id)}
+                            className="text-red-600 hover:text-red-900 text-sm font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -304,11 +179,6 @@ export default function InvoicesList() {
               </table>
             </div>
           )}
-        </div>
-
-        {/* Summary */}
-        <div className="text-sm text-gray-500">
-          Showing {filteredInvoices.length} of {invoices.length} invoices
         </div>
       </div>
     </Layout>

@@ -63,7 +63,23 @@ export default function InvoiceTable({ medicines, onInvoiceGenerated }) {
   };
 
   const calculateSubtotal = () => {
-    return selectedMedicines.reduce((sum, item) => sum + (item.sellingPrice * item.quantity), 0);
+    return selectedMedicines.reduce((sum, item) => {
+      const itemTotal = item.sellingPrice * item.quantity;
+      const itemDiscount = item.discountPercentage ? (itemTotal * item.discountPercentage / 100) : 0;
+      return sum + (itemTotal - itemDiscount);
+    }, 0);
+  };
+
+  const calculateTotalDiscount = () => {
+    return selectedMedicines.reduce((sum, item) => {
+      const itemTotal = item.sellingPrice * item.quantity;
+      const itemDiscount = item.discountPercentage ? (itemTotal * item.discountPercentage / 100) : 0;
+      return sum + itemDiscount;
+    }, 0);
+  };
+
+  const calculateTotal = () => {
+    return calculateSubtotal();
   };
 
   const [settings, setSettings] = useState({ discountPercentage: 3 });
@@ -76,15 +92,6 @@ export default function InvoiceTable({ medicines, onInvoiceGenerated }) {
       .catch(err => console.error('Error fetching settings:', err));
   }, []);
 
-  const calculateDiscount = () => {
-    const subtotal = calculateSubtotal();
-    return subtotal * (settings.discountPercentage / 100);
-  };
-
-  const calculateTotal = () => {
-    return calculateSubtotal() - calculateDiscount();
-  };
-
   const handleGenerateInvoice = async () => {
     if (selectedMedicines.length === 0) {
       alert('Please select at least one medicine');
@@ -95,16 +102,22 @@ export default function InvoiceTable({ medicines, onInvoiceGenerated }) {
     try {
       const invoiceData = {
         invoiceNumber,
-        items: selectedMedicines.map(item => ({
-          medicineId: item._id,
-          name: item.name,
-          code: item.code,
-          quantity: item.quantity,
-          price: item.sellingPrice,
-          total: item.sellingPrice * item.quantity,
-        })),
-        subtotal: calculateSubtotal(),
-        discount: calculateDiscount(),
+        items: selectedMedicines.map(item => {
+          const itemTotal = item.sellingPrice * item.quantity;
+          const itemDiscount = item.discountPercentage ? (itemTotal * item.discountPercentage / 100) : 0;
+          return {
+            medicineId: item._id,
+            name: item.name,
+            code: item.code,
+            quantity: item.quantity,
+            price: item.sellingPrice,
+            discountPercentage: item.discountPercentage || 0,
+            discount: itemDiscount,
+            total: itemTotal - itemDiscount,
+          };
+        }),
+        subtotal: selectedMedicines.reduce((sum, item) => sum + (item.sellingPrice * item.quantity), 0),
+        discount: calculateTotalDiscount(),
         total: calculateTotal(),
         date: new Date().toISOString(),
       };
@@ -134,6 +147,7 @@ export default function InvoiceTable({ medicines, onInvoiceGenerated }) {
               quantity: newQuantity,
               purchasePrice: originalMedicine.purchasePrice,
               sellingPrice: originalMedicine.sellingPrice,
+              discountPercentage: originalMedicine.discountPercentage,
               expiryDate: originalMedicine.expiryDate,
               batchNo: originalMedicine.batchNo,
             }),
@@ -193,24 +207,30 @@ export default function InvoiceTable({ medicines, onInvoiceGenerated }) {
                 <th>Item</th>
                 <th>Qty</th>
                 <th>Price</th>
+                <th>Discount</th>
                 <th>Total</th>
               </tr>
             </thead>
             <tbody>
-              ${selectedMedicines.map(item => `
+              ${selectedMedicines.map(item => {
+                const itemTotal = item.sellingPrice * item.quantity;
+                const itemDiscount = item.discountPercentage ? (itemTotal * item.discountPercentage / 100) : 0;
+                return `
                 <tr>
                   <td>${item.name}</td>
                   <td>${item.quantity}</td>
                   <td>$${item.sellingPrice}</td>
-                  <td>$${(item.sellingPrice * item.quantity).toFixed(2)}</td>
+                  <td>${item.discountPercentage ? item.discountPercentage + '%' : '-'}</td>
+                  <td>$${(itemTotal - itemDiscount).toFixed(2)}</td>
                 </tr>
-              `).join('')}
+              `;
+              }).join('')}
             </tbody>
           </table>
 
           <div class="total">
-            <p>Subtotal: $${calculateSubtotal().toFixed(2)}</p>
-            <p>Discount (3%): -$${calculateDiscount().toFixed(2)}</p>
+            <p>Subtotal: $${selectedMedicines.reduce((sum, item) => sum + (item.sellingPrice * item.quantity), 0).toFixed(2)}</p>
+            <p>Total Discount: -$${calculateTotalDiscount().toFixed(2)}</p>
             <p>Total: $${calculateTotal().toFixed(2)}</p>
           </div>
 
@@ -263,6 +283,15 @@ export default function InvoiceTable({ medicines, onInvoiceGenerated }) {
         {/* Available Medicines */}
         <div className="card">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Available Medicines</h3>
+          <div className="mb-4">
+            <input
+              type="text"
+              placeholder="Search medicines by name or code..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="input-field"
+            />
+          </div>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {filteredMedicines.length === 0 ? (
               <p className="text-gray-500 text-center py-4">No medicines available</p>
@@ -276,6 +305,11 @@ export default function InvoiceTable({ medicines, onInvoiceGenerated }) {
                     <div className="font-medium text-gray-900">{medicine.name}</div>
                     <div className="text-sm text-gray-500">
                       Code: {medicine.code} | Stock: {medicine.quantity} | Price: ${medicine.sellingPrice}
+                      {medicine.discountPercentage > 0 && (
+                        <span className="ml-2 text-green-600">
+                          | Discount: {medicine.discountPercentage}%
+                        </span>
+                      )}
                     </div>
                   </div>
                   <button
@@ -303,6 +337,11 @@ export default function InvoiceTable({ medicines, onInvoiceGenerated }) {
                   <div className="flex-1">
                     <div className="font-medium text-gray-900">{item.name}</div>
                     <div className="text-sm text-gray-500">Code: {item.code}</div>
+                    {item.discountPercentage > 0 && (
+                      <div className="text-sm text-green-600">
+                        Discount: {item.discountPercentage}%
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center space-x-2">
                     <input
@@ -314,7 +353,9 @@ export default function InvoiceTable({ medicines, onInvoiceGenerated }) {
                       className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
                     />
                     <span className="text-sm text-gray-500">× ${item.sellingPrice}</span>
-                    <span className="font-medium">${(item.sellingPrice * item.quantity).toFixed(2)}</span>
+                    <span className="font-medium">
+                      ${((item.sellingPrice * item.quantity) * (1 - (item.discountPercentage || 0) / 100)).toFixed(2)}
+                    </span>
                     <button
                       onClick={() => removeMedicine(item._id)}
                       className="text-red-600 hover:text-red-800 text-sm"
@@ -329,11 +370,11 @@ export default function InvoiceTable({ medicines, onInvoiceGenerated }) {
               <div className="border-t pt-4 space-y-2">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
-                  <span>${calculateSubtotal().toFixed(2)}</span>
+                  <span>${selectedMedicines.reduce((sum, item) => sum + (item.sellingPrice * item.quantity), 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Discount (3%):</span>
-                  <span>-${calculateDiscount().toFixed(2)}</span>
+                  <span>Total Discount:</span>
+                  <span>-${calculateTotalDiscount().toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total:</span>
