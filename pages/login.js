@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { setAuth, isAuthenticated } from '../lib/auth';
+import { logUserActivity } from '../lib/activity-logger';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -43,6 +44,10 @@ export default function Login() {
       if (response.ok) {
         const data = await response.json();
         setAuth(data.token, data.user);
+        
+        // Log successful login
+        logUserActivity.login(data.user.username);
+        
         router.push('/');
       } else {
         const errorData = await response.json();

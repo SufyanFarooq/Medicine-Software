@@ -5,6 +5,7 @@ import { getUser, clearAuth, isAuthenticated } from '../lib/auth';
 import { setCurrency } from '../lib/currency';
 import { apiRequest } from '../lib/auth';
 import { getNavigationItems, getBottomNavigationItems } from '../lib/permissions';
+import { logUserActivity } from '../lib/activity-logger';
 
 export default function Layout({ children }) {
   const router = useRouter();
@@ -60,6 +61,11 @@ export default function Layout({ children }) {
   };
 
   const handleLogout = () => {
+    // Log logout activity
+    if (user) {
+      logUserActivity.logout(user.username);
+    }
+    
     // Clear authentication
     clearAuth();
     

@@ -35,14 +35,16 @@ export default async function handler(req, res) {
         // Get settings (create default if not exists)
         let settings = await settingsCollection.findOne({});
         if (!settings) {
-          // Create default settings
-          const defaultSettings = {
-            currency: '$',
-            discountPercentage: 3,
-            shopName: 'Medical Shop',
-            createdAt: new Date(),
-            updatedAt: new Date()
-          };
+                  // Create default settings
+        const defaultSettings = {
+          currency: '$',
+          discountPercentage: 3,
+          shopName: 'Medical Shop',
+          contactNumber: '',
+          address: '',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
           await settingsCollection.insertOne(defaultSettings);
           settings = defaultSettings;
         }
@@ -50,11 +52,11 @@ export default async function handler(req, res) {
         break;
 
       case 'PUT':
-        const { currency, discountPercentage, shopName } = req.body;
+        const { currency, discountPercentage, shopName, contactNumber, address } = req.body;
         
         // Validate input
         if (!currency || discountPercentage === undefined || !shopName) {
-          return res.status(400).json({ message: 'All fields are required' });
+          return res.status(400).json({ message: 'Currency, discount percentage, and shop name are required' });
         }
 
         if (discountPercentage < 0 || discountPercentage > 100) {
@@ -69,6 +71,8 @@ export default async function handler(req, res) {
               currency,
               discountPercentage: parseFloat(discountPercentage),
               shopName,
+              contactNumber: contactNumber || '',
+              address: address || '',
               updatedAt: new Date(),
               updatedBy: user.userId,
             }

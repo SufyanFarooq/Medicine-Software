@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { apiRequest } from '../lib/auth';
+import { logMedicineActivity } from '../lib/activity-logger';
 
 export default function MedicineForm({ medicine = null, isEditing = false }) {
   const router = useRouter();
@@ -14,6 +16,8 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [validationErrors, setValidationErrors] = useState({});
+  const [existingMedicines, setExistingMedicines] = useState([]);
 
   useEffect(() => {
     if (medicine) {
@@ -27,7 +31,24 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
         batchNo: medicine.batchNo || '',
       });
     }
-  }, [medicine]);
+    
+    // Fetch existing medicines for validation (only for new medicines)
+    if (!isEditing) {
+      fetchExistingMedicines();
+    }
+  }, [medicine, isEditing]);
+
+  const fetchExistingMedicines = async () => {
+    try {
+      const response = await apiRequest('/api/medicines');
+      if (response.ok) {
+        const data = await response.json();
+        setExistingMedicines(data);
+      }
+    } catch (error) {
+      console.error('Error fetching medicines:', error);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -35,6 +56,50 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
       ...prev,
       [name]: value
     }));
+
+    // Clear validation errors when user starts typing
+    if (validationErrors[name]) {
+      setValidationErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+
+    // Real-time validation for name and code
+    if (name === 'name' && value.trim()) {
+      validateName(value);
+    }
+    if (name === 'code' && value.trim()) {
+      validateCode(value);
+    }
+  };
+
+  const validateName = (name) => {
+    if (!isEditing) {
+      const existingMedicine = existingMedicines.find(
+        med => med.name.toLowerCase() === name.toLowerCase()
+      );
+      if (existingMedicine) {
+        setValidationErrors(prev => ({
+          ...prev,
+          name: 'Medicine with this name already exists'
+        }));
+      }
+    }
+  };
+
+  const validateCode = (code) => {
+    if (!isEditing) {
+      const existingMedicine = existingMedicines.find(
+        med => med.code === code
+      );
+      if (existingMedicine) {
+        setValidationErrors(prev => ({
+          ...prev,
+          code: 'Medicine code already exists'
+        }));
+      }
+    }
   };
 
   const generateCode = () => {
@@ -46,6 +111,13 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Check for validation errors
+    if (Object.keys(validationErrors).some(key => validationErrors[key])) {
+      setError('Please fix the validation errors before submitting');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -53,22 +125,30 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
       const url = isEditing ? `/api/medicines/${medicine._id}` : '/api/medicines';
       const method = isEditing ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      const response = await apiRequest(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(formData),
       });
 
       if (response.ok) {
+        // Log activity
+        if (isEditing) {
+          logMedicineActivity.updated(formData.name, formData.code);
+        } else {
+          logMedicineActivity.added(formData.name, formData.code);
+        }
+        
         router.push('/medicines');
       } else {
         const data = await response.json();
         setError(data.message || 'Failed to save medicine');
       }
     } catch (error) {
-      setError('Error connecting to database');
+      if (error.message === 'Unauthorized') {
+        setError('Please log in to continue');
+      } else {
+        setError('Error connecting to database');
+      }
     } finally {
       setLoading(false);
     }
@@ -95,9 +175,12 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
             value={formData.name}
             onChange={handleChange}
             required
-            className="input-field"
+            className={`input-field ${validationErrors.name ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
             placeholder="Enter medicine name"
           />
+          {validationErrors.name && (
+            <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
+          )}
         </div>
 
         {/* Medicine Code */}
@@ -113,7 +196,7 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
               value={formData.code}
               onChange={handleChange}
               required
-              className="input-field"
+              className={`input-field ${validationErrors.code ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
               placeholder="Enter or generate code"
             />
             {!isEditing && (
@@ -126,6 +209,9 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
               </button>
             )}
           </div>
+          {validationErrors.code && (
+            <p className="mt-1 text-sm text-red-600">{validationErrors.code}</p>
+          )}
         </div>
 
         {/* Quantity */}

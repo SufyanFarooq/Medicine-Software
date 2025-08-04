@@ -4,12 +4,15 @@ import { apiRequest } from '../../lib/auth';
 import { setCurrency } from '../../lib/currency';
 import { getUser } from '../../lib/auth';
 import { hasPermission } from '../../lib/permissions';
+import { logSettingsActivity } from '../../lib/activity-logger';
 
 export default function Settings() {
   const [settings, setSettings] = useState({
     currency: '$',
     discountPercentage: 3,
-    shopName: 'Medical Shop'
+    shopName: 'Medical Shop',
+    contactNumber: '',
+    address: ''
   });
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -21,6 +24,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('company');
 
   const currencies = [
     { symbol: '$', name: 'US Dollar' },
@@ -56,6 +60,7 @@ export default function Settings() {
       if (response.ok) {
         const data = await response.json();
         setSettings(data);
+        setOriginalSettings(data);
         // Set global currency
         setCurrency(data.currency);
       }
@@ -63,6 +68,8 @@ export default function Settings() {
       console.error('Error fetching settings:', error);
     }
   };
+
+  const [originalSettings, setOriginalSettings] = useState({});
 
   const fetchUsers = async () => {
     try {
@@ -90,9 +97,28 @@ export default function Settings() {
       });
 
       if (response.ok) {
+        // Log settings changes
+        if (originalSettings.shopName !== settings.shopName) {
+          logSettingsActivity.updated('shopName', originalSettings.shopName, settings.shopName);
+        }
+        if (originalSettings.contactNumber !== settings.contactNumber) {
+          logSettingsActivity.updated('contactNumber', originalSettings.contactNumber, settings.contactNumber);
+        }
+        if (originalSettings.address !== settings.address) {
+          logSettingsActivity.updated('address', originalSettings.address, settings.address);
+        }
+        if (originalSettings.currency !== settings.currency) {
+          logSettingsActivity.updated('currency', originalSettings.currency, settings.currency);
+        }
+        if (originalSettings.discountPercentage !== settings.discountPercentage) {
+          logSettingsActivity.updated('discountPercentage', originalSettings.discountPercentage, settings.discountPercentage);
+        }
+        
         setMessage('Settings saved successfully!');
         // Update global currency immediately
         setCurrency(settings.currency);
+        // Update original settings
+        setOriginalSettings(settings);
         setTimeout(() => setMessage(''), 3000);
       } else {
         setMessage('Failed to save settings');
@@ -169,7 +195,7 @@ export default function Settings() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Manage your shop settings and users
+            Manage company information, system settings, and users
           </p>
         </div>
 
@@ -183,10 +209,48 @@ export default function Settings() {
           </div>
         )}
 
-        {/* General Settings */}
-        {hasPermission(currentUser?.role, 'canModifySettings') ? (
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('company')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'company'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              🏪 Company Information
+            </button>
+            <button
+              onClick={() => setActiveTab('system')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'system'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              ⚙️ System Settings
+            </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'users'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              👥 User Management
+            </button>
+          </nav>
+        </div>
+
+        {/* Company Information Tab */}
+        {activeTab === 'company' && (
+          hasPermission(currentUser?.role, 'canModifySettings') ? (
           <div className="card">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">General Settings</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">🏪 Company Information</h3>
+            <p className="text-sm text-gray-600 mb-4">Update your shop details that will appear on invoices and receipts</p>
             <div className="space-y-4">
               <div>
                 <label htmlFor="shopName" className="block text-sm font-medium text-gray-700 mb-2">
@@ -203,37 +267,30 @@ export default function Settings() {
               </div>
 
               <div>
-                <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">
-                  Currency Symbol
+                <label htmlFor="contactNumber" className="block text-sm font-medium text-gray-700 mb-2">
+                  Contact Number
                 </label>
-                <select
-                  id="currency"
-                  value={settings.currency}
-                  onChange={(e) => setSettings(prev => ({ ...prev, currency: e.target.value }))}
+                <input
+                  type="text"
+                  id="contactNumber"
+                  value={settings.contactNumber}
+                  onChange={(e) => setSettings(prev => ({ ...prev, contactNumber: e.target.value }))}
                   className="input-field"
-                >
-                  {currencies.map((currency) => (
-                    <option key={currency.symbol} value={currency.symbol}>
-                      {currency.symbol} - {currency.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Enter contact number"
+                />
               </div>
 
               <div>
-                <label htmlFor="discountPercentage" className="block text-sm font-medium text-gray-700 mb-2">
-                  Default Discount Percentage
+                <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
+                  Address
                 </label>
-                <input
-                  type="number"
-                  id="discountPercentage"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={settings.discountPercentage}
-                  onChange={(e) => setSettings(prev => ({ ...prev, discountPercentage: parseFloat(e.target.value) }))}
+                <textarea
+                  id="address"
+                  rows="3"
+                  value={settings.address}
+                  onChange={(e) => setSettings(prev => ({ ...prev, address: e.target.value }))}
                   className="input-field"
-                  placeholder="Enter discount percentage"
+                  placeholder="Enter shop address"
                 />
               </div>
 
@@ -243,7 +300,7 @@ export default function Settings() {
                   disabled={loading}
                   className="btn-primary"
                 >
-                  {loading ? 'Saving...' : 'Save Settings'}
+                  {loading ? 'Saving...' : 'Save Company Info'}
                 </button>
               </div>
             </div>
@@ -251,16 +308,83 @@ export default function Settings() {
         ) : (
           <div className="card">
             <div className="text-center py-8">
-              <p className="text-gray-500">Settings Management</p>
+              <p className="text-gray-500">Company Information</p>
               <p className="text-sm text-gray-400 mt-2">
-                You do not have permission to modify settings. Contact your Super Admin.
+                You do not have permission to modify company information. Contact your Super Admin.
               </p>
             </div>
           </div>
+        )
         )}
 
-        {/* User Management */}
-        {hasPermission(currentUser?.role, 'canManageUsers') ? (
+        {/* System Settings Tab */}
+        {activeTab === 'system' && (
+          hasPermission(currentUser?.role, 'canModifySettings') ? (
+            <div className="card">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">⚙️ System Settings</h3>
+              <p className="text-sm text-gray-600 mb-4">Configure system preferences and default values</p>
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">
+                    Currency Symbol
+                  </label>
+                  <select
+                    id="currency"
+                    value={settings.currency}
+                    onChange={(e) => setSettings(prev => ({ ...prev, currency: e.target.value }))}
+                    className="input-field"
+                  >
+                    {currencies.map((currency) => (
+                      <option key={currency.symbol} value={currency.symbol}>
+                        {currency.symbol} - {currency.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="discountPercentage" className="block text-sm font-medium text-gray-700 mb-2">
+                    Default Discount Percentage
+                  </label>
+                  <input
+                    type="number"
+                    id="discountPercentage"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={settings.discountPercentage}
+                    onChange={(e) => setSettings(prev => ({ ...prev, discountPercentage: parseFloat(e.target.value) }))}
+                    className="input-field"
+                    placeholder="Enter discount percentage"
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleSettingsSave}
+                    disabled={loading}
+                    className="btn-primary"
+                  >
+                    {loading ? 'Saving...' : 'Save System Settings'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="card">
+              <div className="text-center py-8">
+                <p className="text-gray-500">System Settings</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  You do not have permission to modify system settings. Contact your Super Admin.
+                </p>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* User Management Tab */}
+        {activeTab === 'users' && (
+          hasPermission(currentUser?.role, 'canManageUsers') ? (
           <div className="card">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900">User Management</h3>
@@ -390,6 +514,7 @@ export default function Settings() {
               </p>
             </div>
           </div>
+        )
         )}
       </div>
     </Layout>

@@ -45,9 +45,17 @@ export default async function handler(req, res) {
         }
 
         // Check for duplicate code
-        const existingMedicine = await medicinesCollection.findOne({ code });
-        if (existingMedicine) {
+        const existingMedicineByCode = await medicinesCollection.findOne({ code });
+        if (existingMedicineByCode) {
           return res.status(400).json({ message: 'Medicine code already exists' });
+        }
+
+        // Check for duplicate name (case insensitive)
+        const existingMedicineByName = await medicinesCollection.findOne({ 
+          name: { $regex: new RegExp(`^${name}$`, 'i') } 
+        });
+        if (existingMedicineByName) {
+          return res.status(400).json({ message: 'Medicine with this name already exists' });
         }
 
         const newMedicine = {

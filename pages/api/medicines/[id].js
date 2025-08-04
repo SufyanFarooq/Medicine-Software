@@ -1,9 +1,33 @@
 import { getCollection } from '../../../lib/mongodb';
 import { ObjectId } from 'mongodb';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+// Helper function to verify token
+const verifyToken = (req) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  
+  const token = authHeader.substring(7);
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
+};
 
 export default async function handler(req, res) {
   const { method } = req;
   const { id } = req.query;
+
+  // Verify authentication for all methods
+  const user = verifyToken(req);
+  if (!user) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
 
   try {
     const medicinesCollection = await getCollection('medicines');
