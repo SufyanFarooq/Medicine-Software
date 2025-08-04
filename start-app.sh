@@ -72,4 +72,9 @@ echo "🔄 Press Ctrl+C to stop the application"
 (sleep 3 && open http://localhost:3000 2>/dev/null || xdg-open http://localhost:3000 2>/dev/null || echo "🌐 Please open http://localhost:3000 in your browser") &
 
 # Start the Next.js application
-npm start 
+npm start
+
+# Keep terminal open if there's an error or user stops the app
+echo ""
+echo "🏥 Application stopped. Press any key to close this window..."
+read -n 1 -s 

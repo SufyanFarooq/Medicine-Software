@@ -24,13 +24,29 @@ if %errorlevel% neq 0 (
 REM Check if MongoDB is running
 tasklist /FI "IMAGENAME eq mongod.exe" 2>NUL | find /I /N "mongod.exe">NUL
 if "%ERRORLEVEL%"=="1" (
-    echo ⚠️  MongoDB is not running. Please start MongoDB manually.
-    echo You can start MongoDB by running: mongod
-    echo Or install MongoDB as a service.
-    echo Visit: https://docs.mongodb.com/manual/installation/
-    echo.
-    echo Press any key to continue anyway...
-    pause >nul
+    echo ⚠️  MongoDB is not running. Attempting to start MongoDB...
+    
+    REM Try to start MongoDB from common installation paths
+    if exist "C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" (
+        echo Starting MongoDB from Program Files...
+        start /B "MongoDB" "C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" --dbpath "C:\data\db"
+        timeout /t 5 /nobreak >nul
+    ) else if exist "C:\Program Files\MongoDB\Server\5.0\bin\mongod.exe" (
+        echo Starting MongoDB from Program Files...
+        start /B "MongoDB" "C:\Program Files\MongoDB\Server\5.0\bin\mongod.exe" --dbpath "C:\data\db"
+        timeout /t 5 /nobreak >nul
+    ) else if exist "C:\Program Files\MongoDB\Server\4.4\bin\mongod.exe" (
+        echo Starting MongoDB from Program Files...
+        start /B "MongoDB" "C:\Program Files\MongoDB\Server\4.4\bin\mongod.exe" --dbpath "C:\data\db"
+        timeout /t 5 /nobreak >nul
+    ) else (
+        echo ❌ MongoDB is not installed or not found in common locations.
+        echo Please install MongoDB and ensure it's running.
+        echo Visit: https://docs.mongodb.com/manual/installation/
+        echo.
+        echo Press any key to continue anyway...
+        pause >nul
+    )
 )
 
 REM Check if dependencies are installed
