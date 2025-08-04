@@ -24,28 +24,55 @@ if %errorlevel% neq 0 (
 REM Check if MongoDB is running
 tasklist /FI "IMAGENAME eq mongod.exe" 2>NUL | find /I /N "mongod.exe">NUL
 if "%ERRORLEVEL%"=="1" (
-    echo ⚠️  MongoDB is not running. Attempting to start MongoDB...
+    echo ⚠️  MongoDB is not running. Checking if MongoDB is installed...
     
-    REM Try to start MongoDB from common installation paths
+    REM Check if MongoDB is installed in common locations
+    set "MONGODB_FOUND=0"
     if exist "C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" (
-        echo Starting MongoDB from Program Files...
-        start /B "MongoDB" "C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe" --dbpath "C:\data\db"
-        timeout /t 5 /nobreak >nul
+        echo ✅ Found MongoDB 6.0, attempting to start...
+        set "MONGODB_PATH=C:\Program Files\MongoDB\Server\6.0\bin\mongod.exe"
+        set "MONGODB_FOUND=1"
     ) else if exist "C:\Program Files\MongoDB\Server\5.0\bin\mongod.exe" (
-        echo Starting MongoDB from Program Files...
-        start /B "MongoDB" "C:\Program Files\MongoDB\Server\5.0\bin\mongod.exe" --dbpath "C:\data\db"
-        timeout /t 5 /nobreak >nul
+        echo ✅ Found MongoDB 5.0, attempting to start...
+        set "MONGODB_PATH=C:\Program Files\MongoDB\Server\5.0\bin\mongod.exe"
+        set "MONGODB_FOUND=1"
     ) else if exist "C:\Program Files\MongoDB\Server\4.4\bin\mongod.exe" (
-        echo Starting MongoDB from Program Files...
-        start /B "MongoDB" "C:\Program Files\MongoDB\Server\4.4\bin\mongod.exe" --dbpath "C:\data\db"
+        echo ✅ Found MongoDB 4.4, attempting to start...
+        set "MONGODB_PATH=C:\Program Files\MongoDB\Server\4.4\bin\mongod.exe"
+        set "MONGODB_FOUND=1"
+    )
+    
+    if "%MONGODB_FOUND%"=="1" (
+        REM Create data directory if it doesn't exist
+        if not exist "C:\data\db" (
+            echo Creating MongoDB data directory...
+            mkdir "C:\data\db" 2>nul
+        )
+        
+        echo Starting MongoDB...
+        start /B "MongoDB" "%MONGODB_PATH%" --dbpath "C:\data\db"
         timeout /t 5 /nobreak >nul
+        
+        REM Check if MongoDB started successfully
+        tasklist /FI "IMAGENAME eq mongod.exe" 2>NUL | find /I /N "mongod.exe">NUL
+        if "%ERRORLEVEL%"=="0" (
+            echo ✅ MongoDB started successfully!
+        ) else (
+            echo ❌ Failed to start MongoDB. Please start it manually.
+        )
     ) else (
-        echo ❌ MongoDB is not installed or not found in common locations.
-        echo Please install MongoDB and ensure it's running.
-        echo Visit: https://docs.mongodb.com/manual/installation/
         echo.
-        echo Press any key to continue anyway...
+        echo ❌ MongoDB is not installed on your system.
+        echo.
+        echo To install MongoDB:
+        echo 1. Visit: https://www.mongodb.com/try/download/community
+        echo 2. Download MongoDB Community Server for Windows
+        echo 3. Run the installer and follow the setup wizard
+        echo 4. Restart this script after installation
+        echo.
+        echo Press any key to exit...
         pause >nul
+        exit /b 1
     )
 )
 
