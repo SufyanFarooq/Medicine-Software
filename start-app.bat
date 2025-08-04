@@ -2,7 +2,29 @@
 chcp 65001 >nul
 title Medical Shop Management Tool
 
+echo.
+echo ========================================
+echo    🏥 Medicine Software
+echo    Medical Shop Management Tool
+echo ========================================
+echo.
+
+REM Change to the directory where this script is located
+cd /d "%~dp0"
+
 echo 🏥 Starting Medical Shop Management Tool...
+
+REM Check if we're in the correct directory
+if not exist "package.json" (
+    echo ❌ Error: package.json not found!
+    echo Please make sure you're running this script from the Medicine Software folder.
+    echo.
+    echo Current directory: %CD%
+    echo.
+    echo Press any key to exit...
+    pause >nul
+    exit /b 1
+)
 
 REM Check if Node.js is installed
 node --version >nul 2>&1
@@ -108,6 +130,14 @@ timeout /t 3 /nobreak >nul
 start http://localhost:3000
 
 REM Start the Next.js application
+echo.
+echo 🚀 Starting the application...
+echo 📱 The app will open in your browser at: http://localhost:3000
+echo 🔄 Press Ctrl+C to stop the application
+echo.
+
 npm start
 
-pause 
+echo.
+echo 🏥 Application stopped. Press any key to close this window...
+pause >nul 
