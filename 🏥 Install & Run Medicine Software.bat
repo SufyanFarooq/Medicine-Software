@@ -15,6 +15,7 @@ cd /d "%~dp0"
 echo 🔍 Checking if everything is installed...
 
 REM Check if Node.js, npm, and MongoDB are installed
+echo Checking Node.js...
 node --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo ❌ Node.js not found - need to install
@@ -24,6 +25,7 @@ if %errorlevel% neq 0 (
     set "NEED_INSTALL=0"
 )
 
+echo Checking npm...
 npm --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo ❌ npm not found - need to install
@@ -32,6 +34,7 @@ if %errorlevel% neq 0 (
     echo ✅ npm is installed
 )
 
+echo Checking MongoDB...
 mongod --version >nul 2>&1
 if %errorlevel% neq 0 (
     echo ❌ MongoDB not found - need to install
@@ -56,6 +59,7 @@ if "%NEED_INSTALL%"=="1" (
     pause >nul
     
     REM Run the auto-installer
+    echo Starting auto-installer...
     call auto-install-windows.bat
     
     echo.
@@ -70,25 +74,39 @@ echo 🚀 Starting Medicine Software...
 echo.
 
 REM Check if dependencies are installed
+echo Checking dependencies...
 if not exist "node_modules" (
     echo 📦 Installing dependencies...
     npm install
     if %errorlevel% neq 0 (
         echo ❌ Failed to install dependencies.
-        pause
+        echo Please check your internet connection and try again.
+        echo.
+        echo Press any key to exit...
+        pause >nul
         exit /b 1
     )
+    echo ✅ Dependencies installed successfully
+) else (
+    echo ✅ Dependencies already installed
 )
 
 REM Check if the app is built
+echo Checking if app is built...
 if not exist ".next" (
     echo 🔨 Building the application...
     npm run build
     if %errorlevel% neq 0 (
         echo ❌ Failed to build the application.
-        pause
+        echo Please check the error messages above.
+        echo.
+        echo Press any key to exit...
+        pause >nul
         exit /b 1
     )
+    echo ✅ Application built successfully
+) else (
+    echo ✅ Application already built
 )
 
 REM Start MongoDB if not running
