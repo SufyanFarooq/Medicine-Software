@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import Link from 'next/link';
 import { apiRequest } from '../../lib/auth';
+import { formatCurrency } from '../../lib/currency';
 
 export default function Invoices() {
   const [invoices, setInvoices] = useState([]);
@@ -104,7 +105,7 @@ export default function Invoices() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Sales</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  ${invoices.reduce((sum, invoice) => sum + invoice.total, 0).toFixed(2)}
+                  {formatCurrency(invoices.reduce((sum, invoice) => sum + invoice.total, 0))}
                 </p>
               </div>
             </div>
@@ -154,9 +155,9 @@ export default function Invoices() {
                         {new Date(invoice.date).toLocaleDateString()}
                       </td>
                       <td className="table-cell">{invoice.items.length}</td>
-                      <td className="table-cell">${invoice.subtotal.toFixed(2)}</td>
-                      <td className="table-cell">${invoice.discount.toFixed(2)}</td>
-                      <td className="table-cell font-medium">${invoice.total.toFixed(2)}</td>
+                      <td className="table-cell">{formatCurrency(invoice.subtotal)}</td>
+                      <td className="table-cell">{formatCurrency(invoice.discount)}</td>
+                      <td className="table-cell font-medium">{formatCurrency(invoice.total)}</td>
                       <td className="table-cell">
                         <div className="flex space-x-2">
                           <button

@@ -1,80 +1,65 @@
-# Discount Percentage Feature
+# Admin-Configured Discount Feature
 
 ## Overview
-The Medicine Software now supports individual discount percentages for each medicine. This allows you to set specific discounts on medicines and have them automatically applied during invoice generation.
+The Medicine Software now supports admin-configured discount percentages that are applied to the entire invoice subtotal. The admin can set a global discount percentage in the settings, and this discount will be automatically applied to all invoices.
 
 ## Features
 
-### 1. Medicine Form
-- Added "Discount Percentage (%)" field to the medicine form
-- Accepts values from 0 to 100 with decimal precision
-- Optional field - defaults to 0% if not specified
+### 1. Admin Settings
+- Admin can configure discount percentage in Settings page
+- Default discount is 3%
+- Discount is applied to the entire invoice subtotal
+- Settings are stored in the database
 
-### 2. Medicine List
-- New "Discount %" column in the medicines table
-- Shows discount percentage with green badge if > 0%
-- Shows "-" if no discount is set
-
-### 3. Invoice Generation
-- Individual medicine discounts are automatically applied
-- Each medicine's discount is calculated separately
-- Total discount is the sum of all individual medicine discounts
+### 2. Invoice Generation
+- Admin-configured discount is automatically applied to invoice subtotal
+- Discount calculation: `Subtotal × (Admin Discount Percentage / 100)`
+- Final total: `Subtotal - Discount Amount`
 - Invoice shows:
-  - Original price per item
-  - Individual discount percentage
-  - Final price after discount
-  - Total discount amount
-  - Final total
+  - Original subtotal
+  - Admin discount percentage and amount
+  - Final total after discount
 
-### 4. Database Schema
-- Added `discountPercentage` field to medicines collection
+### 3. Database Schema
+- Settings collection stores `discountPercentage` field
 - Field type: Number (0-100)
-- Default value: 0
+- Default value: 3
 
 ## Usage
 
-### Adding Discount to Medicine
-1. Go to Medicines page
-2. Click "Add Medicine" or edit existing medicine
-3. Fill in the "Discount Percentage (%)" field
-4. Save the medicine
+### Setting Admin Discount
+1. Go to Settings page
+2. Set the desired "Discount Percentage"
+3. Save settings
+4. Discount will be applied to all future invoices
 
-### Generating Invoice with Discounts
+### Generating Invoice with Admin Discount
 1. Go to Invoice Generation page
 2. Add medicines to invoice
-3. Discounts are automatically applied
-4. View individual discounts in the invoice items
-5. Generate invoice with discounted totals
+3. Admin discount is automatically applied to subtotal
+4. View discount amount and final total
+5. Generate invoice with discounted total
 
 ## Migration
-If you have existing medicines without discount percentages:
-```bash
-npm run add-discount
-```
-
-This will add a default 0% discount to all existing medicines.
+The system has been updated to use admin-configured discounts instead of individual medicine discounts. Individual medicine discount fields have been removed.
 
 ## Sample Data
-The seed script includes sample medicines with various discount percentages:
-- Paracetamol: 5% discount
-- Ibuprofen: 0% discount
-- Amoxicillin: 10% discount
-- Omeprazole: 0% discount
-- Cetirizine: 3% discount
+The seed script includes sample medicines without individual discounts since the system now uses admin-configured discounts.
 
 ## Technical Details
 
 ### API Changes
-- `POST /api/medicines` - Now accepts `discountPercentage` field
-- `PUT /api/medicines/[id]` - Now accepts `discountPercentage` field
-- Invoice generation includes individual medicine discounts
+- `GET /api/settings` - Returns admin discount percentage
+- `PUT /api/settings` - Updates admin discount percentage
+- Invoice generation uses admin discount instead of individual discounts
 
 ### Frontend Changes
-- MedicineForm component updated with discount field
-- InvoiceTable component updated to handle individual discounts
-- Medicines list updated to display discount information
-- Print functionality updated to show discount details
+- InvoiceTable component updated to use admin discount
+- Medicine forms no longer include discount percentage field
+- Medicines list no longer shows individual discounts
+- Print functionality shows admin discount
 
 ### Database Changes
-- New field: `discountPercentage` (Number, default: 0)
-- Migration script available for existing data 
+- Individual medicine `discountPercentage` fields removed
+- Settings collection stores global discount percentage
+- Migration completed for existing data 

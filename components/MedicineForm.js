@@ -9,7 +9,6 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
     quantity: '',
     purchasePrice: '',
     sellingPrice: '',
-    discountPercentage: '',
     expiryDate: '',
     batchNo: '',
   });
@@ -24,7 +23,6 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
         quantity: medicine.quantity || '',
         purchasePrice: medicine.purchasePrice || '',
         sellingPrice: medicine.sellingPrice || '',
-        discountPercentage: medicine.discountPercentage || '',
         expiryDate: medicine.expiryDate ? new Date(medicine.expiryDate).toISOString().split('T')[0] : '',
         batchNo: medicine.batchNo || '',
       });
@@ -151,7 +149,7 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
         {/* Purchase Price */}
         <div>
           <label htmlFor="purchasePrice" className="block text-sm font-medium text-gray-700 mb-2">
-            Purchase Price ($) *
+            Purchase Price *
           </label>
           <input
             type="number"
@@ -170,7 +168,7 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
         {/* Selling Price */}
         <div>
           <label htmlFor="sellingPrice" className="block text-sm font-medium text-gray-700 mb-2">
-            Selling Price ($) *
+            Selling Price *
           </label>
           <input
             type="number"
@@ -183,25 +181,6 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
             step="0.01"
             className="input-field"
             placeholder="Enter selling price"
-          />
-        </div>
-
-        {/* Discount Percentage */}
-        <div>
-          <label htmlFor="discountPercentage" className="block text-sm font-medium text-gray-700 mb-2">
-            Discount Percentage (%)
-          </label>
-          <input
-            type="number"
-            id="discountPercentage"
-            name="discountPercentage"
-            value={formData.discountPercentage}
-            onChange={handleChange}
-            min="0"
-            max="100"
-            step="0.01"
-            className="input-field"
-            placeholder="Enter discount percentage"
           />
         </div>
 

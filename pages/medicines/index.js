@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import Link from 'next/link';
 import { apiRequest } from '../../lib/auth';
+import { formatCurrency } from '../../lib/currency';
 
 export default function Medicines() {
   const [medicines, setMedicines] = useState([]);
@@ -112,7 +113,6 @@ export default function Medicines() {
                     <th className="table-header">Quantity</th>
                     <th className="table-header">Purchase Price</th>
                     <th className="table-header">Selling Price</th>
-                    <th className="table-header">Discount %</th>
                     <th className="table-header">Expiry Date</th>
                     <th className="table-header">Actions</th>
                   </tr>
@@ -133,17 +133,8 @@ export default function Medicines() {
                           {medicine.quantity}
                         </span>
                       </td>
-                      <td className="table-cell">${medicine.purchasePrice}</td>
-                      <td className="table-cell">${medicine.sellingPrice}</td>
-                      <td className="table-cell">
-                        {medicine.discountPercentage > 0 ? (
-                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                            {medicine.discountPercentage}%
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
+                      <td className="table-cell">{formatCurrency(medicine.purchasePrice)}</td>
+                      <td className="table-cell">{formatCurrency(medicine.sellingPrice)}</td>
                       <td className="table-cell">
                         {new Date(medicine.expiryDate).toLocaleDateString()}
                       </td>

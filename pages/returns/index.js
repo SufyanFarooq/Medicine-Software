@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import Link from 'next/link';
 import { apiRequest } from '../../lib/auth';
+import { formatCurrency } from '../../lib/currency';
 
 export default function Returns() {
   const [returns, setReturns] = useState([]);
@@ -92,9 +93,9 @@ export default function Returns() {
                 <span className="text-2xl text-white">💰</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Total Return Value</p>
+                <p className="text-sm font-medium text-gray-500">Total Returns Value</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  ${returns.reduce((sum, returnItem) => sum + (returnItem.returnValue || 0), 0).toFixed(2)}
+                  {formatCurrency(returns.reduce((sum, returnItem) => sum + (returnItem.returnValue || 0), 0))}
                 </p>
               </div>
             </div>
@@ -135,7 +136,7 @@ export default function Returns() {
                         </div>
                       </td>
                       <td className="table-cell">{returnItem.quantity}</td>
-                      <td className="table-cell font-medium">${returnItem.returnValue?.toFixed(2) || '0.00'}</td>
+                      <td className="table-cell font-medium">{formatCurrency(returnItem.returnValue || 0)}</td>
                       <td className="table-cell">
                         <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
                           {returnItem.reason}

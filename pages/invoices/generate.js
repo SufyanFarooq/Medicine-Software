@@ -5,10 +5,12 @@ import { apiRequest } from '../../lib/auth';
 
 export default function GenerateInvoice() {
   const [medicines, setMedicines] = useState([]);
+  const [settings, setSettings] = useState({ discountPercentage: 3 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchMedicines();
+    fetchSettings();
   }, []);
 
   const fetchMedicines = async () => {
@@ -22,6 +24,24 @@ export default function GenerateInvoice() {
       console.error('Error fetching medicines:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSettings = async () => {
+    try {
+      const response = await apiRequest('/api/settings');
+      if (response.ok) {
+        const data = await response.json();
+        setSettings(data);
+      } else {
+        console.error('Failed to fetch settings:', response.statusText);
+        // Use default settings if API fails
+        setSettings({ discountPercentage: 3 });
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+      // Use default settings if API fails
+      setSettings({ discountPercentage: 3 });
     }
   };
 
@@ -43,7 +63,11 @@ export default function GenerateInvoice() {
 
   return (
     <Layout>
-      <InvoiceTable medicines={medicines} onInvoiceGenerated={handleInvoiceGenerated} />
+      <InvoiceTable 
+        medicines={medicines} 
+        settings={settings}
+        onInvoiceGenerated={handleInvoiceGenerated} 
+      />
     </Layout>
   );
 } 

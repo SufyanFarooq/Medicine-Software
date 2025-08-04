@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import { apiRequest } from '../../lib/auth';
+import { formatCurrency } from '../../lib/currency';
 
 export default function MedicineDetail() {
   const router = useRouter();
@@ -118,11 +119,11 @@ export default function MedicineDetail() {
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Purchase Price</dt>
-                  <dd className="mt-1 text-sm text-gray-900">${medicine.purchasePrice}</dd>
+                  <dd className="mt-1 text-sm text-gray-900">${formatCurrency(medicine.purchasePrice)}</dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Selling Price</dt>
-                  <dd className="mt-1 text-sm text-gray-900">${medicine.sellingPrice}</dd>
+                  <dd className="mt-1 text-sm text-gray-900">${formatCurrency(medicine.sellingPrice)}</dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Expiry Date</dt>

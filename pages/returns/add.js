@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import SearchBar from '../../components/SearchBar';
 import { apiRequest } from '../../lib/auth';
+import { formatCurrency } from '../../lib/currency';
 
 export default function AddReturn() {
   const [medicines, setMedicines] = useState([]);
@@ -329,7 +330,7 @@ export default function AddReturn() {
                         Date: {new Date(invoice.date).toLocaleDateString()}
                       </div>
                       <div className="text-sm text-gray-500">
-                        Items: {invoice.items.length} | Total: ${invoice.total.toFixed(2)}
+                        Items: {invoice.items.length} | Total: {formatCurrency(invoice.total)}
                       </div>
                       <div className="text-xs text-gray-400 mt-1">
                         {invoice.items.map(item => item.name).join(', ')}
@@ -352,7 +353,7 @@ export default function AddReturn() {
                     >
                       <div className="font-medium text-gray-900">{medicine.name}</div>
                       <div className="text-sm text-gray-500">
-                        Code: {medicine.code} | Stock: {medicine.quantity} | Price: ${medicine.sellingPrice}
+                        Code: {medicine.code} | Stock: {medicine.quantity} | Price: {formatCurrency(medicine.sellingPrice)}
                       </div>
                     </div>
                   ))
@@ -372,7 +373,7 @@ export default function AddReturn() {
                   #{selectedInvoice.invoiceNumber} - {new Date(selectedInvoice.date).toLocaleDateString()}
                 </div>
                 <div className="text-sm text-blue-700 mt-1">
-                  Total Items: {selectedInvoice.items.length} | Total: ${selectedInvoice.total.toFixed(2)}
+                  Total Items: {selectedInvoice.items.length} | Total: {formatCurrency(selectedInvoice.total)}
                 </div>
               </div>
             ) : selectedMedicine ? (
@@ -406,7 +407,7 @@ export default function AddReturn() {
                           <div className="flex-1">
                             <div className="font-medium text-gray-900">{item.name}</div>
                             <div className="text-sm text-gray-500">
-                              Code: {item.code} | Purchased: {item.quantity} | Price: ${item.price}
+                              Code: {item.code} | Purchased: {item.quantity} | Price: {formatCurrency(item.price)}
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">

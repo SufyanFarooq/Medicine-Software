@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
 import Link from 'next/link';
 import { apiRequest } from '../lib/auth';
+import { formatCurrency } from '../lib/currency';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -166,7 +167,7 @@ export default function Dashboard() {
             id: invoice._id,
             type: 'invoice',
             title: `Invoice ${invoice.invoiceNumber} generated`,
-            description: `${invoice.items.length} item(s) - ${settings.currency}${invoice.total.toFixed(2)}`,
+            description: `${invoice.items.length} item(s) - ${formatCurrency(invoice.total)}`,
             date: new Date(invoice.createdAt),
             icon: '🧾',
             color: 'text-green-600',
@@ -187,7 +188,7 @@ export default function Dashboard() {
             id: returnItem._id,
             type: 'return',
             title: `Return ${returnItem.returnNumber} processed`,
-            description: `${returnItem.medicineName} - ${returnItem.quantity} qty - ${settings.currency}${returnItem.returnValue.toFixed(2)}`,
+            description: `${returnItem.medicineName} - ${returnItem.quantity} qty - ${formatCurrency(returnItem.returnValue)}`,
             date: new Date(returnItem.createdAt),
             icon: '🔄',
             color: 'text-orange-600',
@@ -208,7 +209,7 @@ export default function Dashboard() {
             id: medicine._id,
             type: 'medicine',
             title: `${medicine.name} updated`,
-            description: `Stock: ${medicine.quantity} | Price: ${settings.currency}${medicine.sellingPrice}`,
+            description: `Stock: ${medicine.quantity} | Price: ${formatCurrency(medicine.sellingPrice)}`,
             date: new Date(medicine.updatedAt || medicine.createdAt),
             icon: '💊',
             color: 'text-blue-600',
@@ -443,38 +444,38 @@ export default function Dashboard() {
     },
     {
       title: 'Inventory Value',
-      value: `${settings.currency}${stats.inventoryValue.toFixed(2)}`,
+      value: `${formatCurrency(stats.inventoryValue)}`,
       icon: '📦',
-      color: 'bg-purple-500',
-      href: '/medicines',
+      color: 'bg-blue-500',
+      href: '/medicines'
     },
     {
-      title: 'Total Purchase Price',
-      value: `${settings.currency}${stats.totalPurchasePrice?.toFixed(2) || '0.00'}`,
+      title: 'Total Cost',
+      value: `${formatCurrency(stats.totalPurchasePrice || 0)}`,
       icon: '🛒',
-      color: 'bg-indigo-500',
-      href: '/medicines',
+      color: 'bg-orange-500',
+      href: '/medicines'
     },
     {
-      title: 'Total Selling Price',
-      value: `${settings.currency}${stats.totalSellingPrice?.toFixed(2) || '0.00'}`,
+      title: 'Total Sales Value',
+      value: `${formatCurrency(stats.totalSellingPrice || 0)}`,
       icon: '💵',
-      color: 'bg-teal-500',
-      href: '/invoices',
+      color: 'bg-green-500',
+      href: '/invoices'
     },
     {
-      title: 'Gross Sales',
-      value: `${settings.currency}${stats.totalSales.toFixed(2)}`,
+      title: 'Total Sales',
+      value: `${formatCurrency(stats.totalSales)}`,
       icon: '💰',
       color: 'bg-green-500',
-      href: '/invoices/generate',
+      href: '/invoices'
     },
     {
       title: 'Gross Profit',
-      value: `${settings.currency}${stats.grossProfit.toFixed(2)}`,
+      value: `${formatCurrency(stats.grossProfit)}`,
       icon: '📈',
-      color: 'bg-emerald-500',
-      href: '/invoices',
+      color: 'bg-green-500',
+      href: '/invoices'
     },
   ];
 
