@@ -71,12 +71,12 @@ export default function MedicineDetail() {
               View and edit medicine information
             </p>
           </div>
-          <button
-            onClick={() => router.push('/medicines')}
-            className="btn-secondary"
-          >
-            Back to Medicines
-          </button>
+                      <button
+              onClick={() => router.push('/medicines')}
+              className="btn-secondary"
+            >
+              ⬅️ Back to Medicines
+            </button>
         </div>
 
         {/* Medicine Details */}
@@ -141,13 +141,13 @@ export default function MedicineDetail() {
               onClick={() => router.push(`/medicines/${id}/edit`)}
               className="btn-primary"
             >
-              Edit Medicine
+              ✏️ Edit Medicine
             </button>
             <button
               onClick={() => router.push('/medicines')}
               className="btn-secondary"
             >
-              Back to List
+              📋 Back to List
             </button>
           </div>
         </div>

@@ -53,7 +53,7 @@ export default function EditMedicine() {
             onClick={() => router.push('/medicines')}
             className="btn-primary"
           >
-            Back to Medicines
+            ⬅️ Back to Medicines
           </button>
         </div>
       </Layout>
@@ -75,7 +75,7 @@ export default function EditMedicine() {
             onClick={() => router.push(`/medicines/${id}`)}
             className="btn-secondary"
           >
-            Back to Details
+            ⬅️ Back to Details
           </button>
         </div>
 

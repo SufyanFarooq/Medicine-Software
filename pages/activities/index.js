@@ -205,7 +205,7 @@ export default function Activities() {
               onClick={clearFilters}
               className="btn-secondary"
             >
-              Clear Filters
+              🔄 Clear Filters
             </button>
           </div>
         </div>

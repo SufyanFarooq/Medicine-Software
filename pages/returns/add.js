@@ -530,14 +530,14 @@ export default function AddReturn() {
                   className="btn-secondary"
                   disabled={loading}
                 >
-                  Cancel
+                  ❌ Cancel
                 </button>
                 <button
                   type="submit"
                   className="btn-primary"
                   disabled={loading || (!selectedMedicine && !selectedInvoice)}
                 >
-                  {loading ? 'Submitting...' : 'Submit Return'}
+                  {loading ? '⏳ Submitting...' : '↩️ Submit Return'}
                 </button>
               </div>
             </form>

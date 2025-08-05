@@ -75,7 +75,7 @@ export default function Medicines() {
             </p>
           </div>
           <Link href="/medicines/add" className="btn-primary">
-            Add Medicine
+            💊 Add Medicine
           </Link>
         </div>
 
@@ -139,18 +139,27 @@ export default function Medicines() {
                         {new Date(medicine.expiryDate).toLocaleDateString()}
                       </td>
                       <td className="table-cell">
-                        <div className="flex space-x-2">
+                        <div className="flex space-x-3">
                           <Link
                             href={`/medicines/${medicine._id}`}
-                            className="text-blue-600 hover:text-blue-900 text-sm font-medium"
+                            className="text-blue-600 hover:text-blue-900 text-lg cursor-pointer transition-colors duration-200"
+                            title="View Details"
                           >
-                            Edit
+                            👁️
+                          </Link>
+                          <Link
+                            href={`/medicines/${medicine._id}/edit`}
+                            className="text-green-600 hover:text-green-900 text-lg cursor-pointer transition-colors duration-200"
+                            title="Edit Medicine"
+                          >
+                            ✏️
                           </Link>
                           <button
                             onClick={() => handleDelete(medicine._id)}
-                            className="text-red-600 hover:text-red-900 text-sm font-medium"
+                            className="text-red-600 hover:text-red-900 text-lg cursor-pointer transition-colors duration-200"
+                            title="Delete Medicine"
                           >
-                            Delete
+                            🗑️
                           </button>
                         </div>
                       </td>

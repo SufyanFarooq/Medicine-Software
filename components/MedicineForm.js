@@ -200,13 +200,13 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
               placeholder="Enter or generate code"
             />
             {!isEditing && (
-              <button
-                type="button"
-                onClick={generateCode}
-                className="btn-secondary whitespace-nowrap"
-              >
-                Generate
-              </button>
+                          <button
+              type="button"
+              onClick={generateCode}
+              className="btn-secondary whitespace-nowrap"
+            >
+              🔄 Generate
+            </button>
             )}
           </div>
           {validationErrors.code && (
@@ -311,14 +311,14 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
           className="btn-secondary"
           disabled={loading}
         >
-          Cancel
+          ❌ Cancel
         </button>
         <button
           type="submit"
           className="btn-primary"
           disabled={loading}
         >
-          {loading ? 'Saving...' : (isEditing ? 'Update Medicine' : 'Add Medicine')}
+          {loading ? '⏳ Saving...' : (isEditing ? '✏️ Update Medicine' : '💊 Add Medicine')}
         </button>
       </div>
     </form>

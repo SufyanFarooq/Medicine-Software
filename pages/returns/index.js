@@ -3,12 +3,17 @@ import Layout from '../../components/Layout';
 import Link from 'next/link';
 import { apiRequest } from '../../lib/auth';
 import { formatCurrency } from '../../lib/currency';
+import { getUser } from '../../lib/auth';
+import { canPerformAction } from '../../lib/permissions';
 
 export default function Returns() {
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
+    const user = getUser();
+    setCurrentUser(user);
     fetchReturns();
   }, []);
 
@@ -69,7 +74,7 @@ export default function Returns() {
             </p>
           </div>
           <Link href="/returns/add" className="btn-primary">
-            Add Return
+            ↩️ Add Return
           </Link>
         </div>
 
@@ -146,12 +151,17 @@ export default function Returns() {
                         {new Date(returnItem.date).toLocaleDateString()}
                       </td>
                       <td className="table-cell">
-                        <button
-                          onClick={() => handleDelete(returnItem._id)}
-                          className="text-red-600 hover:text-red-900 text-sm font-medium"
-                        >
-                          Delete
-                        </button>
+                        <div className="flex space-x-3">
+                          {canPerformAction(currentUser?.role, 'delete_return') && (
+                            <button
+                              onClick={() => handleDelete(returnItem._id)}
+                              className="text-red-600 hover:text-red-900 text-lg cursor-pointer transition-colors duration-200"
+                              title="Delete Return"
+                            >
+                              🗑️
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -16,6 +16,7 @@ export default function Settings() {
   });
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
   const [newUser, setNewUser] = useState({
     username: '',
     password: '',
@@ -188,6 +189,55 @@ export default function Settings() {
     }
   };
 
+  const handleEditUser = (user) => {
+    setEditingUser({
+      _id: user._id,
+      username: user.username,
+      password: '',
+      role: user.role
+    });
+  };
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    if (!hasPermission(currentUser?.role, 'canUpdateUsers')) {
+      setMessage('Access denied. You do not have permission to update users.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const updateData = {
+        username: editingUser.username,
+        role: editingUser.role
+      };
+      
+      // Only include password if it's not empty
+      if (editingUser.password.trim() !== '') {
+        updateData.password = editingUser.password;
+      }
+
+      const response = await apiRequest(`/api/users/${editingUser._id}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData),
+      });
+
+      if (response.ok) {
+        setMessage('User updated successfully!');
+        setEditingUser(null);
+        fetchUsers();
+        setTimeout(() => setMessage(''), 3000);
+      } else {
+        const errorData = await response.json();
+        setMessage(errorData.message || 'Failed to update user');
+      }
+    } catch (error) {
+      setMessage('Error updating user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -295,13 +345,13 @@ export default function Settings() {
               </div>
 
               <div className="flex justify-end">
-                <button
-                  onClick={handleSettingsSave}
-                  disabled={loading}
-                  className="btn-primary"
-                >
-                  {loading ? 'Saving...' : 'Save Company Info'}
-                </button>
+                                  <button
+                    onClick={handleSettingsSave}
+                    disabled={loading}
+                    className="btn-primary"
+                  >
+                    {loading ? '⏳ Saving...' : '💾 Save Company Info'}
+                  </button>
               </div>
             </div>
           </div>
@@ -365,7 +415,7 @@ export default function Settings() {
                     disabled={loading}
                     className="btn-primary"
                   >
-                    {loading ? 'Saving...' : 'Save System Settings'}
+                    {loading ? '⏳ Saving...' : '⚙️ Save System Settings'}
                   </button>
                 </div>
               </div>
@@ -392,7 +442,7 @@ export default function Settings() {
                 onClick={() => setShowAddUser(!showAddUser)}
                 className="btn-primary"
               >
-                {showAddUser ? 'Cancel' : 'Add User'}
+                {showAddUser ? '❌ Cancel' : '👤 Add User'}
               </button>
             </div>
 
@@ -454,7 +504,79 @@ export default function Settings() {
                       disabled={loading}
                       className="btn-primary"
                     >
-                      {loading ? 'Adding...' : 'Add User'}
+                      {loading ? '⏳ Adding...' : '👤 Add User'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Edit User Form */}
+            {editingUser && (
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-md font-medium text-gray-900">Edit User: {editingUser.username}</h4>
+                  <button
+                    onClick={() => setEditingUser(null)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ❌ Cancel
+                  </button>
+                </div>
+                <form onSubmit={handleUpdateUser} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label htmlFor="edit-username" className="block text-sm font-medium text-gray-700 mb-2">
+                        Username
+                      </label>
+                      <input
+                        type="text"
+                        id="edit-username"
+                        required
+                        value={editingUser.username}
+                        onChange={(e) => setEditingUser(prev => ({ ...prev, username: e.target.value }))}
+                        className="input-field"
+                        placeholder="Enter username"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="edit-password" className="block text-sm font-medium text-gray-700 mb-2">
+                        Password (leave blank to keep current)
+                      </label>
+                      <input
+                        type="password"
+                        id="edit-password"
+                        value={editingUser.password}
+                        onChange={(e) => setEditingUser(prev => ({ ...prev, password: e.target.value }))}
+                        className="input-field"
+                        placeholder="Enter new password (optional)"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="edit-role" className="block text-sm font-medium text-gray-700 mb-2">
+                        Role
+                      </label>
+                      <select
+                        id="edit-role"
+                        value={editingUser.role}
+                        onChange={(e) => setEditingUser(prev => ({ ...prev, role: e.target.value }))}
+                        className="input-field"
+                      >
+                        {roles.map((role) => (
+                          <option key={role.value} value={role.value}>
+                            {role.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="btn-primary"
+                    >
+                      {loading ? '⏳ Updating...' : '💾 Update User'}
                     </button>
                   </div>
                 </form>
@@ -491,13 +613,24 @@ export default function Settings() {
                         {new Date(user.createdAt).toLocaleDateString()}
                       </td>
                       <td className="table-cell">
-                        <button
-                          onClick={() => handleDeleteUser(user._id)}
-                          disabled={user.role === 'super_admin' || user._id === currentUser?._id}
-                          className="text-red-600 hover:text-red-900 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Delete
-                        </button>
+                        <div className="flex space-x-3">
+                          <button
+                            onClick={() => handleEditUser(user)}
+                            disabled={!hasPermission(currentUser?.role, 'canUpdateUsers')}
+                            className="text-blue-600 hover:text-blue-900 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center cursor-pointer"
+                            title="Edit User"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDeleteUser(user._id)}
+                            disabled={user.role === 'super_admin' || user._id === currentUser?._id}
+                            className="text-red-600 hover:text-red-900 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center cursor-pointer"
+                            title="Delete User"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

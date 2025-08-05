@@ -82,10 +82,35 @@ export default async function handler(req, res) {
         break;
 
       case 'DELETE':
+        // Get medicine details before deletion for activity logging
+        const medicineToDelete = await medicinesCollection.findOne({ _id: new ObjectId(id) });
+        if (!medicineToDelete) {
+          return res.status(404).json({ message: 'Medicine not found' });
+        }
+
         const deleteResult = await medicinesCollection.deleteOne({ _id: new ObjectId(id) });
         
         if (deleteResult.deletedCount === 0) {
           return res.status(404).json({ message: 'Medicine not found' });
+        }
+
+        // Log activity
+        try {
+          const activitiesCollection = await getCollection('activities');
+          await activitiesCollection.insertOne({
+            userId: user.userId,
+            username: user.username,
+            action: 'MEDICINE_DELETED',
+            details: `Deleted medicine: ${medicineToDelete.name} (${medicineToDelete.code})`,
+            entityType: 'medicine',
+            entityId: medicineToDelete.code,
+            createdAt: new Date(),
+            ipAddress: req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown',
+            userAgent: req.headers['user-agent'] || 'unknown'
+          });
+        } catch (activityError) {
+          console.error('Failed to log activity:', activityError);
+          // Don't fail the main operation if activity logging fails
         }
 
         res.status(200).json({ message: 'Medicine deleted successfully' });

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { apiRequest } from '../lib/auth';
 import { formatCurrency } from '../lib/currency';
 import { logInvoiceActivity } from '../lib/activity-logger';
+import { getUser } from '../lib/auth';
 
 export default function InvoiceTable({ medicines, settings = { discountPercentage: 3 }, onInvoiceGenerated }) {
   const [selectedMedicines, setSelectedMedicines] = useState([]);
@@ -515,6 +516,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     const shopName = settings.shopName || "Medical Shop";
     const shopAddress = settings.address || "Your Shop Address";
     const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
+    const currentUser = getUser();
 
     // Create print content for thermal printer (80mm width)
     const printContent = `
@@ -670,7 +672,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
             </div>
             <div style="display: flex; justify-content: space-between;">
               <span>Time: ${currentDate.toLocaleTimeString()}</span>
-              <span>Cashier: Manager</span>
+              <span>Cashier: ${currentUser?.username || 'Unknown'}</span>
             </div>
           </div>
 
@@ -1002,7 +1004,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                   disabled={loading || selectedMedicines.length === 0}
                   className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? 'Generating...' : 'Generate Invoice'}
+                  {loading ? '⏳ Generating...' : '🧾 Generate Invoice'}
                 </button>
                 <button
                   onClick={saveCurrentInvoiceToQueue}
@@ -1016,7 +1018,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                   disabled={selectedMedicines.length === 0 || loading}
                   className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? 'Saving & Printing...' : 'Save & Print Invoice'}
+                  {loading ? '⏳ Saving & Printing...' : '💾 Save & Print Invoice'}
                 </button>
               </div>
             </div>
