@@ -134,7 +134,7 @@ export default function Layout({ children }) {
             </div>
           </div>
 
-          <nav className="flex-1 space-y-2 px-3 py-4">
+          <nav className="flex-1 space-y-2 px-3 py-4 overflow-y-auto">
             {navigation.map((item) => (
               <Link
                 key={item.name}
@@ -152,8 +152,8 @@ export default function Layout({ children }) {
             ))}
           </nav>
 
-          {/* Bottom Navigation */}
-          <div className="border-t border-blue-200 px-3 py-4 bg-gradient-to-r from-gray-50 to-blue-50">
+          {/* Bottom Navigation - Fixed at bottom */}
+          <div className="border-t border-blue-200 px-3 py-4 bg-gradient-to-r from-gray-50 to-blue-50 mt-auto">
             {bottomNavigation.map((item) => (
               item.action === 'logout' ? (
                 <button
@@ -190,7 +190,7 @@ export default function Layout({ children }) {
 
       {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex flex-col flex-grow bg-gradient-to-b from-blue-50 to-white border-r border-blue-200 shadow-xl">
+        <div className="flex flex-col h-full bg-gradient-to-b from-blue-50 to-white border-r border-blue-200 shadow-xl">
           <div className="flex h-16 items-center px-4 bg-gradient-to-r from-blue-600 to-blue-700">
             <h1 className="text-xl font-bold text-white">🏥 Medical Shop</h1>
           </div>
@@ -212,7 +212,7 @@ export default function Layout({ children }) {
             </div>
           </div>
 
-          <nav className="flex-1 space-y-2 px-3 py-4">
+          <nav className="flex-1 space-y-2 px-3 py-4 overflow-y-auto">
             {navigation.map((item) => (
               <Link
                 key={item.name}
@@ -229,8 +229,8 @@ export default function Layout({ children }) {
             ))}
           </nav>
 
-          {/* Bottom Navigation */}
-          <div className="border-t border-blue-200 px-3 py-4 bg-gradient-to-r from-gray-50 to-blue-50">
+          {/* Bottom Navigation - Fixed at bottom */}
+          <div className="border-t border-blue-200 px-3 py-4 bg-gradient-to-r from-gray-50 to-blue-50 mt-auto">
             {bottomNavigation.map((item) => (
               item.action === 'logout' ? (
                 <button
