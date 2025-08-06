@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { setAuth, isAuthenticated } from '../lib/auth';
 import { logUserActivity } from '../lib/activity-logger';
+import { apiRequest } from '../lib/auth';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -10,6 +11,7 @@ export default function Login() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [shopName, setShopName] = useState('Medical Shop');
   const router = useRouter();
 
   useEffect(() => {
@@ -17,7 +19,22 @@ export default function Login() {
     if (isAuthenticated()) {
       router.push('/');
     }
+    
+    // Fetch shop name from settings
+    fetchShopName();
   }, [router]);
+
+  const fetchShopName = async () => {
+    try {
+      const response = await apiRequest('/api/settings');
+      if (response.ok) {
+        const data = await response.json();
+        setShopName(data.shopName || 'Medical Shop');
+      }
+    } catch (error) {
+      console.error('Error fetching shop name:', error);
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -64,7 +81,7 @@ export default function Login() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900">Medical Shop</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{shopName}</h1>
           <h2 className="mt-6 text-2xl font-bold text-gray-900">Sign in to your account</h2>
         </div>
       </div>

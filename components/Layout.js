@@ -13,6 +13,7 @@ export default function Layout({ children }) {
   const [currentDate, setCurrentDate] = useState('');
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [shopName, setShopName] = useState('Medical Shop');
 
   const isActive = (href) => router.pathname === href;
 
@@ -54,6 +55,8 @@ export default function Layout({ children }) {
         const data = await response.json();
         // Set global currency symbol
         setCurrency(data.currency);
+        // Set shop name from settings or use default
+        setShopName(data.shopName || 'Medical Shop');
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -108,7 +111,7 @@ export default function Layout({ children }) {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-gradient-to-b from-blue-50 to-white shadow-2xl">
           <div className="flex h-16 items-center justify-between px-4 bg-gradient-to-r from-blue-600 to-blue-700">
-            <h1 className="text-xl font-bold text-white">🏥 Medical Shop</h1>
+            <h1 className="text-xl font-bold text-white">{shopName}</h1>
             <button
               onClick={() => setSidebarOpen(false)}
               className="text-white hover:text-blue-200 cursor-pointer transition-colors duration-200"
@@ -192,7 +195,7 @@ export default function Layout({ children }) {
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-col h-full bg-gradient-to-b from-blue-50 to-white border-r border-blue-200 shadow-xl">
           <div className="flex h-16 items-center px-4 bg-gradient-to-r from-blue-600 to-blue-700">
-            <h1 className="text-xl font-bold text-white">🏥 Medical Shop</h1>
+            <h1 className="text-xl font-bold text-white">{shopName}</h1>
           </div>
           
           {/* User Info */}

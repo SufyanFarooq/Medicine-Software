@@ -9,6 +9,7 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
     name: '',
     code: '',
     quantity: '',
+    totalBuyingPrice: '',
     purchasePrice: '',
     sellingPrice: '',
     expiryDate: '',
@@ -25,13 +26,14 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
         name: medicine.name || '',
         code: medicine.code || '',
         quantity: medicine.quantity || '',
+        totalBuyingPrice: medicine.totalBuyingPrice || '',
         purchasePrice: medicine.purchasePrice || '',
         sellingPrice: medicine.sellingPrice || '',
         expiryDate: medicine.expiryDate ? new Date(medicine.expiryDate).toISOString().split('T')[0] : '',
         batchNo: medicine.batchNo || '',
       });
     }
-    
+
     // Fetch existing medicines for validation (only for new medicines)
     if (!isEditing) {
       fetchExistingMedicines();
@@ -72,6 +74,39 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
     if (name === 'code' && value.trim()) {
       validateCode(value);
     }
+
+    // Auto-calculate purchase price when quantity or total buying price changes
+    if (name === 'quantity' || name === 'totalBuyingPrice') {
+      calculatePurchasePrice(name, value);
+    }
+
+    // Validate selling price when it changes
+    if (name === 'sellingPrice' && value.trim()) {
+      validateSellingPrice(value);
+    }
+  };
+
+    const calculatePurchasePrice = (changedField, value) => {
+    const quantity = changedField === 'quantity' ? parseFloat(value) || 0 : parseFloat(formData.quantity) || 0;
+    const totalBuyingPrice = changedField === 'totalBuyingPrice' ? parseFloat(value) || 0 : parseFloat(formData.totalBuyingPrice) || 0;
+    
+    if (quantity > 0 && totalBuyingPrice > 0) {
+      const purchasePrice = (totalBuyingPrice / quantity).toFixed(2);
+      setFormData(prev => ({
+        ...prev,
+        purchasePrice: purchasePrice
+      }));
+      
+      // Re-validate selling price when purchase price changes
+      if (formData.sellingPrice) {
+        validateSellingPrice(formData.sellingPrice);
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        purchasePrice: ''
+      }));
+    }
   };
 
   const validateName = (name) => {
@@ -102,6 +137,24 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
     }
   };
 
+  const validateSellingPrice = (sellingPrice) => {
+    const purchasePrice = parseFloat(formData.purchasePrice) || 0;
+    const sellingPriceValue = parseFloat(sellingPrice) || 0;
+    
+    if (sellingPriceValue < purchasePrice) {
+      setValidationErrors(prev => ({
+        ...prev,
+        sellingPrice: `Selling price cannot be less than purchase price (${purchasePrice})`
+      }));
+    } else {
+      // Clear validation error if selling price is valid
+      setValidationErrors(prev => ({
+        ...prev,
+        sellingPrice: ''
+      }));
+    }
+  };
+
   const generateCode = () => {
     const timestamp = Date.now().toString().slice(-6);
     const random = Math.random().toString(36).substring(2, 5).toUpperCase();
@@ -111,7 +164,7 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Check for validation errors
     if (Object.keys(validationErrors).some(key => validationErrors[key])) {
       setError('Please fix the validation errors before submitting');
@@ -125,9 +178,15 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
       const url = isEditing ? `/api/medicines/${medicine._id}` : '/api/medicines';
       const method = isEditing ? 'PUT' : 'POST';
 
+      // Ensure purchase price is calculated before submission
+      const submissionData = {
+        ...formData,
+        purchasePrice: formData.purchasePrice || '0'
+      };
+
       const response = await apiRequest(url, {
         method,
-        body: JSON.stringify(formData),
+        body: JSON.stringify(submissionData),
       });
 
       if (response.ok) {
@@ -137,7 +196,7 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
         } else {
           logMedicineActivity.added(formData.name, formData.code);
         }
-        
+
         router.push('/medicines');
       } else {
         const data = await response.json();
@@ -200,13 +259,13 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
               placeholder="Enter or generate code"
             />
             {!isEditing && (
-                          <button
-              type="button"
-              onClick={generateCode}
-              className="btn-secondary whitespace-nowrap"
-            >
-              🔄 Generate
-            </button>
+              <button
+                type="button"
+                onClick={generateCode}
+                className="btn-secondary whitespace-nowrap"
+              >
+                🔄 Generate
+              </button>
             )}
           </div>
           {validationErrors.code && (
@@ -232,22 +291,38 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
           />
         </div>
 
-        {/* Purchase Price */}
+        {/* Total Buying Price */}
+        <div>
+          <label htmlFor="totalBuyingPrice" className="block text-sm font-medium text-gray-700 mb-2">
+            Total Buying Price *
+          </label>
+          <input
+            type="number"
+            id="totalBuyingPrice"
+            name="totalBuyingPrice"
+            value={formData.totalBuyingPrice}
+            onChange={handleChange}
+            required
+            min="0"
+            step="0.01"
+            className="input-field"
+            placeholder="Enter total buying price"
+          />
+        </div>
+
+        {/* Calculated Purchase Price (Read-only) */}
         <div>
           <label htmlFor="purchasePrice" className="block text-sm font-medium text-gray-700 mb-2">
-            Purchase Price *
+            Purchase Price (per unit) *
           </label>
           <input
             type="number"
             id="purchasePrice"
             name="purchasePrice"
             value={formData.purchasePrice}
-            onChange={handleChange}
-            required
-            min="0"
-            step="0.01"
-            className="input-field"
-            placeholder="Enter purchase price"
+            readOnly
+            className="input-field bg-gray-50 cursor-not-allowed"
+            placeholder="Auto-calculated"
           />
         </div>
 
@@ -265,9 +340,12 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
             required
             min="0"
             step="0.01"
-            className="input-field"
+            className={`input-field ${validationErrors.sellingPrice ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''}`}
             placeholder="Enter selling price"
           />
+          {validationErrors.sellingPrice && (
+            <p className="mt-1 text-sm text-red-600">{validationErrors.sellingPrice}</p>
+          )}
         </div>
 
         {/* Expiry Date */}
@@ -287,7 +365,7 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
         </div>
 
         {/* Batch Number */}
-        <div className="sm:col-span-2">
+        <div >
           <label htmlFor="batchNo" className="block text-sm font-medium text-gray-700 mb-2">
             Batch Number
           </label>
