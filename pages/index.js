@@ -32,6 +32,12 @@ export default function Dashboard() {
   });
   const [timePeriod, setTimePeriod] = useState('monthly'); // 'daily', 'weekly', 'monthly'
   const [exportFilter, setExportFilter] = useState('monthly'); // Filter for export data
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportDateRange, setExportDateRange] = useState({
+    fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days ago
+    toDate: new Date().toISOString().split('T')[0] // today
+  });
+  const [customDateEnabled, setCustomDateEnabled] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -436,8 +442,41 @@ export default function Dashboard() {
   };
 
   const handleExportExcel = async () => {
+    // Show the date range modal instead of direct export
+    setShowExportModal(true);
+  };
+
+  const handleExportWithDateRange = async () => {
+    // Check if custom dates are enabled and provided, otherwise use filter
+    const hasCustomDates = customDateEnabled && exportDateRange.fromDate && exportDateRange.toDate;
+    
     try {
-      const response = await apiRequest(`/api/export/sales-data?filter=${exportFilter}`);
+      let response;
+      let filename;
+      let apiUrl;
+      
+      if (hasCustomDates) {
+        // Use custom date range
+        apiUrl = `/api/export/sales-data?fromDate=${exportDateRange.fromDate}&toDate=${exportDateRange.toDate}`;
+        filename = `sales-report-${exportDateRange.fromDate}-to-${exportDateRange.toDate}.xlsx`;
+      } else {
+        // Use selected filter
+        apiUrl = `/api/export/sales-data?filter=${exportFilter}`;
+        const filterLabel = exportFilter === 'all' ? 'all-time' : exportFilter;
+        const currentDate = new Date().toISOString().split('T')[0];
+        filename = `sales-report-${filterLabel}-${currentDate}.xlsx`;
+      }
+      
+      console.log('Exporting with URL:', apiUrl);
+      console.log('Has Custom Dates:', hasCustomDates);
+      console.log('Export Filter:', exportFilter);
+      console.log('Date Range:', exportDateRange);
+      
+      response = await apiRequest(apiUrl);
+      
+      console.log('API Response:', response);
+      console.log('Response Status:', response.status);
+      console.log('Response OK:', response.ok);
       
       if (response.ok) {
         // Create blob from response
@@ -447,11 +486,7 @@ export default function Dashboard() {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        
-        // Generate filename with current date and filter
-        const currentDate = new Date().toISOString().split('T')[0];
-        const filterLabel = exportFilter === 'all' ? 'all-time' : exportFilter;
-        link.download = `sales-report-${filterLabel}-${currentDate}.xlsx`;
+        link.download = filename;
         
         // Trigger download
         document.body.appendChild(link);
@@ -461,7 +496,24 @@ export default function Dashboard() {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
         
-        alert(`Excel file downloaded successfully! (${exportFilter === 'all' ? 'All Time' : `Last ${exportFilter === 'daily' ? '30 Days' : exportFilter === 'weekly' ? '12 Weeks' : '12 Months'}`})`);
+        // Close modal and reset
+        setShowExportModal(false);
+        setExportDateRange({
+          fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          toDate: new Date().toISOString().split('T')[0]
+        });
+        setExportFilter('monthly');
+        setCustomDateEnabled(false);
+        
+        // Show success message
+        if (hasCustomDates) {
+          alert(`Excel file downloaded successfully! (${exportDateRange.fromDate} to ${exportDateRange.toDate})`);
+        } else {
+          const filterText = exportFilter === 'all' ? 'All Time' : 
+                           exportFilter === 'daily' ? 'Last 30 Days' : 
+                           exportFilter === 'weekly' ? 'Last 12 Weeks' : 'Last 12 Months';
+          alert(`Excel file downloaded successfully! (${filterText})`);
+        }
       } else {
         throw new Error('Failed to generate Excel file');
       }
@@ -597,25 +649,13 @@ export default function Dashboard() {
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium text-gray-900">Sales & Profit Overview</h3>
             <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-2">
-                <select
-                  value={exportFilter}
-                  onChange={(e) => setExportFilter(e.target.value)}
-                  className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="daily">Last 30 Days</option>
-                  <option value="weekly">Last 12 Weeks</option>
-                  <option value="monthly">Last 12 Months</option>
-                  <option value="all">All Time</option>
-                </select>
-                <button
-                  onClick={handleExportExcel}
-                  className="px-3 py-1 text-sm rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center space-x-1"
-                >
-                  <span>📊</span>
-                  <span>Export Excel</span>
-                </button>
-              </div>
+              <button
+                onClick={handleExportExcel}
+                className="px-3 py-1 text-sm rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center space-x-1"
+              >
+                <span>📊</span>
+                <span>Export Excel</span>
+              </button>
               <div className="flex space-x-2">
                 <button
                   onClick={() => setTimePeriod('daily')}
@@ -836,6 +876,254 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Export Date Range Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Export Sales Report</h3>
+              <button
+                                  onClick={() => {
+                    setShowExportModal(false);
+                    // Reset to default dates when closing
+                    setExportDateRange({
+                      fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                      toDate: new Date().toISOString().split('T')[0]
+                    });
+                    setExportFilter('monthly');
+                    setCustomDateEnabled(false);
+                  }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <span className="text-2xl">×</span>
+              </button>
+            </div>
+            
+            <div className="space-y-6">
+              {/* Export Mode Selection with Toggle Switch */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <h4 className="text-sm font-medium text-gray-900">Export Mode Selection</h4>
+
+                
+                {/* Toggle Switch */}
+                <div className="flex items-center space-x-4">
+                  <button
+                    type="button"
+                    onClick={() => setCustomDateEnabled(!customDateEnabled)}
+                    className={`relative inline-flex h-7 w-14 items-center rounded-full transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                      customDateEnabled ? 'bg-green-500' : 'bg-blue-500'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-all duration-200 ease-in-out ${
+                        customDateEnabled ? 'translate-x-8' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  
+                  <span className={`text-sm font-medium ${customDateEnabled ? 'text-green-600' : 'text-gray-500'}`}>
+                    🎯 Custom Dates
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Filter Options - Disabled when Custom Dates are enabled */}
+              <div className={`transition-all ${customDateEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Quick Filter Options
+                  {customDateEnabled && <span className="text-red-500 ml-2">(Disabled - Custom Dates Active)</span>}
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
+                    exportFilter === 'daily' 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="quickFilter"
+                      value="daily"
+                      checked={exportFilter === 'daily'}
+                      onChange={(e) => setExportFilter(e.target.value)}
+                      className="mr-3 text-blue-600 focus:ring-blue-500"
+                      disabled={customDateEnabled}
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900">Last 30 Days</div>
+                      <div className="text-xs text-gray-500">Daily breakdown</div>
+                    </div>
+                  </label>
+                  
+                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
+                    exportFilter === 'weekly' 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="quickFilter"
+                      value="weekly"
+                      checked={exportFilter === 'weekly'}
+                      onChange={(e) => setExportFilter(e.target.value)}
+                      className="mr-3 text-blue-600 focus:ring-blue-500"
+                      disabled={customDateEnabled}
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900">Last 12 Weeks</div>
+                      <div className="text-xs text-gray-500">Weekly breakdown</div>
+                    </div>
+                  </label>
+                  
+                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
+                    exportFilter === 'monthly' 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="quickFilter"
+                      value="monthly"
+                      checked={exportFilter === 'monthly'}
+                      onChange={(e) => setExportFilter(e.target.value)}
+                      className="mr-3 text-blue-600 focus:ring-blue-500"
+                      disabled={customDateEnabled}
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900">Last 12 Months</div>
+                      <div className="text-xs text-gray-500">Monthly breakdown</div>
+                    </div>
+                  </label>
+                  
+                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
+                    exportFilter === 'all' 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="quickFilter"
+                      value="all"
+                      checked={exportFilter === 'all'}
+                      onChange={(e) => setExportFilter(e.target.value)}
+                      className="mr-3 text-blue-600 focus:ring-blue-500"
+                      disabled={customDateEnabled}
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900">All Time</div>
+                      <div className="text-xs text-gray-500">Complete history</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              
+              {/* Custom Date Range */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Custom Date Range
+                  {!customDateEnabled && <span className="text-gray-500 ml-2">(Click "Quick Filter" above to enable)</span>}
+                </label>
+                
+                {customDateEnabled ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label htmlFor="fromDate" className="block text-xs font-medium text-gray-600 mb-1">
+                          From Date *
+                        </label>
+                        <input
+                          type="date"
+                          id="fromDate"
+                          value={exportDateRange.fromDate}
+                          onChange={(e) => setExportDateRange(prev => ({
+                            ...prev,
+                            fromDate: e.target.value
+                          }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          required
+                        />
+                      </div>
+                      
+                      <div>
+                        <label htmlFor="toDate" className="block text-xs font-medium text-gray-600 mb-1">
+                          To Date *
+                        </label>
+                        <input
+                          type="date"
+                          id="toDate"
+                          value={exportDateRange.toDate}
+                          onChange={(e) => setExportDateRange(prev => ({
+                            ...prev,
+                            toDate: e.target.value
+                          }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-green-600 mt-2">
+                      🎯 <strong>Custom Date Range Active:</strong> Quick Filter options are now disabled
+                    </p>
+                  </>
+                ) : (
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-sm text-gray-600 text-center">
+                      Custom date range is <strong>disabled</strong>. 
+                      <br />
+                      <span className="text-xs text-gray-500">
+                        Click "Enable" to set specific dates, or use quick filter options above
+                      </span>
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Export Status */}
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <span className="text-blue-600">ℹ️</span>
+                  <div className="text-sm">
+                    <span className="font-medium text-blue-800">Export Mode:</span>
+                    <span className="text-blue-600 ml-2">
+                      {customDateEnabled 
+                        ? `Custom Range (${exportDateRange.fromDate} to ${exportDateRange.toDate})`
+                        : `Quick Filter (${exportFilter === 'all' ? 'All Time' : 
+                           exportFilter === 'daily' ? 'Last 30 Days' : 
+                           exportFilter === 'weekly' ? 'Last 12 Weeks' : 'Last 12 Months'})`
+                      }
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowExportModal(false);
+                    // Reset to default dates when canceling
+                    setExportDateRange({
+                      fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                      toDate: new Date().toISOString().split('T')[0]
+                    });
+                    setExportFilter('monthly');
+                    setCustomDateEnabled(false);
+                  }}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExportWithDateRange}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Download Report
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 } 

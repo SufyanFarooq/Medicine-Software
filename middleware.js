@@ -17,19 +17,22 @@ export function middleware(request) {
   // For API routes, check for Authorization header
   if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/')) {
     const authHeader = request.headers.get('authorization');
+    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
-        { message: 'Unauthorized' },
+        { error: 'Unauthorized - Missing or invalid authorization header' },
         { status: 401 }
       );
     }
+    
+    // You can add JWT token validation here if needed
+    // For now, we'll just check if the header exists
   }
   
-  // For page routes, check for authentication cookie or redirect to login
-  if (!pathname.startsWith('/api/')) {
-    // Check if user is authenticated (this will be handled by the Layout component)
-    // The middleware will allow the request to proceed, and the Layout will handle redirect
-    return NextResponse.next();
+  // For page routes, check for authentication cookie/token
+  if (pathname !== '/' && !pathname.startsWith('/login')) {
+    // Add your authentication logic here
+    // For now, we'll allow access to all routes
   }
   
   return NextResponse.next();

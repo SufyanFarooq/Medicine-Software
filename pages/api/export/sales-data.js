@@ -8,37 +8,48 @@ export default async function handler(req, res) {
 
   try {
     const { db } = await connectToDatabase();
-    const { filter = 'monthly' } = req.query;
+    const { filter, fromDate, toDate } = req.query;
     
-    // Calculate date range based on filter
+    // Calculate date range based on filter or custom date range
     let startDate, endDate = new Date();
+    let effectiveFilter = filter; // Track which filter is effectively being used
     
-    switch (filter) {
-      case 'daily':
-        startDate = new Date();
-        startDate.setDate(startDate.getDate() - 30); // Last 30 days
-        break;
-      case 'weekly':
-        startDate = new Date();
-        startDate.setDate(startDate.getDate() - (12 * 7)); // Last 12 weeks
-        break;
-      case 'monthly':
-        startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 12); // Last 12 months
-        break;
-      default: // 'all'
-        startDate = new Date('2020-01-01'); // Very old date to get all data
+    if (fromDate && toDate) {
+      // Use custom date range
+      startDate = new Date(fromDate);
+      endDate = new Date(toDate);
+      // Set end date to end of day
+      endDate.setHours(23, 59, 59, 999);
+      effectiveFilter = 'custom'; // Mark as custom date range
+    } else {
+      // Use filter-based date range
+      switch (filter) {
+        case 'daily':
+          startDate = new Date();
+          startDate.setDate(startDate.getDate() - 30); // Last 30 days
+          break;
+        case 'weekly':
+          startDate = new Date();
+          startDate.setDate(startDate.getDate() - (12 * 7)); // Last 12 weeks
+          break;
+        case 'monthly':
+          startDate = new Date();
+          startDate.setMonth(startDate.getMonth() - 12); // Last 12 months
+          break;
+        default: // 'all'
+          startDate = new Date('2020-01-01'); // Very old date to get all data
+      }
     }
 
     // Build date filter for queries
-    const dateFilter = filter === 'all' ? {} : {
+    const dateFilter = effectiveFilter === 'all' ? {} : {
       date: {
         $gte: startDate,
         $lte: endDate
       }
     };
 
-    const createdAtFilter = filter === 'all' ? {} : {
+    const createdAtFilter = effectiveFilter === 'all' ? {} : {
       createdAt: {
         $gte: startDate,
         $lte: endDate
@@ -52,7 +63,7 @@ export default async function handler(req, res) {
     const activities = await db.collection('activities').find(createdAtFilter).sort({ createdAt: -1 }).toArray();
     
     // Get medicines created within the selected time period
-    const medicinesFilter = filter === 'all' ? {} : {
+    const medicinesFilter = effectiveFilter === 'all' ? {} : {
       createdAt: {
         $gte: startDate,
         $lte: endDate
@@ -61,8 +72,11 @@ export default async function handler(req, res) {
     
     // Debug: Log the filter and date range
     console.log('Export Filter:', filter);
-    console.log('Start Date:', startDate);
-    console.log('End Date:', endDate);
+    console.log('Effective Filter:', effectiveFilter);
+    console.log('From Date:', fromDate);
+    console.log('To Date:', toDate);
+    console.log('Calculated Start Date:', startDate);
+    console.log('Calculated End Date:', endDate);
     console.log('Medicines Filter:', JSON.stringify(medicinesFilter));
     
     const medicines = await db.collection('medicines').find(medicinesFilter).sort({ createdAt: -1 }).toArray();
@@ -106,9 +120,11 @@ export default async function handler(req, res) {
     const workbook = XLSX.utils.book_new();
 
     // Determine report period label
-    const periodLabel = filter === 'all' ? 'All Time' : 
-                       filter === 'daily' ? 'Last 30 Days' :
-                       filter === 'weekly' ? 'Last 12 Weeks' : 'Last 12 Months';
+    const periodLabel = effectiveFilter === 'all' ? 'All Time' : 
+                       effectiveFilter === 'daily' ? 'Last 30 Days' :
+                       effectiveFilter === 'weekly' ? 'Last 12 Weeks' : 
+                       effectiveFilter === 'monthly' ? 'Last 12 Months' :
+                       'Custom Date Range';
 
     // Sheet 1: Basic Stats
     const statsData = [
@@ -278,10 +294,10 @@ export default async function handler(req, res) {
       // Generate all dates in range with zero values
       while (currentDate <= end) {
         let key;
-        if (filter === 'daily') {
+        if (effectiveFilter === 'daily') {
           key = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
           currentDate.setDate(currentDate.getDate() + 1);
-        } else if (filter === 'weekly') {
+        } else if (effectiveFilter === 'weekly') {
           const weekNumber = Math.ceil((currentDate.getDate() + new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay()) / 7);
           key = `${currentDate.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
           currentDate.setDate(currentDate.getDate() + 7);
@@ -307,9 +323,9 @@ export default async function handler(req, res) {
       invoices.forEach(invoice => {
         const date = new Date(invoice.date);
         let key;
-        if (filter === 'daily') {
+        if (effectiveFilter === 'daily') {
           key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        } else if (filter === 'weekly') {
+        } else if (effectiveFilter === 'weekly') {
           const weekNumber = Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7);
           key = `${date.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
         } else {
@@ -333,9 +349,9 @@ export default async function handler(req, res) {
       inventory.filter(item => item.type === 'add').forEach(item => {
         const date = new Date(item.createdAt);
         let key;
-        if (filter === 'daily') {
+        if (effectiveFilter === 'daily') {
           key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        } else if (filter === 'weekly') {
+        } else if (effectiveFilter === 'weekly') {
           const weekNumber = Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7);
           key = `${date.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
         } else {
@@ -352,9 +368,9 @@ export default async function handler(req, res) {
       medicines.forEach(medicine => {
         const date = new Date(medicine.createdAt || medicine.dateAdded || new Date());
         let key;
-        if (filter === 'daily') {
+        if (effectiveFilter === 'daily') {
           key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        } else if (filter === 'weekly') {
+        } else if (effectiveFilter === 'weekly') {
           const weekNumber = Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7);
           key = `${date.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
         } else {
@@ -371,9 +387,9 @@ export default async function handler(req, res) {
       returns.forEach(returnItem => {
         const date = new Date(returnItem.date);
         let key;
-        if (filter === 'daily') {
+        if (effectiveFilter === 'daily') {
           key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        } else if (filter === 'weekly') {
+        } else if (effectiveFilter === 'weekly') {
           const weekNumber = Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7);
           key = `${date.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
         } else {
@@ -401,9 +417,9 @@ export default async function handler(req, res) {
       const netProfit = grossProfit - data.returns;
       
       let periodLabel;
-      if (filter === 'daily') {
+      if (effectiveFilter === 'daily') {
         periodLabel = new Date(period).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      } else if (filter === 'weekly') {
+      } else if (effectiveFilter === 'weekly') {
         const [year, week] = period.split('-W');
         periodLabel = `Week ${week}, ${year}`;
       } else {
@@ -425,7 +441,18 @@ export default async function handler(req, res) {
     });
 
     const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(workbook, summarySheet, `${filter.charAt(0).toUpperCase() + filter.slice(1)} Summary`);
+    
+    // Generate a proper sheet name based on the effective filter
+    let sheetName;
+    if (effectiveFilter === 'custom') {
+      sheetName = 'Custom Range Summary';
+    } else if (effectiveFilter === 'all') {
+      sheetName = 'All Time Summary';
+    } else {
+      sheetName = `${effectiveFilter.charAt(0).toUpperCase() + effectiveFilter.slice(1)} Summary`;
+    }
+    
+    XLSX.utils.book_append_sheet(workbook, summarySheet, sheetName);
 
     // Generate Excel file
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
