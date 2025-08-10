@@ -19,6 +19,13 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
   const [error, setError] = useState('');
   const [validationErrors, setValidationErrors] = useState({});
   const [existingMedicines, setExistingMedicines] = useState([]);
+  const [showStockUpdate, setShowStockUpdate] = useState(false);
+  const [stockUpdateData, setStockUpdateData] = useState({
+    additionalQuantity: '',
+    newTotalBuyingPrice: '',
+    newBatchNo: ''
+  });
+  const [priceChangeAlert, setPriceChangeAlert] = useState('');
 
   useEffect(() => {
     if (medicine) {
@@ -87,27 +94,60 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
   };
 
     const calculatePurchasePrice = (changedField, value) => {
-    const quantity = changedField === 'quantity' ? parseFloat(value) || 0 : parseFloat(formData.quantity) || 0;
-    const totalBuyingPrice = changedField === 'totalBuyingPrice' ? parseFloat(value) || 0 : parseFloat(formData.totalBuyingPrice) || 0;
-    
-    if (quantity > 0 && totalBuyingPrice > 0) {
-      const purchasePrice = (totalBuyingPrice / quantity).toFixed(2);
-      setFormData(prev => ({
-        ...prev,
-        purchasePrice: purchasePrice
-      }));
-      
-      // Re-validate selling price when purchase price changes
-      if (formData.sellingPrice) {
-        validateSellingPrice(formData.sellingPrice);
+      if (isEditing) {
+        // When editing: Calculate Total Buying Price from Quantity × Purchase Price
+        if (changedField === 'quantity') {
+          const quantity = parseFloat(value) || 0;
+          const purchasePrice = parseFloat(formData.purchasePrice) || 0;
+          
+          if (quantity > 0 && purchasePrice > 0) {
+            const totalBuyingPrice = (quantity * purchasePrice).toFixed(2);
+            setFormData(prev => ({
+              ...prev,
+              totalBuyingPrice: totalBuyingPrice
+            }));
+          }
+        } else if (changedField === 'purchasePrice') {
+          const purchasePrice = parseFloat(value) || 0;
+          const quantity = parseFloat(formData.quantity) || 0;
+          
+          if (quantity > 0 && purchasePrice > 0) {
+            const totalBuyingPrice = (quantity * purchasePrice).toFixed(2);
+            setFormData(prev => ({
+              ...prev,
+              totalBuyingPrice: totalBuyingPrice
+            }));
+          }
+          
+          // Re-validate selling price when purchase price changes
+          if (formData.sellingPrice) {
+            validateSellingPrice(formData.sellingPrice);
+          }
+        }
+      } else {
+        // When adding new medicine: Calculate Purchase Price from Total Buying Price ÷ Quantity
+        const quantity = changedField === 'quantity' ? parseFloat(value) || 0 : parseFloat(formData.quantity) || 0;
+        const totalBuyingPrice = changedField === 'totalBuyingPrice' ? parseFloat(value) || 0 : parseFloat(formData.totalBuyingPrice) || 0;
+        
+        if (quantity > 0 && totalBuyingPrice > 0) {
+          const purchasePrice = (totalBuyingPrice / quantity).toFixed(2);
+          setFormData(prev => ({
+            ...prev,
+            purchasePrice: purchasePrice
+          }));
+          
+          // Re-validate selling price when purchase price changes
+          if (formData.sellingPrice) {
+            validateSellingPrice(formData.sellingPrice);
+          }
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            purchasePrice: ''
+          }));
+        }
       }
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        purchasePrice: ''
-      }));
-    }
-  };
+    };
 
   const validateName = (name) => {
     if (!isEditing) {
@@ -160,6 +200,80 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
     const random = Math.random().toString(36).substring(2, 5).toUpperCase();
     const code = `MED${timestamp}${random}`;
     setFormData(prev => ({ ...prev, code }));
+  };
+
+  const handleStockUpdate = async () => {
+    const { additionalQuantity, newTotalBuyingPrice } = stockUpdateData;
+    
+    if (!additionalQuantity || !newTotalBuyingPrice) {
+      setError('Please provide additional quantity and total buying price');
+      return;
+    }
+
+    const currentQuantity = parseInt(formData.quantity) || 0;
+    const currentPurchasePrice = parseFloat(formData.purchasePrice) || 0;
+    const additionalQty = parseInt(additionalQuantity);
+    const newTotalBuyingPriceValue = parseFloat(newTotalBuyingPrice);
+    
+    // Calculate weighted average purchase price
+    const previousStockValue = currentQuantity * currentPurchasePrice;
+    const newStockValue = newTotalBuyingPriceValue;
+    const totalStockValue = previousStockValue + newStockValue;
+    const newQuantity = currentQuantity + additionalQty;
+    const newPurchasePrice = totalStockValue / newQuantity;
+    const currentSellingPrice = parseFloat(formData.sellingPrice) || 0;
+
+    // Check for price changes and alerts
+    let alertMessage = '';
+    let needsSellingPriceUpdate = false;
+
+    if (Math.abs(newPurchasePrice - currentPurchasePrice) > 0.01) {
+      alertMessage = `Purchase price changed from Rs${currentPurchasePrice.toFixed(2)} to Rs${newPurchasePrice.toFixed(2)}. Please review selling price.`;
+      
+      if (newPurchasePrice > currentSellingPrice) {
+        alertMessage += ` WARNING: New purchase price (Rs${newPurchasePrice.toFixed(2)}) is higher than current selling price (Rs${currentSellingPrice.toFixed(2)}). You must update the selling price!`;
+        needsSellingPriceUpdate = true;
+      }
+    }
+
+    setPriceChangeAlert(alertMessage);
+
+    // Update form data
+    setFormData(prev => ({
+      ...prev,
+      quantity: newQuantity.toString(),
+      purchasePrice: newPurchasePrice.toFixed(2),
+      batchNo: stockUpdateData.newBatchNo || prev.batchNo,
+      totalBuyingPrice: newTotalBuyingPrice
+    }));
+
+    // If selling price needs update, focus on it
+    if (needsSellingPriceUpdate) {
+      // Auto-suggest a selling price (purchase price + 20% margin)
+      const suggestedSellingPrice = newPurchasePrice * 1.2;
+      setFormData(prev => ({
+        ...prev,
+        sellingPrice: suggestedSellingPrice.toFixed(2)
+      }));
+    }
+
+    // Reset stock update form
+    setStockUpdateData({
+      additionalQuantity: '',
+      newTotalBuyingPrice: '',
+      newBatchNo: ''
+    });
+    setShowStockUpdate(false);
+  };
+
+  const handleStockUpdateCancel = () => {
+    setStockUpdateData({
+      additionalQuantity: '',
+      newTotalBuyingPrice: '',
+      newBatchNo: ''
+    });
+    setShowStockUpdate(false);
+    setPriceChangeAlert('');
   };
 
   const handleSubmit = async (e) => {
@@ -294,7 +408,7 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
         {/* Total Buying Price */}
         <div>
           <label htmlFor="totalBuyingPrice" className="block text-sm font-medium text-gray-700 mb-2">
-            Total Buying Price *
+            Total Buying Price  *
           </label>
           <input
             type="number"
@@ -305,12 +419,18 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
             required
             min="0"
             step="0.01"
-            className="input-field"
-            placeholder="Enter total buying price"
+            className={`input-field ${isEditing ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+            placeholder={isEditing ? "Auto-calculated" : "Enter total buying price"}
+            readOnly={isEditing}
           />
+          {isEditing && (
+            <p className="text-xs text-gray-500 mt-1">
+              This field is calculated automatically based on quantity and purchase price
+            </p>
+          )}
         </div>
 
-        {/* Calculated Purchase Price (Read-only) */}
+        {/* Calculated Purchase Price */}
         <div>
           <label htmlFor="purchasePrice" className="block text-sm font-medium text-gray-700 mb-2">
             Purchase Price (per unit) *
@@ -320,10 +440,19 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
             id="purchasePrice"
             name="purchasePrice"
             value={formData.purchasePrice}
-            readOnly
-            className="input-field bg-gray-50 cursor-not-allowed"
-            placeholder="Auto-calculated"
+            onChange={handleChange}
+            required
+            min="0"
+            step="0.01"
+            className={`input-field ${!isEditing ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+            placeholder={!isEditing ? "Auto-calculated" : "Enter purchase price per unit"}
+            readOnly={!isEditing}
           />
+          {!isEditing && (
+            <p className="text-xs text-gray-500 mt-1">
+              This field is calculated automatically based on total buying price and quantity
+            </p>
+          )}
         </div>
 
         {/* Selling Price */}
@@ -380,6 +509,150 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
           />
         </div>
       </div>
+
+      {/* Price Change Alert */}
+      {priceChangeAlert && (
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg">
+          <div className="flex items-center">
+            <span className="text-lg mr-2">⚠️</span>
+            <div>
+              <strong>Price Change Alert:</strong>
+              <p>{priceChangeAlert}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stock Update Section */}
+      {isEditing && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium text-blue-900">Inventory Management</h3>
+            {!showStockUpdate && (
+              <button
+                type="button"
+                onClick={() => setShowStockUpdate(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+              >
+                <span>📦</span>
+                <span>Update Stock</span>
+              </button>
+            )}
+          </div>
+
+          {showStockUpdate && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Additional Quantity *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={stockUpdateData.additionalQuantity}
+                    onChange={(e) => setStockUpdateData(prev => ({
+                      ...prev,
+                      additionalQuantity: e.target.value
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter quantity to add"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Current stock: {formData.quantity || 0}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Total Buying Price for New Stock *
+                  </label>
+                                    <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={stockUpdateData.newTotalBuyingPrice}
+                    onChange={(e) => setStockUpdateData(prev => ({
+                      ...prev,
+                      newTotalBuyingPrice: e.target.value
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter total buying price"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Batch Number (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={stockUpdateData.newBatchNo}
+                    onChange={(e) => setStockUpdateData(prev => ({
+                      ...prev,
+                      newBatchNo: e.target.value
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter new batch number (optional)"
+                  />
+                </div>
+              </div>
+
+              {/* Stock Update Preview */}
+              {stockUpdateData.additionalQuantity && stockUpdateData.newTotalBuyingPrice && (
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <h4 className="font-medium text-gray-900 mb-2">Update Preview:</h4>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p>Current Quantity: {formData.quantity || 0} @ Rs{(parseFloat(formData.purchasePrice) || 0).toFixed(2)} each</p>
+                    <p>Additional Quantity: +{stockUpdateData.additionalQuantity}</p>
+                    <p className="font-medium">New Total Quantity: {(parseInt(formData.quantity) || 0) + (parseInt(stockUpdateData.additionalQuantity) || 0)}</p>
+                    {stockUpdateData.newTotalBuyingPrice && stockUpdateData.additionalQuantity && (
+                      <>
+                        <div className="border-t pt-2 mt-2">
+                          <p className="font-medium text-gray-800">Calculation Breakdown:</p>
+                          <p>Previous Stock Value: {formData.quantity || 0} × Rs{(parseFloat(formData.purchasePrice) || 0).toFixed(2)} = Rs{((parseInt(formData.quantity) || 0) * (parseFloat(formData.purchasePrice) || 0)).toFixed(2)}</p>
+                          <p>New Stock Value: Rs{parseFloat(stockUpdateData.newTotalBuyingPrice).toFixed(2)}</p>
+                          <p>Total Stock Value: Rs{((parseInt(formData.quantity) || 0) * (parseFloat(formData.purchasePrice) || 0) + parseFloat(stockUpdateData.newTotalBuyingPrice)).toFixed(2)}</p>
+                          <p className="font-medium text-blue-600">New Purchase Price (per unit): Rs{(() => {
+                            const currentQty = parseInt(formData.quantity) || 0;
+                            const currentPrice = parseFloat(formData.purchasePrice) || 0;
+                            const additionalQty = parseInt(stockUpdateData.additionalQuantity) || 0;
+                            const newBuyingPrice = parseFloat(stockUpdateData.newTotalBuyingPrice) || 0;
+                            
+                            const previousValue = currentQty * currentPrice;
+                            const totalValue = previousValue + newBuyingPrice;
+                            const totalQty = currentQty + additionalQty;
+                            
+                            return totalQty > 0 ? (totalValue / totalQty).toFixed(2) : '0.00';
+                          })()}</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={handleStockUpdateCancel}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStockUpdate}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                >
+                  <span>✅</span>
+                  <span>Apply Stock Update</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Form Actions */}
       <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">

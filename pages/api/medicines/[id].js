@@ -49,6 +49,12 @@ export default async function handler(req, res) {
           return res.status(400).json({ message: 'Missing required fields' });
         }
 
+        // Get current medicine to compare quantities
+        const currentMedicine = await medicinesCollection.findOne({ _id: new ObjectId(id) });
+        if (!currentMedicine) {
+          return res.status(404).json({ message: 'Medicine not found' });
+        }
+
         // Check for duplicate code (excluding current medicine)
         const existingMedicine = await medicinesCollection.findOne({ 
           code, 
@@ -76,6 +82,38 @@ export default async function handler(req, res) {
 
         if (result.matchedCount === 0) {
           return res.status(404).json({ message: 'Medicine not found' });
+        }
+
+        // Track inventory change if quantity changed
+        const newQuantity = parseInt(quantity);
+        const oldQuantity = currentMedicine.quantity;
+        
+        if (newQuantity !== oldQuantity) {
+          try {
+            const inventoryCollection = await getCollection('inventory');
+            const quantityDifference = newQuantity - oldQuantity;
+            
+            await inventoryCollection.insertOne({
+              medicineId: id,
+              medicineName: name,
+              medicineCode: code,
+              type: quantityDifference > 0 ? 'add' : 'adjustment',
+              quantity: Math.abs(quantityDifference),
+              previousStock: oldQuantity,
+              newStock: newQuantity,
+              reason: quantityDifference > 0 ? 'Stock Addition' : 'Stock Adjustment',
+              batchNo: batchNo || '',
+              expiryDate: new Date(expiryDate),
+              purchasePrice: parseFloat(purchasePrice),
+              notes: `Stock ${quantityDifference > 0 ? 'added' : 'adjusted'} via medicine update`,
+              userId: user.userId,
+              username: user.username,
+              createdAt: new Date()
+            });
+          } catch (inventoryError) {
+            console.error('Error logging inventory change:', inventoryError);
+            // Don't fail the update if inventory logging fails
+          }
         }
 
         res.status(200).json({ message: 'Medicine updated successfully' });

@@ -31,6 +31,7 @@ export default function Dashboard() {
     weeklyData: []
   });
   const [timePeriod, setTimePeriod] = useState('monthly'); // 'daily', 'weekly', 'monthly'
+  const [exportFilter, setExportFilter] = useState('monthly'); // Filter for export data
 
   useEffect(() => {
     fetchSettings();
@@ -339,10 +340,10 @@ export default function Dashboard() {
           });
         });
 
-        // Sort all data
-        monthlyData.sort((a, b) => a.period.localeCompare(b.period));
-        dailyData.sort((a, b) => a.period.localeCompare(b.period));
-        weeklyData.sort((a, b) => a.period.localeCompare(b.period));
+        // Sort all data in descending order (latest first)
+        monthlyData.sort((a, b) => b.period.localeCompare(a.period));
+        dailyData.sort((a, b) => b.period.localeCompare(a.period));
+        weeklyData.sort((a, b) => b.period.localeCompare(a.period));
       }
 
       if (returnsRes.ok) {
@@ -431,6 +432,42 @@ export default function Dashboard() {
       });
     } catch (error) {
       console.error('Error fetching chart data:', error);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      const response = await apiRequest(`/api/export/sales-data?filter=${exportFilter}`);
+      
+      if (response.ok) {
+        // Create blob from response
+        const blob = await response.blob();
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // Generate filename with current date and filter
+        const currentDate = new Date().toISOString().split('T')[0];
+        const filterLabel = exportFilter === 'all' ? 'all-time' : exportFilter;
+        link.download = `sales-report-${filterLabel}-${currentDate}.xlsx`;
+        
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+        
+        // Cleanup
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        alert(`Excel file downloaded successfully! (${exportFilter === 'all' ? 'All Time' : `Last ${exportFilter === 'daily' ? '30 Days' : exportFilter === 'weekly' ? '12 Weeks' : '12 Months'}`})`);
+      } else {
+        throw new Error('Failed to generate Excel file');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Error downloading Excel file. Please try again.');
     }
   };
 
@@ -559,37 +596,58 @@ export default function Dashboard() {
         <div className="card">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium text-gray-900">Sales & Profit Overview</h3>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => setTimePeriod('daily')}
-                className={`px-3 py-1 text-sm rounded-lg font-medium ${
-                  timePeriod === 'daily'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                Daily
-              </button>
-              <button
-                onClick={() => setTimePeriod('weekly')}
-                className={`px-3 py-1 text-sm rounded-lg font-medium ${
-                  timePeriod === 'weekly'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                Weekly
-              </button>
-              <button
-                onClick={() => setTimePeriod('monthly')}
-                className={`px-3 py-1 text-sm rounded-lg font-medium ${
-                  timePeriod === 'monthly'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              >
-                Monthly
-              </button>
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2">
+                <select
+                  value={exportFilter}
+                  onChange={(e) => setExportFilter(e.target.value)}
+                  className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="daily">Last 30 Days</option>
+                  <option value="weekly">Last 12 Weeks</option>
+                  <option value="monthly">Last 12 Months</option>
+                  <option value="all">All Time</option>
+                </select>
+                <button
+                  onClick={handleExportExcel}
+                  className="px-3 py-1 text-sm rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center space-x-1"
+                >
+                  <span>📊</span>
+                  <span>Export Excel</span>
+                </button>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setTimePeriod('daily')}
+                  className={`px-3 py-1 text-sm rounded-lg font-medium ${
+                    timePeriod === 'daily'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Daily
+                </button>
+                <button
+                  onClick={() => setTimePeriod('weekly')}
+                  className={`px-3 py-1 text-sm rounded-lg font-medium ${
+                    timePeriod === 'weekly'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Weekly
+                </button>
+                <button
+                  onClick={() => setTimePeriod('monthly')}
+                  className={`px-3 py-1 text-sm rounded-lg font-medium ${
+                    timePeriod === 'monthly'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Monthly
+                </button>
+              </div>
             </div>
           </div>
                       {(() => {
@@ -608,8 +666,8 @@ export default function Dashboard() {
                       <h4 className="text-sm font-medium text-gray-700 mb-3">{periodLabel} Sales Bar Chart</h4>
                       <div className="relative h-48 bg-gray-50 rounded-lg p-4">
                         <div className="flex items-end justify-between h-full space-x-2">
-                          {currentData.slice(-6).map((period, index) => {
-                            const maxSales = Math.max(...currentData.slice(-6).map(m => m.sales));
+                          {currentData.slice(0, 6).reverse().map((period, index) => {
+                            const maxSales = Math.max(...currentData.slice(0, 6).map(m => m.sales));
                             const height = maxSales > 0 ? (period.sales / maxSales) * 80 : 0;
                             const periodLabel = timePeriod === 'daily' ? 
                               new Date(period.period).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) :
@@ -641,9 +699,10 @@ export default function Dashboard() {
                       <h4 className="text-sm font-medium text-gray-700 mb-3">{periodLabel} Profit Trend Line Chart</h4>
                       <div className="relative h-48 bg-gray-50 rounded-lg p-4">
                         <svg className="w-full h-full" viewBox="0 0 400 200">
-                          {currentData.slice(-6).map((period, index) => {
-                            const maxProfit = Math.max(...currentData.slice(-6).map(m => Math.abs(m.profit)));
-                            const x = (index / (currentData.slice(-6).length - 1)) * 350 + 25;
+                          {currentData.slice(0, 6).reverse().map((period, index) => {
+                            const reversedData = currentData.slice(0, 6).reverse();
+                            const maxProfit = Math.max(...reversedData.map(m => Math.abs(m.profit)));
+                            const x = (index / (reversedData.length - 1)) * 350 + 25;
                             const y = maxProfit > 0 ? 175 - ((period.profit / maxProfit) * 150) : 175;
                             
                             if (index === 0) {
@@ -654,9 +713,9 @@ export default function Dashboard() {
                               );
                             }
                             
-                            const prevPeriod = currentData.slice(-6)[index - 1];
-                            const prevMaxProfit = Math.max(...currentData.slice(-6).map(m => Math.abs(m.profit)));
-                            const prevX = ((index - 1) / (currentData.slice(-6).length - 1)) * 350 + 25;
+                            const prevPeriod = reversedData[index - 1];
+                            const prevMaxProfit = Math.max(...reversedData.map(m => Math.abs(m.profit)));
+                            const prevX = ((index - 1) / (reversedData.length - 1)) * 350 + 25;
                             const prevY = prevMaxProfit > 0 ? 175 - ((prevPeriod.profit / prevMaxProfit) * 150) : 175;
                             
                             return (
@@ -672,7 +731,7 @@ export default function Dashboard() {
                           })}
                         </svg>
                         <div className="flex justify-between text-xs text-gray-500 mt-2">
-                          {currentData.slice(-6).map((period, index) => {
+                          {currentData.slice(0, 6).reverse().map((period, index) => {
                             const periodLabel = timePeriod === 'daily' ? 
                               new Date(period.period).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) :
                               timePeriod === 'weekly' ? 
@@ -693,8 +752,8 @@ export default function Dashboard() {
                   {/* Summary Table */}
                   <div>
                     <h4 className="text-sm font-medium text-gray-700 mb-3">{periodLabel} Summary</h4>
-                    <div className="space-y-2">
-                      {currentData.slice(-6).map((period, index) => {
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {currentData.slice(0, 6).map((period, index) => {
                         const periodLabel = timePeriod === 'daily' ? 
                           new Date(period.period).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) :
                           timePeriod === 'weekly' ? 
@@ -757,7 +816,7 @@ export default function Dashboard() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-96 overflow-y-auto">
                 {recentActivity.map((activity) => (
                   <div key={activity.id} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
                     <div className={`flex-shrink-0 p-2 rounded-lg ${activity.bgColor}`}>
