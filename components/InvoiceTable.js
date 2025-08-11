@@ -175,7 +175,26 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     
     const newQuantity = parseInt(quantity) || 0;
     
-    // Always update quantity, even if negative
+    // Check if quantity exceeds available stock
+    if (newQuantity > originalMedicine.quantity) {
+      // Show warning notification
+      const notification = {
+        id: Date.now(),
+        message: `Warning: ${originalMedicine.name} quantity (${newQuantity}) exceeds available stock (${originalMedicine.quantity})`,
+        type: 'warning'
+      };
+      setReturnNotifications(prev => [...prev, notification]);
+      
+      // Remove notification after 5 seconds
+      setTimeout(() => {
+        setReturnNotifications(prev => prev.filter(n => n.id !== notification.id));
+      }, 5000);
+      
+      // Don't allow quantity to exceed available stock
+      return;
+    }
+    
+    // Update quantity if it's within available stock
     setSelectedMedicines(prev =>
       prev.map(item =>
         item._id === medicineId ? { ...item, quantity: newQuantity } : item
@@ -279,6 +298,15 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     if (selectedMedicines.length === 0) {
       alert('Please select at least one medicine');
       return;
+    }
+
+    // Validate quantities before generating invoice
+    for (const item of selectedMedicines) {
+      const originalMedicine = medicines.find(m => m._id === item._id);
+      if (originalMedicine && item.quantity > originalMedicine.quantity) {
+        alert(`Cannot generate invoice: ${originalMedicine.name} quantity (${item.quantity}) exceeds available stock (${originalMedicine.quantity})`);
+        return;
+      }
     }
 
     setLoading(true);
@@ -939,40 +967,62 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
           {selectedMedicines.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No medicines selected</p>
           ) : (
-            <div className="max-h-96 overflow-y-auto">
-              <div className="space-y-2">
-                {selectedMedicines.map((item) => (
-                  <div key={item._id} className="flex items-center justify-between p-2 border border-gray-200 rounded hover:bg-gray-50">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-gray-900 truncate">{item.name}</div>
-                      <div className="text-xs text-gray-500">Code: {item.code}</div>
-                    </div>
-                    <div className="flex items-center space-x-2 ml-2">
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min="-999"
-                          max="999"
-                          value={item.quantity}
-                          onChange={(e) => updateQuantity(item._id, e.target.value)}
-                          className={`w-14 px-1 py-1 border border-gray-300 rounded text-center text-sm ${
-                            item.quantity < 0 ? 'bg-red-50 border-red-300 text-red-700' : ''
-                          }`}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-500">× {formatCurrency(item.sellingPrice)}</span>
-                      <span className={`font-medium text-sm ${item.quantity < 0 ? 'text-red-600' : ''}`}>
-                        {formatCurrency(item.sellingPrice * item.quantity)}
-                      </span>
-                      <button
-                        onClick={() => removeMedicine(item._id)}
-                        className="text-red-600 hover:text-red-800 text-sm ml-1"
-                      >
-                        ✕
-                      </button>
-                    </div>
+            <>
+              {/* Stock Warning */}
+              {selectedMedicines.some(item => item.quantity > (medicines.find(m => m._id === item._id)?.quantity || 0)) && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-center">
+                    <span className="text-yellow-600 mr-2">⚠️</span>
+                    <span className="text-yellow-800 text-sm font-medium">
+                      Warning: Some items exceed available stock. Invoice cannot be generated until quantities are adjusted.
+                    </span>
                   </div>
-                ))}
+                </div>
+              )}
+              <div className="max-h-96 overflow-y-auto">
+                <div className="space-y-2">
+                  {selectedMedicines.map((item) => (
+                    <div key={item._id} className="flex items-center justify-between p-2 border border-gray-200 rounded hover:bg-gray-50">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900 truncate">{item.name}</div>
+                        <div className="text-xs text-gray-500">Code: {item.code}</div>
+                      </div>
+                      <div className="flex items-center space-x-2 ml-2">
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="-999"
+                            max={medicines.find(m => m._id === item._id)?.quantity || 999}
+                            value={item.quantity}
+                            onChange={(e) => updateQuantity(item._id, e.target.value)}
+                            className={`w-14 px-1 py-1 border border-gray-300 rounded text-center text-sm ${
+                              item.quantity < 0 ? 'bg-red-50 border-red-300 text-red-700' : 
+                              item.quantity > (medicines.find(m => m._id === item._id)?.quantity || 0) ? 'bg-yellow-50 border-yellow-300 text-yellow-700' : ''
+                            }`}
+                            title={`Available stock: ${medicines.find(m => m._id === item._id)?.quantity || 0} units`}
+                          />
+                          {/* <div className="absolute -bottom-6 left-0 text-xs text-gray-500 whitespace-nowrap">
+                            Stock: {medicines.find(m => m._id === item._id)?.quantity || 0}
+                          </div> */}
+                          {item.quantity > (medicines.find(m => m._id === item._id)?.quantity || 0) && (
+                            <div className="absolute -bottom-8 left-0 text-xs text-yellow-600 font-medium whitespace-nowrap">
+                              ⚠️ Exceeds stock!
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-500">× {formatCurrency(item.sellingPrice)}</span>
+                        <span className={`font-medium text-sm ${item.quantity < 0 ? 'text-red-600' : ''}`}>
+                          {formatCurrency(item.sellingPrice * item.quantity)}
+                        </span>
+                        <button
+                          onClick={() => removeMedicine(item._id)}
+                          className="text-red-600 hover:text-red-800 text-sm ml-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
               </div>
 
               {/* Invoice Summary */}
@@ -1022,6 +1072,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                 </button>
               </div>
             </div>
+            </>
           )}
         </div>
       </div>
