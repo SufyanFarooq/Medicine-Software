@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     switch (method) {
       case 'GET':
         // Get inventory transactions with optional filters
-        const { medicineId: queryMedicineId, startDate, endDate, type, limit = 100 } = req.query;
+        const { medicineId: queryMedicineId, startDate, endDate, type: queryType, limit = 100 } = req.query;
         
         let filter = {};
         
@@ -43,8 +43,8 @@ export default async function handler(req, res) {
           filter.medicineId = queryMedicineId;
         }
         
-        if (type) {
-          filter.type = type; // 'add', 'sale', 'return', 'adjustment'
+        if (queryType) {
+          filter.type = queryType; // 'add', 'sale', 'return', 'adjustment'
         }
         
         if (startDate || endDate) {
