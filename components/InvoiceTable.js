@@ -1001,14 +1001,12 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                             }`}
                             title={`Available stock: ${medicines.find(m => m._id === item._id)?.quantity || 0} units`}
                           />
-                          {/* <div className="absolute -bottom-6 left-0 text-xs text-gray-500 whitespace-nowrap">
-                            Stock: {medicines.find(m => m._id === item._id)?.quantity || 0}
-                          </div> */}
-                          {item.quantity > (medicines.find(m => m._id === item._id)?.quantity || 0) && (
-                            <div className="absolute -bottom-8 left-0 text-xs text-yellow-600 font-medium whitespace-nowrap">
-                              ⚠️ Exceeds stock!
-                            </div>
-                          )}
+                          {/* Stock info moved to tooltip only - cleaner interface */}
+                                                  {item.quantity > (medicines.find(m => m._id === item._id)?.quantity || 0) && (
+                          <div className="absolute -bottom-6 left-0 text-xs text-yellow-600 font-medium whitespace-nowrap">
+                            ⚠️ Exceeds stock!
+                          </div>
+                        )}
                         </div>
                         <span className="text-xs text-gray-500">× {formatCurrency(item.sellingPrice)}</span>
                         <span className={`font-medium text-sm ${item.quantity < 0 ? 'text-red-600' : ''}`}>
