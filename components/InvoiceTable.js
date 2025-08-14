@@ -539,248 +539,202 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     setLoading(false);
   };
 
-  const printInvoice = () => {
+  const handlePreviewInvoice = () => {
+    if (selectedMedicines.length === 0) {
+      alert('Please select medicines before previewing');
+      return;
+    }
+    
+    // Open print window without auto-printing
+    printInvoice(false);
+  };
+
+  // Helper functions for receipt formatting - improved for better printing
+  const center = (text) => text.padStart((42 - text.length) / 2 + text.length);
+  const repeat = (char) => char.repeat(42);
+  const line = (left, right) => left.padEnd(28) + right.padStart(14);
+  const money = (amount) => formatCurrency(amount);
+  const formatItem = (name, price) => {
+    const shortName = name.length > 25 ? name.substring(0, 22) + '...' : name;
+    return shortName.padEnd(28) + price.padStart(14);
+  };
+
+  const printInvoice = (autoPrint = true) => {
     const currentDate = new Date();
     const shopName = settings.shopName || "Medical Shop";
     const shopAddress = settings.address || "Your Shop Address";
     const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
     const currentUser = getUser();
 
-    // Create print content for thermal printer (80mm width)
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Medical Shop Receipt</title>
-          <style>
-            @media print {
-              @page {
-                margin: 0;
-                size: 80mm auto;
-              }
-            }
-            
-            body { 
-              font-family: 'Courier New', monospace; 
-              margin: 0; 
-              padding: 10px; 
-              width: 80mm; 
-              font-size: 12px;
-              line-height: 1.2;
-            }
-            
-            .header { 
-              text-align: center; 
-              margin-bottom: 15px; 
-              border-bottom: 1px dashed #000;
-              padding-bottom: 10px;
-            }
-            
-            .shop-name { 
-              font-size: 16px; 
-              font-weight: bold; 
-              margin-bottom: 5px;
-            }
-            
-            .shop-address { 
-              font-size: 10px; 
-              margin-bottom: 5px;
-            }
-            
-            .shop-phone { 
-              font-size: 10px; 
-              margin-bottom: 5px;
-            }
-            
-            .receipt-type { 
-              font-size: 12px; 
-              font-weight: bold; 
-              margin-bottom: 5px;
-            }
-            
-            .invoice-info { 
-              margin-bottom: 15px; 
-              font-size: 10px;
-            }
-            
-            .customer-info { 
-              margin-bottom: 15px; 
-              font-size: 10px;
-            }
-            
-            .items-table { 
-              width: 100%; 
-              margin-bottom: 15px; 
-              font-size: 10px;
-            }
-            
-            .item-row { 
-              margin-bottom: 8px; 
-              border-bottom: 1px dotted #ccc;
-              padding-bottom: 5px;
-            }
-            
-            .item-name { 
-              font-weight: bold; 
-              margin-bottom: 2px;
-            }
-            
-            .item-details { 
-              display: flex; 
-              justify-content: space-between; 
-              font-size: 9px;
-            }
-            
-            .item-code { 
-              color: #666;
-            }
-            
-            .item-price { 
-              text-align: right;
-            }
-            
-            .summary { 
-              border-top: 1px dashed #000; 
-              padding-top: 10px; 
-              margin-bottom: 15px;
-              font-size: 11px;
-            }
-            
-            .summary-row { 
-              display: flex; 
-              justify-content: space-between; 
-              margin-bottom: 3px;
-            }
-            
-            .total-row { 
-              font-weight: bold; 
-              font-size: 12px; 
-              border-top: 1px solid #000; 
-              padding-top: 5px;
-              margin-top: 5px;
-            }
-            
-            .footer { 
-              text-align: center; 
-              margin-top: 15px; 
-              font-size: 9px; 
-              border-top: 1px dashed #000;
-              padding-top: 10px;
-            }
-            
-            .thank-you { 
-              font-weight: bold; 
-              margin-bottom: 5px;
-            }
-            
-            .terms { 
-              font-size: 8px; 
-              color: #666;
-              line-height: 1.1;
-            }
-            
-            .divider { 
-              border-top: 1px dashed #000; 
-              margin: 10px 0;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="shop-name">${shopName}</div>
-            <div class="shop-address">${shopAddress}</div>
-            <div class="shop-phone">${phoneNumber}</div>
-            <div class="receipt-type">ORIGINAL</div>
-          </div>
-          
-          <div class="invoice-info">
-            <div style="display: flex; justify-content: space-between;">
-              <span>Invoice #: ${invoiceNumber}</span>
-              <span>Date: ${currentDate.toLocaleDateString()}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-              <span>Time: ${currentDate.toLocaleTimeString()}</span>
-              <span>Cashier: ${currentUser?.username || 'Unknown'}</span>
-            </div>
-          </div>
+    // Calculate totals
+    const subTotal = calculateSubtotal();
+    const discountAmt = calculateTotalDiscount();
+    const total = calculateTotal();
 
-          <div class="customer-info">
-            <div>Customer: WALK IN CUSTOMER</div>
-            <div>Payment: Cash</div>
-          </div>
+    // Build items block with proper formatting and spacing
+    const itemsBlock = selectedMedicines.map(item => {
+      const itemTotal = item.sellingPrice * item.quantity;
+      return [
+        formatItem(item.name, formatCurrency(itemTotal)),
+        `  Qty: ${item.quantity} × ${formatCurrency(item.sellingPrice)}`,
+        ""  // Add empty line for spacing between items
+      ].join('\n');
+    }).join('\n');
 
-          <div class="items-table">
-            ${selectedMedicines.map(item => `
-              <div class="item-row">
-                <div class="item-name">${item.name}</div>
-                <div class="item-details">
-                  <span class="item-price">Qty: ${item.quantity} × ${formatCurrency(item.sellingPrice)}</span>
-                </div>
-                <div class="item-details">
-                  <span></span>
-                  <span class="item-price"><strong>${formatCurrency(item.sellingPrice * item.quantity)}</strong></span>
-                </div>
-              </div>
-            `).join('')}
-          </div>
+    // Build a professional receipt body matching your examples
+    const receiptText = [
+      center(shopName.toUpperCase()),
+      center(shopAddress),
+      center(`Tel: ${phoneNumber}`),
+      "",
+      repeat("*"),
+      center("CASH RECEIPT"),
+      repeat("*"),
+      "",
+      `Invoice: ${invoiceNumber}`,
+      `Date: ${currentDate.toLocaleDateString()}`,
+      `Time: ${currentDate.toLocaleTimeString()}`,
+      `Cashier: ${currentUser?.username || "Unknown"}`,
+      "",
+      repeat("-"),
+      "Description                    Price",
+      repeat("-"),
+      "",
+      itemsBlock,
+      repeat("-"),
+      line("Subtotal:", money(subTotal)),
+      line(`Discount (${settings.discountPercentage || 0}%):`, "-" + money(discountAmt)),
+      repeat("-"),
+      line("TOTAL:", money(total)),
+      "",
+      line("Cash:", money(total)),
+      line("Change:", money(0)),
+      "",
+      repeat("*"),
+      center("THANK YOU!"),
+      repeat("*"),
+      "",
+      center("Powered by Codebridge"),
+      center("Contact: +92 308 2283845"),
+    ].join("\n");
 
-          <div class="summary">
-            <div class="summary-row">
-              <span>Subtotal:</span>
-              <span>${formatCurrency(calculateSubtotal())}</span>
-            </div>
-            <div class="summary-row">
-              <span>Discount (${settings.discountPercentage || 0}%):</span>
-              <span>-${formatCurrency(calculateTotalDiscount())}</span>
-            </div>
-            <div class="divider"></div>
-            <div class="summary-row total-row">
-              <span>TOTAL:</span>
-              <span>${formatCurrency(calculateTotal())}</span>
-            </div>
-            <div class="summary-row">
-              <span>Amount Paid:</span>
-              <span>${formatCurrency(calculateTotal())}</span>
-            </div>
-            <div class="summary-row">
-              <span>Balance:</span>
-              <span>Rs. 0.00</span>
-            </div>
-          </div>
-
-          <div class="footer">
-            <div class="thank-you">Thank You!</div>
-            <div class="terms">
-              Please keep this receipt for your records.<br>
-              No refunds on medicines after purchase.<br>
-              For any queries, please contact us.
-            </div>
-            <div class="divider"></div>
-            <div class="company-promotion">
-              <div style="text-align: center; font-size: 10px; font-weight: bold; margin-bottom: 3px;">
-                Powered by Codebridge
-              </div>
-              <div style="text-align: center; font-size: 9px; color: #666;">
-                Contact: 03082283845
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
+  // Enhanced HTML wrapper with print button and better styling
+  const printContent = `
+  <!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>Receipt - ${invoiceNumber}</title>
+      <style>
+        @media print {
+          @page { 
+            size: 76mm auto; 
+            margin: 1mm; 
+          }
+          .no-print { display: none !important; }
+          body { 
+            background: white !important; 
+            font-size: 9px !important;
+            line-height: 0.9 !important;
+          }
+          .receipt-container {
+            border: none !important;
+            box-shadow: none !important;
+            padding: 1mm !important;
+            width: 74mm !important;
+          }
+          pre {
+            font-family: "Courier New", "Lucida Console", "Monaco", monospace !important;
+            font-size: 9px !important;
+            line-height: 0.9 !important;
+            white-space: pre !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+        }
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        html, body {
+          margin: 0; padding: 0;
+          background: #fff; color: #000;
+        }
+        body {
+          width: 100%; max-width: 800px; margin: 0 auto; padding: 20px;
+          font-family: "Courier New", "Lucida Console", "Monaco", monospace;
+          font-size: 12px; line-height: 1.2;
+          text-rendering: optimizeLegibility;
+          background: #f8f9fa;
+        }
+        .receipt-container {
+          width: 76mm; margin: 0 auto; padding: 6px 6px 10px 6px;
+          border: 2px solid #333; background: #fff;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+          font-family: "Courier New", "Lucida Console", "Monaco", monospace;
+          font-size: 10px; line-height: 1.0;
+        }
+        pre {
+          margin: 0;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+        .print-button {
+          position: fixed; top: 20px; right: 20px; z-index: 1000;
+          background: #007bff; color: white; border: none; padding: 10px 20px;
+          border-radius: 5px; cursor: pointer; font-size: 14px;
+        }
+        .print-button:hover { background: #0056b3; }
+        .close-button {
+          position: fixed; top: 20px; right: 120px; z-index: 1000;
+          background: #6c757d; color: white; border: none; padding: 10px 20px;
+          border-radius: 5px; cursor: pointer; font-size: 14px;
+        }
+        .close-button:hover { background: #545b62; }
+        .info-text {
+          text-align: center; color: #666; margin: 20px 0; font-size: 12px;
+        }
+      </style>
+    </head>
+    <body>
+      <button class="print-button no-print" onclick="window.print()">🖨️ Print Receipt</button>
+      <button class="close-button no-print" onclick="window.close()">❌ Close</button>
+      
+      <div class="info-text no-print">
+        <strong>Receipt Preview</strong><br>
+        Invoice: ${invoiceNumber} | Date: ${new Date().toLocaleDateString()}<br>
+        Click Print button or use Ctrl+P to print
+      </div>
+      
+      <div class="receipt-container">
+        <pre>${receiptText}</pre>
+      </div>
+      
+      <script>
+        // Auto-print after a short delay if enabled
+        setTimeout(() => {
+          if (${autoPrint}) {
+            window.print();
+          }
+        }, 1000);
+      </script>
+    </body>
+  </html>`;
 
     // Open print window with modern approach
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
     if (printWindow) {
       printWindow.document.open();
       printWindow.document.write(printContent);
       printWindow.document.close();
       
-      // Wait for content to load then print
+      // Wait for content to load then print with delay
       printWindow.onload = () => {
-        printWindow.focus();
-        printWindow.print();
-        printWindow.close();
+        // Add a small delay to ensure content is fully rendered
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+          
+          // Don't close immediately - let user see the print dialog
+          // The window will stay open until user manually closes it
+        }, 500);
       };
     }
   };
@@ -1002,11 +956,11 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                             title={`Available stock: ${medicines.find(m => m._id === item._id)?.quantity || 0} units`}
                           />
                           {/* Stock info moved to tooltip only - cleaner interface */}
-                                                  {item.quantity > (medicines.find(m => m._id === item._id)?.quantity || 0) && (
-                          <div className="absolute -bottom-6 left-0 text-xs text-yellow-600 font-medium whitespace-nowrap">
-                            ⚠️ Exceeds stock!
-                          </div>
-                        )}
+                          {item.quantity > (medicines.find(m => m._id === item._id)?.quantity || 0) && (
+                            <div className="absolute -bottom-6 left-0 text-xs text-yellow-600 font-medium whitespace-nowrap">
+                              ⚠️ Exceeds stock!
+                            </div>
+                          )}
                         </div>
                         <span className="text-xs text-gray-500">× {formatCurrency(item.sellingPrice)}</span>
                         <span className={`font-medium text-sm ${item.quantity < 0 ? 'text-red-600' : ''}`}>
@@ -1021,10 +975,12 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                       </div>
                     </div>
                   ))}
-              </div>
+                </div>
 
-              {/* Invoice Summary */}
-              <div className="border-t pt-4 space-y-2 sticky bottom-0 bg-white">
+                </div>
+
+                {/* Invoice Summary */}
+                <div className="border-t pt-4 space-y-2 sticky bottom-0 bg-white">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
                   <span>{formatCurrency(calculateSubtotal())}</span>
@@ -1061,6 +1017,13 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                 >
                   Save to Queue
                 </button>
+                {/* <button
+                  onClick={handlePreviewInvoice}
+                  disabled={selectedMedicines.length === 0}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  👁️ Preview Receipt
+                </button> */}
                 <button
                   onClick={handlePrint}
                   disabled={selectedMedicines.length === 0 || loading}
@@ -1069,13 +1032,10 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                   {loading ? '⏳ Saving & Printing...' : '💾 Save & Print Invoice'}
                 </button>
               </div>
-            </div>
             </>
           )}
         </div>
       </div>
-
-
     </div>
   );
 } 
