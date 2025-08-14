@@ -678,16 +678,26 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
         }
         .print-button {
           position: fixed; top: 20px; right: 20px; z-index: 1000;
-          background: #007bff; color: white; border: none; padding: 10px 20px;
-          border-radius: 5px; cursor: pointer; font-size: 14px;
+          background: #28a745; color: white; border: none; padding: 12px 24px;
+          border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: all 0.3s ease;
         }
-        .print-button:hover { background: #0056b3; }
+        .print-button:hover { 
+          background: #218838; 
+          transform: translateY(-2px);
+          box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
         .close-button {
-          position: fixed; top: 20px; right: 120px; z-index: 1000;
-          background: #6c757d; color: white; border: none; padding: 10px 20px;
-          border-radius: 5px; cursor: pointer; font-size: 14px;
+          position: fixed; top: 20px; right: 140px; z-index: 1000;
+          background: #dc3545; color: white; border: none; padding: 12px 24px;
+          border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: all 0.3s ease;
         }
-        .close-button:hover { background: #545b62; }
+        .close-button:hover { 
+          background: #c82333; 
+          transform: translateY(-2px);
+          box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
         .info-text {
           text-align: center; color: #666; margin: 20px 0; font-size: 12px;
         }
@@ -698,9 +708,10 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       <button class="close-button no-print" onclick="window.close()">❌ Close</button>
       
       <div class="info-text no-print">
-        <strong>Receipt Preview</strong><br>
+        <strong>📄 Receipt Preview</strong><br>
         Invoice: ${invoiceNumber} | Date: ${new Date().toLocaleDateString()}<br>
-        Click Print button or use Ctrl+P to print
+        <span style="color: #28a745; font-weight: bold;">🖨️ Click the Green Print Button to Print</span><br>
+        <span style="color: #666; font-size: 11px;">Or use Ctrl+P (Cmd+P on Mac) to print</span>
       </div>
       
       <div class="receipt-container">
@@ -708,12 +719,8 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       </div>
       
       <script>
-        // Auto-print after a short delay if enabled
-        setTimeout(() => {
-          if (${autoPrint}) {
-            window.print();
-          }
-        }, 1000);
+        // No auto-print - let user control when to print
+        // User can click the print button or use Ctrl+P
       </script>
     </body>
   </html>`;
@@ -725,16 +732,10 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       printWindow.document.write(printContent);
       printWindow.document.close();
       
-      // Wait for content to load then print with delay
+      // Wait for content to load then focus the window
       printWindow.onload = () => {
-        // Add a small delay to ensure content is fully rendered
-        setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-          
-          // Don't close immediately - let user see the print dialog
-          // The window will stay open until user manually closes it
-        }, 500);
+        printWindow.focus();
+        // No auto-print - let user control when to print
       };
     }
   };
