@@ -549,6 +549,115 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     printInvoice(false);
   };
 
+  const handleDirectPrint = () => {
+    if (selectedMedicines.length === 0) {
+      alert('Please select medicines before printing');
+      return;
+    }
+    
+    // Direct print method - simpler approach
+    const printContent = generateSimplePrintContent();
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    }
+  };
+
+  const generateSimplePrintContent = () => {
+    const currentDate = new Date();
+    const shopName = settings.shopName || "Medical Shop";
+    const shopAddress = settings.address || "Your Shop Address";
+    const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
+    const currentUser = getUser();
+    
+    const subTotal = calculateSubtotal();
+    const discountAmt = calculateTotalDiscount();
+    const total = calculateTotal();
+
+    const itemsList = selectedMedicines.map(item => {
+      const sellingPrice = parseFloat(item.sellingPrice) || 0;
+      const quantity = parseInt(item.quantity) || 0;
+      const itemTotal = sellingPrice * quantity;
+      return `${item.name} - Qty: ${quantity} × Rs${sellingPrice.toFixed(2)} = Rs${itemTotal.toFixed(2)}`;
+    }).join('<br>');
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Receipt - ${invoiceNumber}</title>
+          <style>
+            @media print {
+              @page { size: 76mm auto; margin: 0; }
+              body { font-size: 12px; line-height: 1.2; }
+            }
+            body { 
+              font-family: "Courier New", monospace; 
+              width: 76mm; 
+              margin: 0; 
+              padding: 10px; 
+              font-size: 12px;
+              line-height: 1.2;
+            }
+            .header { text-align: center; margin-bottom: 20px; }
+            .shop-name { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+            .shop-address { font-size: 12px; margin-bottom: 5px; }
+            .shop-phone { font-size: 12px; margin-bottom: 15px; }
+            .receipt-title { font-size: 14px; font-weight: bold; text-align: center; margin: 15px 0; }
+            .invoice-info { margin-bottom: 15px; font-size: 11px; }
+            .items { margin-bottom: 15px; font-size: 11px; }
+            .summary { margin-bottom: 15px; font-size: 11px; }
+            .footer { text-align: center; margin-top: 20px; font-size: 10px; }
+            .divider { border-top: 1px solid #000; margin: 10px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="shop-name">${shopName.toUpperCase()}</div>
+            <div class="shop-address">${shopAddress}</div>
+            <div class="shop-phone">Tel: ${phoneNumber}</div>
+          </div>
+          
+          <div class="receipt-title">CASH RECEIPT</div>
+          
+          <div class="invoice-info">
+            <div>Invoice: ${invoiceNumber}</div>
+            <div>Date: ${currentDate.toLocaleDateString()}</div>
+            <div>Time: ${currentDate.toLocaleTimeString()}</div>
+            <div>Cashier: ${currentUser?.username || "Unknown"}</div>
+          </div>
+          
+          <div class="divider"></div>
+          
+          <div class="items">
+            ${itemsList}
+          </div>
+          
+          <div class="divider"></div>
+          
+          <div class="summary">
+            <div>Subtotal: Rs${subTotal.toFixed(2)}</div>
+            <div>Discount (${settings.discountPercentage || 0}%): -Rs${discountAmt.toFixed(2)}</div>
+            <div style="font-weight: bold;">TOTAL: Rs${total.toFixed(2)}</div>
+            <div>Cash: Rs${total.toFixed(2)}</div>
+            <div>Change: Rs0.00</div>
+          </div>
+          
+          <div class="divider"></div>
+          
+          <div class="footer">
+            <div style="font-weight: bold; margin-bottom: 10px;">THANK YOU!</div>
+            <div>Powered by Codebridge</div>
+            <div>Contact: +92 308 2283845</div>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
   // Helper functions for receipt formatting - improved for better printing
   const center = (text) => text.padStart((42 - text.length) / 2 + text.length);
   const repeat = (char) => char.repeat(42);
@@ -645,27 +754,39 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
         @media print {
           @page { 
             size: 76mm auto; 
-            margin: 2mm; 
+            margin: 0; 
           }
           .no-print { display: none !important; }
           body { 
             background: white !important; 
-            font-size: 10px !important;
-            line-height: 1.0 !important;
+            color: black !important;
+            font-size: 12px !important;
+            line-height: 1.2 !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
           .receipt-container {
             border: none !important;
             box-shadow: none !important;
-            padding: 2mm !important;
-            width: 72mm !important;
+            padding: 5mm !important;
+            width: 76mm !important;
+            margin: 0 !important;
+            background: white !important;
           }
           pre {
             font-family: "Courier New", "Lucida Console", "Monaco", monospace !important;
-            font-size: 10px !important;
-            line-height: 1.0 !important;
+            font-size: 12px !important;
+            line-height: 1.2 !important;
             white-space: pre !important;
             margin: 0 !important;
             padding: 0 !important;
+            color: black !important;
+            background: white !important;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+          }
+          * {
             color: black !important;
             background: white !important;
           }
@@ -1043,6 +1164,13 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                 >
                   👁️ Preview Receipt
                 </button> */}
+                <button
+                  onClick={handleDirectPrint}
+                  disabled={selectedMedicines.length === 0}
+                  className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  🖨️ Direct Print
+                </button>
                 <button
                   onClick={handlePrint}
                   disabled={selectedMedicines.length === 0 || loading}
