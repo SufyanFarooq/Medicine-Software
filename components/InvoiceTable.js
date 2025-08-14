@@ -555,10 +555,10 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       return;
     }
     
-    // Ultra-simple print method using plain text
+    // Ultra-simple print method using improved text formatting
     try {
       const receiptText = generatePlainTextReceipt();
-      const printWindow = window.open('', '_blank', 'width=400,height=600');
+      const printWindow = window.open('', '_blank', 'width=500,height=700');
       if (printWindow) {
         printWindow.document.write(`
           <html>
@@ -566,26 +566,76 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
               <title>Receipt - ${invoiceNumber}</title>
               <style>
                 body { 
-                  font-family: "Courier New", monospace; 
+                  font-family: "Courier New", "Lucida Console", monospace; 
                   font-size: 12px; 
                   line-height: 1.2; 
                   margin: 20px; 
-                  white-space: pre-wrap;
+                  white-space: pre;
+                  background: white;
+                  color: black;
+                }
+                pre {
+                  margin: 0;
+                  padding: 0;
+                  font-family: "Courier New", "Lucida Console", monospace;
+                  font-size: 12px;
+                  line-height: 1.2;
+                  white-space: pre;
                 }
                 @media print {
-                  body { margin: 0; font-size: 10px; }
+                  body { 
+                    margin: 0; 
+                    font-size: 10px; 
+                    background: white !important;
+                    color: black !important;
+                  }
+                  pre {
+                    font-size: 10px;
+                    background: white !important;
+                    color: black !important;
+                  }
+                  .no-print { display: none !important; }
+                }
+                .print-button {
+                  padding: 10px 20px; 
+                  background: #007bff; 
+                  color: white; 
+                  border: none; 
+                  border-radius: 5px; 
+                  cursor: pointer;
+                  margin-right: 10px;
+                }
+                .close-button {
+                  padding: 10px 20px; 
+                  background: #dc3545; 
+                  color: white; 
+                  border: none; 
+                  border-radius: 5px; 
+                  cursor: pointer;
                 }
               </style>
             </head>
             <body>
+              <div style="text-align: center; margin-bottom: 20px; color: #666;">
+                <strong>Receipt Preview</strong><br>
+                Invoice: ${invoiceNumber} | Date: ${new Date().toLocaleDateString()}
+              </div>
+              
               <pre>${receiptText}</pre>
-              <br><br>
-              <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Print Receipt</button>
-              <button onclick="window.close()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Close</button>
+              
+              <div style="text-align: center; margin-top: 20px;" class="no-print">
+                <button onclick="window.print()" class="print-button">🖨️ Print Receipt</button>
+                <button onclick="window.close()" class="close-button">❌ Close</button>
+              </div>
             </body>
           </html>
         `);
         printWindow.document.close();
+        
+        // Wait for content to load then focus
+        printWindow.onload = () => {
+          printWindow.focus();
+        };
       }
     } catch (error) {
       console.error('Print error:', error);
@@ -604,52 +654,70 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     const discountAmt = calculateTotalDiscount();
     const total = calculateTotal();
 
-    // Build items list
+    // Helper functions for proper alignment
+    const center = (text, width = 42) => {
+      const padding = Math.max(0, Math.floor((width - text.length) / 2));
+      return ' '.repeat(padding) + text;
+    };
+
+    const rightAlign = (text, width = 14) => {
+      return ' '.repeat(Math.max(0, width - text.length)) + text;
+    };
+
+    const leftAlign = (text, width = 28) => {
+      return text + ' '.repeat(Math.max(0, width - text.length));
+    };
+
+    // Build items list with proper alignment
     let itemsText = '';
     selectedMedicines.forEach(item => {
       const sellingPrice = parseFloat(item.sellingPrice) || 0;
       const quantity = parseInt(item.quantity) || 0;
       const itemTotal = sellingPrice * quantity;
-      itemsText += `${item.name}\n`;
-      itemsText += `  Qty: ${quantity} × Rs${sellingPrice.toFixed(2)} = Rs${itemTotal.toFixed(2)}\n\n`;
+      
+      // Format item name (truncate if too long)
+      const itemName = item.name.length > 25 ? item.name.substring(0, 22) + '...' : item.name;
+      
+      // Format with proper alignment
+      itemsText += `${leftAlign(itemName)}${rightAlign(`Rs${itemTotal.toFixed(2)}`)}\n`;
+      itemsText += `  Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}\n\n`;
     });
 
     return `
 
 
-${shopName.toUpperCase()}
-${shopAddress}
-Tel: ${phoneNumber}
+${center(shopName.toUpperCase())}
+${center(shopAddress)}
+${center(`Tel: ${phoneNumber}`)}
 
-******************************************
-           CASH RECEIPT
-******************************************
+${'*'.repeat(42)}
+${center('CASH RECEIPT')}
+${'*'.repeat(42)}
 
 Invoice: ${invoiceNumber}
 Date: ${currentDate.toLocaleDateString()}
 Time: ${currentDate.toLocaleTimeString()}
 Cashier: ${currentUser?.username || "Unknown"}
 
-------------------------------------------
+${'-'.repeat(42)}
 Description                    Price
-------------------------------------------
+${'-'.repeat(42)}
 
-${itemsText}
-------------------------------------------
-Subtotal:                     Rs${subTotal.toFixed(2)}
-Discount (${settings.discountPercentage || 0}%):               -Rs${discountAmt.toFixed(2)}
-------------------------------------------
-TOTAL:                        Rs${total.toFixed(2)}
+${itemsText}${'-'.repeat(42)}
+Subtotal:                     ${rightAlign(`Rs${subTotal.toFixed(2)}`)}
+Discount (${settings.discountPercentage || 0}%):               ${rightAlign(`-Rs${discountAmt.toFixed(2)}`)}
+${'-'.repeat(42)}
+TOTAL:                        ${rightAlign(`Rs${total.toFixed(2)}`)}
 
-Cash:                         Rs${total.toFixed(2)}
-Change:                       Rs0.00
+Cash:                         ${rightAlign(`Rs${total.toFixed(2)}`)}
+Change:                       ${rightAlign('Rs0.00')}
 
-******************************************
-           THANK YOU!
-******************************************
+${'*'.repeat(42)}
+${center('THANK YOU!')}
+${'*'.repeat(42)}
 
-        Powered by Codebridge
-      Contact: +92 308 2283845
+${center('Powered by Codebridge')}
+${center('Contact: +92 308 2283845')}
 
 
 `;
