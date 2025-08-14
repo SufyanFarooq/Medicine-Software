@@ -573,10 +573,22 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
 
     // Build items block with proper formatting and spacing
     const itemsBlock = selectedMedicines.map(item => {
-      const itemTotal = item.sellingPrice * item.quantity;
+      // Ensure we have valid price values with fallbacks
+      const sellingPrice = parseFloat(item.sellingPrice) || parseFloat(item.price) || 0;
+      const quantity = parseInt(item.quantity) || 0;
+      const itemTotal = sellingPrice * quantity;
+      
+      // Debug logging to see what values we're working with
+      console.log('Item:', item.name, 'Price:', item.sellingPrice, 'Parsed:', sellingPrice, 'Total:', itemTotal);
+      
+      // Use simple formatting to avoid potential issues
+      const itemName = item.name || 'Unknown Item';
+      const priceStr = `Rs${itemTotal.toFixed(2)}`;
+      const qtyStr = `Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}`;
+      
       return [
-        formatItem(item.name, formatCurrency(itemTotal)),
-        `  Qty: ${item.quantity} × ${formatCurrency(item.sellingPrice)}`,
+        `${itemName.padEnd(28)}${priceStr.padStart(14)}`,
+        `  ${qtyStr}`,
         ""  // Add empty line for spacing between items
       ].join('\n');
     }).join('\n');
@@ -602,13 +614,13 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       "",
       itemsBlock,
       repeat("-"),
-      line("Subtotal:", money(subTotal)),
-      line(`Discount (${settings.discountPercentage || 0}%):`, "-" + money(discountAmt)),
+      line("Subtotal:", `Rs${subTotal.toFixed(2)}`),
+      line(`Discount (${settings.discountPercentage || 0}%):`, `-Rs${discountAmt.toFixed(2)}`),
       repeat("-"),
-      line("TOTAL:", money(total)),
+      line("TOTAL:", `Rs${total.toFixed(2)}`),
       "",
-      line("Cash:", money(total)),
-      line("Change:", money(0)),
+      line("Cash:", `Rs${total.toFixed(2)}`),
+      line("Change:", `Rs0.00`),
       "",
       repeat("*"),
       center("THANK YOU!"),
@@ -617,6 +629,10 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       center("Powered by Codebridge"),
       center("Contact: +92 308 2283845"),
     ].join("\n");
+
+    // Debug logging to see the final receipt content
+    console.log('Final Receipt Text:', receiptText);
+    console.log('Receipt Length:', receiptText.length);
 
   // Enhanced HTML wrapper with print button and better styling
   const printContent = `
@@ -629,27 +645,29 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
         @media print {
           @page { 
             size: 76mm auto; 
-            margin: 1mm; 
+            margin: 2mm; 
           }
           .no-print { display: none !important; }
           body { 
             background: white !important; 
-            font-size: 9px !important;
-            line-height: 0.9 !important;
+            font-size: 10px !important;
+            line-height: 1.0 !important;
           }
           .receipt-container {
             border: none !important;
             box-shadow: none !important;
-            padding: 1mm !important;
-            width: 74mm !important;
+            padding: 2mm !important;
+            width: 72mm !important;
           }
           pre {
             font-family: "Courier New", "Lucida Console", "Monaco", monospace !important;
-            font-size: 9px !important;
-            line-height: 0.9 !important;
+            font-size: 10px !important;
+            line-height: 1.0 !important;
             white-space: pre !important;
             margin: 0 !important;
             padding: 0 !important;
+            color: black !important;
+            background: white !important;
           }
         }
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
