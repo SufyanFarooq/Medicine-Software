@@ -555,14 +555,131 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       return;
     }
     
-    // Direct print method - simpler approach
-    const printContent = generateSimplePrintContent();
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
+    // Ultra-simple print method using plain text
+    try {
+      const receiptText = generatePlainTextReceipt();
+      const printWindow = window.open('', '_blank', 'width=400,height=600');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Receipt - ${invoiceNumber}</title>
+              <style>
+                body { 
+                  font-family: "Courier New", monospace; 
+                  font-size: 12px; 
+                  line-height: 1.2; 
+                  margin: 20px; 
+                  white-space: pre-wrap;
+                }
+                @media print {
+                  body { margin: 0; font-size: 10px; }
+                }
+              </style>
+            </head>
+            <body>
+              <pre>${receiptText}</pre>
+              <br><br>
+              <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Print Receipt</button>
+              <button onclick="window.close()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Close</button>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      }
+    } catch (error) {
+      console.error('Print error:', error);
+      alert('Print error: ' + error.message);
+    }
+  };
+
+  const generatePlainTextReceipt = () => {
+    const currentDate = new Date();
+    const shopName = settings.shopName || "Medical Shop";
+    const shopAddress = settings.address || "Your Shop Address";
+    const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
+    const currentUser = getUser();
+    
+    const subTotal = calculateSubtotal();
+    const discountAmt = calculateTotalDiscount();
+    const total = calculateTotal();
+
+    // Build items list
+    let itemsText = '';
+    selectedMedicines.forEach(item => {
+      const sellingPrice = parseFloat(item.sellingPrice) || 0;
+      const quantity = parseInt(item.quantity) || 0;
+      const itemTotal = sellingPrice * quantity;
+      itemsText += `${item.name}\n`;
+      itemsText += `  Qty: ${quantity} × Rs${sellingPrice.toFixed(2)} = Rs${itemTotal.toFixed(2)}\n\n`;
+    });
+
+    return `
+
+
+${shopName.toUpperCase()}
+${shopAddress}
+Tel: ${phoneNumber}
+
+******************************************
+           CASH RECEIPT
+******************************************
+
+Invoice: ${invoiceNumber}
+Date: ${currentDate.toLocaleDateString()}
+Time: ${currentDate.toLocaleTimeString()}
+Cashier: ${currentUser?.username || "Unknown"}
+
+------------------------------------------
+Description                    Price
+------------------------------------------
+
+${itemsText}
+------------------------------------------
+Subtotal:                     Rs${subTotal.toFixed(2)}
+Discount (${settings.discountPercentage || 0}%):               -Rs${discountAmt.toFixed(2)}
+------------------------------------------
+TOTAL:                        Rs${total.toFixed(2)}
+
+Cash:                         Rs${total.toFixed(2)}
+Change:                       Rs0.00
+
+******************************************
+           THANK YOU!
+******************************************
+
+        Powered by Codebridge
+      Contact: +92 308 2283845
+
+
+`;
+  };
+
+  const handleCopyToClipboard = async () => {
+    if (selectedMedicines.length === 0) {
+      alert('Please select medicines before copying receipt');
+      return;
+    }
+    
+    try {
+      const receiptText = generatePlainTextReceipt();
+      await navigator.clipboard.writeText(receiptText);
+      
+      // Show success notification
+      const notification = {
+        id: Date.now(),
+        message: 'Receipt copied to clipboard! Paste in Notepad/Word to print',
+        type: 'success'
+      };
+      setReturnNotifications(prev => [...prev, notification]);
+      
+      setTimeout(() => {
+        setReturnNotifications(prev => prev.filter(n => n.id !== notification.id));
+      }, 5000);
+      
+    } catch (error) {
+      console.error('Copy error:', error);
+      alert('Failed to copy receipt: ' + error.message);
     }
   };
 
@@ -1170,6 +1287,13 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                   className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   🖨️ Direct Print
+                </button>
+                <button
+                  onClick={handleCopyToClipboard}
+                  disabled={selectedMedicines.length === 0}
+                  className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  📋 Copy Receipt
                 </button>
                 <button
                   onClick={handlePrint}
