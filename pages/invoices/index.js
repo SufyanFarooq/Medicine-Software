@@ -108,8 +108,9 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
           .no-print { display: none !important; }
           body { 
             background: white !important; 
-            font-size: 11px !important;
-            line-height: 1.2 !important;
+            font-size: 13px !important;
+            line-height: 1.3 !important;
+            color: #000000 !important;
           }
           .receipt-container {
             border: none !important;
@@ -119,11 +120,13 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
           }
           pre {
             font-family: "Courier New", "Lucida Console", "Monaco", monospace !important;
-            font-size: 11px !important;
-            line-height: 1.2 !important;
+            font-size: 13px !important;
+            line-height: 1.3 !important;
             white-space: pre !important;
             margin: 0 !important;
             padding: 0 !important;
+            color: #000000 !important;
+            font-weight: bold !important;
           }
         }
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -143,12 +146,15 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
           border: 2px solid #333; background: #fff;
           box-shadow: 0 4px 8px rgba(0,0,0,0.1);
           font-family: "Courier New", "Lucida Console", "Monaco", monospace;
-          font-size: 11px; line-height: 1.2;
+          font-size: 13px; line-height: 1.3;
+          color: #000000;
         }
         pre {
           margin: 0;
           white-space: pre-wrap;
           word-wrap: break-word;
+          color: #000000;
+          font-weight: bold;
         }
         .print-button {
           position: fixed; top: 20px; right: 20px; z-index: 1000;
