@@ -539,189 +539,152 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     setLoading(false);
   };
 
-  const handlePreviewInvoice = () => {
-    if (selectedMedicines.length === 0) {
-      alert('Please select medicines before previewing');
-      return;
-    }
-    
-    // Open print window without auto-printing
-    printInvoice(false);
+  // =================== DROP-IN (paste inside InvoiceTable component) ===================
+
+// 1) Direct print button handler (simple & reliable)
+const handleDirectPrint = () => {
+  if (selectedMedicines.length === 0) {
+    alert('Please select medicines before printing');
+    return;
+  }
+  const receiptText = generatePlainTextReceipt(); // 42-column strict text
+  printPlainText(receiptText);                    // print via hidden iframe
+};
+
+// 2) Plain-text printer (hidden iframe; works with most thermal drivers)
+function printPlainText(text) {
+  // HTML escape so <, >, & etc. render safely inside <pre>
+  const esc = (s) =>
+    String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Receipt ${invoiceNumber}</title>
+        <style>
+          @media print { @page { size: 80mm auto; margin: 0; } }
+          html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+          body {
+            width: 80mm; padding: 10px 10px 14px 10px;
+            font-family: "Courier New", monospace;
+            font-size: 13px; line-height: 1.35;
+            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+          }
+          pre { margin: 0; white-space: pre; }
+        </style>
+      </head>
+      <body><pre>${esc(text)}</pre></body>
+    </html>
+  `);
+  doc.close();
+
+  // small delay helps some drivers
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 500);
+  }, 100);
+}
+
+// 3) Strict 42-column plain-text receipt (first screenshot jaisa layout)
+function generatePlainTextReceipt() {
+  const currentDate = new Date();
+  const shopName = (settings.shopName || "Medical Shop").toUpperCase();
+  const shopAddress = settings.address || "Your Shop Address";
+  const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
+  const currentUser = getUser();
+
+  const subTotal = calculateSubtotal();
+  const discountAmt = calculateTotalDiscount();
+  const total = calculateTotal();
+
+  // ---- helpers (locked to 42 columns for 80mm) ----
+  const COLS = 42;
+  const pad = (s, n, side = "end") => {
+    s = String(s);
+    const k = Math.max(n - s.length, 0);
+    return side === "start" ? " ".repeat(k) + s : s + " ".repeat(k);
   };
-
-  const handleDirectPrint = () => {
-    if (selectedMedicines.length === 0) {
-      alert('Please select medicines before printing');
-      return;
-    }
-    
-    // Ultra-simple print method using improved text formatting
-    try {
-      const receiptText = generatePlainTextReceipt();
-      const printWindow = window.open('', '_blank', 'width=500,height=700');
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>Receipt - ${invoiceNumber}</title>
-              <style>
-                body { 
-                  font-family: "Courier New", "Lucida Console", monospace; 
-                  font-size: 12px; 
-                  line-height: 1.2; 
-                  margin: 20px; 
-                  white-space: pre;
-                  background: white;
-                  color: black;
-                }
-                pre {
-                  margin: 0;
-                  padding: 0;
-                  font-family: "Courier New", "Lucida Console", monospace;
-                  font-size: 12px;
-                  line-height: 1.2;
-                  white-space: pre;
-                }
-                @media print {
-                  body { 
-                    margin: 0; 
-                    font-size: 10px; 
-                    background: white !important;
-                    color: black !important;
-                  }
-                  pre {
-                    font-size: 10px;
-                    background: white !important;
-                    color: black !important;
-                  }
-                  .no-print { display: none !important; }
-                }
-                .print-button {
-                  padding: 10px 20px; 
-                  background: #007bff; 
-                  color: white; 
-                  border: none; 
-                  border-radius: 5px; 
-                  cursor: pointer;
-                  margin-right: 10px;
-                }
-                .close-button {
-                  padding: 10px 20px; 
-                  background: #dc3545; 
-                  color: white; 
-                  border: none; 
-                  border-radius: 5px; 
-                  cursor: pointer;
-                }
-              </style>
-            </head>
-            <body>
-              <div style="text-align: center; margin-bottom: 20px; color: #666;">
-                <strong>Receipt Preview</strong><br>
-                Invoice: ${invoiceNumber} | Date: ${new Date().toLocaleDateString()}
-              </div>
-              
-              <pre>${receiptText}</pre>
-              
-              <div style="text-align: center; margin-top: 20px;" class="no-print">
-                <button onclick="window.print()" class="print-button">🖨️ Print Receipt</button>
-                <button onclick="window.close()" class="close-button">❌ Close</button>
-              </div>
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-        
-        // Wait for content to load then focus
-        printWindow.onload = () => {
-          printWindow.focus();
-        };
-      }
-    } catch (error) {
-      console.error('Print error:', error);
-      alert('Print error: ' + error.message);
-    }
+  const line = (L, R) => pad(L, 28, "end") + pad(R, 14, "start");
+  const center = (t) => {
+    t = String(t);
+    const k = Math.max(Math.floor((COLS - t.length) / 2), 0);
+    return " ".repeat(k) + t;
   };
+  const sep = (ch = "-") => ch.repeat(COLS);
 
-  const generatePlainTextReceipt = () => {
-    const currentDate = new Date();
-    const shopName = settings.shopName || "Medical Shop";
-    const shopAddress = settings.address || "Your Shop Address";
-    const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
-    const currentUser = getUser();
-    
-    const subTotal = calculateSubtotal();
-    const discountAmt = calculateTotalDiscount();
-    const total = calculateTotal();
+  // ---- items block ----
+  let itemsText = "";
+  selectedMedicines.forEach((item) => {
+    const price = +item.sellingPrice || 0;
+    const qty = parseInt(item.quantity) || 0;
+    const totalLine = (price * qty).toFixed(2);
+    const nm = (item.name || "Unknown Item").toUpperCase();
+    const name = nm.length > 28 ? nm.slice(0, 25) + "..." : nm;
 
-    // Helper functions for proper alignment
-    const center = (text, width = 42) => {
-      const padding = Math.max(0, Math.floor((width - text.length) / 2));
-      return ' '.repeat(padding) + text;
-    };
+    itemsText += line(name, `Rs${totalLine}`) + "\n";
+    itemsText += `  Qty: ${qty} × Rs${price.toFixed(2)}\n\n`;
+  });
 
-    const rightAlign = (text, width = 14) => {
-      return ' '.repeat(Math.max(0, width - text.length)) + text;
-    };
+  // ---- full receipt text ----
+  return [
+    center(shopName),
+    center(shopAddress),
+    center(`Tel: ${phoneNumber}`),
+    "",
+    "*".repeat(COLS),
+    center("CASH RECEIPT"),
+    "*".repeat(COLS),
+    "",
+    line(`Invoice: ${invoiceNumber}`, ""),
+    line(`Date: ${currentDate.toLocaleDateString()}`, ""),
+    line(`Time: ${currentDate.toLocaleTimeString()}`, ""),
+    line(`Cashier: ${currentUser?.username || "Unknown"}`, ""),
+    "",
+    sep("-"),
+    line("Description", "Price"),
+    sep("-"),
+    "",
+    itemsText.trimEnd(),
+    "",
+    sep("-"),
+    line("Subtotal:", `Rs${subTotal.toFixed(2)}`),
+    line(`Discount (${settings.discountPercentage || 0}%):`, `-Rs${discountAmt.toFixed(2)}`),
+    sep("-"),
+    line("TOTAL:", `Rs${total.toFixed(2)}`),
+    "",
+    line("Cash:", `Rs${total.toFixed(2)}`),
+    line("Change:", `Rs0.00`),
+    "",
+    "*".repeat(COLS),
+    center("THANK YOU!"),
+    "*".repeat(COLS),
+    "",
+    center("Powered by Codebridge"),
+    center("Contact: +92 308 2283845"),
+    ""
+  ].join("\n");
+}
+// =================== END DROP-IN ===================
 
-    const leftAlign = (text, width = 28) => {
-      return text + ' '.repeat(Math.max(0, width - text.length));
-    };
-
-    // Build items list with proper alignment
-    let itemsText = '';
-    selectedMedicines.forEach(item => {
-      const sellingPrice = parseFloat(item.sellingPrice) || 0;
-      const quantity = parseInt(item.quantity) || 0;
-      const itemTotal = sellingPrice * quantity;
-      
-      // Format item name (truncate if too long)
-      const itemName = item.name.length > 25 ? item.name.substring(0, 22) + '...' : item.name;
-      
-      // Format with proper alignment
-      itemsText += `${leftAlign(itemName)}${rightAlign(`Rs${itemTotal.toFixed(2)}`)}\n`;
-      itemsText += `  Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}\n\n`;
-    });
-
-    return `
-
-
-${center(shopName.toUpperCase())}
-${center(shopAddress)}
-${center(`Tel: ${phoneNumber}`)}
-
-${'*'.repeat(42)}
-${center('CASH RECEIPT')}
-${'*'.repeat(42)}
-
-Invoice: ${invoiceNumber}
-Date: ${currentDate.toLocaleDateString()}
-Time: ${currentDate.toLocaleTimeString()}
-Cashier: ${currentUser?.username || "Unknown"}
-
-${'-'.repeat(42)}
-Description                    Price
-${'-'.repeat(42)}
-
-${itemsText}${'-'.repeat(42)}
-Subtotal:                     ${rightAlign(`Rs${subTotal.toFixed(2)}`)}
-Discount (${settings.discountPercentage || 0}%):               ${rightAlign(`-Rs${discountAmt.toFixed(2)}`)}
-${'-'.repeat(42)}
-TOTAL:                        ${rightAlign(`Rs${total.toFixed(2)}`)}
-
-Cash:                         ${rightAlign(`Rs${total.toFixed(2)}`)}
-Change:                       ${rightAlign('Rs0.00')}
-
-${'*'.repeat(42)}
-${center('THANK YOU!')}
-${'*'.repeat(42)}
-
-${center('Powered by Codebridge')}
-${center('Contact: +92 308 2283845')}
-
-
-`;
-  };
 
   const handleCopyToClipboard = async () => {
     if (selectedMedicines.length === 0) {
