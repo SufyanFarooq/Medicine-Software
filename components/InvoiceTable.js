@@ -840,14 +840,23 @@ function generatePlainTextReceipt() {
     `;
   };
 
-  // Helper functions for receipt formatting - improved for better printing
-  const center = (text) => text.padStart((42 - text.length) / 2 + text.length);
+  // Helper functions for receipt formatting - SIMPLE and RELIABLE
+  const center = (text) => {
+    const width = 42;
+    const padding = Math.max(0, Math.floor((width - text.length) / 2));
+    return ' '.repeat(padding) + text;
+  };
   const repeat = (char) => char.repeat(42);
-  const line = (left, right) => left.padEnd(28) + right.padStart(14);
-  const money = (amount) => formatCurrency(amount);
+  const line = (left, right) => {
+    const leftText = String(left).substring(0, 28);
+    const rightText = String(right).substring(0, 14);
+    return leftText.padEnd(28) + rightText.padStart(14);
+  };
+  const money = (amount) => `Rs${parseFloat(amount || 0).toFixed(2)}`;
   const formatItem = (name, price) => {
-    const shortName = name.length > 25 ? name.substring(0, 22) + '...' : name;
-    return shortName.padEnd(28) + price.padStart(14);
+    const shortName = name.length > 28 ? name.substring(0, 25) + '...' : name;
+    const formattedPrice = `Rs${parseFloat(price || 0).toFixed(2)}`;
+    return shortName.padEnd(28) + formattedPrice.padStart(14);
   };
 
   const printInvoice = (autoPrint = true) => {
@@ -885,7 +894,7 @@ function generatePlainTextReceipt() {
       // Debug logging to see what values we're working with
       console.log('Item:', item.name, 'Price:', item.sellingPrice, 'Parsed:', sellingPrice, 'Total:', itemTotal);
       
-      // Use proper 42-column formatting
+      // Use proper 42-column formatting with Rs currency
       const itemName = (item.name || 'Unknown Item').substring(0, 28);
       const priceStr = `Rs${itemTotal.toFixed(2)}`;
       const qtyStr = `Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}`;
@@ -970,8 +979,8 @@ function generatePlainTextReceipt() {
           }
           pre {
             font-family: "Courier New", "Lucida Console", "Monaco", monospace !important;
-            font-size: 13px !important;
-            line-height: 1.3 !important;
+            font-size: 11px !important;
+            line-height: 1.2 !important;
             white-space: pre !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -1004,7 +1013,7 @@ function generatePlainTextReceipt() {
           border: 2px solid #333; background: #fff;
           box-shadow: 0 4px 8px rgba(0,0,0,0.1);
           font-family: "Courier New", "Lucida Console", "Monaco", monospace;
-          font-size: 13px; line-height: 1.3;
+          font-size: 11px; line-height: 1.2;
           color: #000000;
         }
         pre {
@@ -1013,6 +1022,8 @@ function generatePlainTextReceipt() {
           word-wrap: break-word;
           color: #000000;
           font-weight: bold;
+          font-size: 11px;
+          line-height: 1.2;
         }
         .print-button {
           position: fixed; top: 20px; right: 20px; z-index: 1000;
