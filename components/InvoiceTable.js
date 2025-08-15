@@ -578,7 +578,7 @@ function printPlainText(text) {
         <meta charset="utf-8" />
         <title>Receipt ${invoiceNumber}</title>
         <style>
-          @media print { @page { size: 80mm auto; margin: 0; } }
+          @media print { @page { size: 72mm auto; margin: 0; } }
           html, body { margin: 0; padding: 0; background: #fff; color: #000; }
           body {
             width: 80mm; padding: 10px 10px 14px 10px;
