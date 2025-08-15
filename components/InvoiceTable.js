@@ -1312,20 +1312,7 @@ function generatePlainTextReceipt() {
                 >
                   👁️ Preview Receipt
                 </button> */}
-                <button
-                  onClick={handleDirectPrint}
-                  disabled={selectedMedicines.length === 0}
-                  className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  🖨️ Direct Print
-                </button>
-                <button
-                  onClick={handleCopyToClipboard}
-                  disabled={selectedMedicines.length === 0}
-                  className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  📋 Copy Receipt
-                </button>
+
                 <button
                   onClick={handlePrint}
                   disabled={selectedMedicines.length === 0 || loading}
