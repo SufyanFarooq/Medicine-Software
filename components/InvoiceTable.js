@@ -578,15 +578,34 @@ function printPlainText(text) {
         <meta charset="utf-8" />
         <title>Receipt ${invoiceNumber}</title>
         <style>
-          @media print { @page { size: 72mm auto; margin: 0; } }
-          html, body { margin: 0; padding: 0; background: #fff; color: #000; }
-          body {
-            width: 80mm; padding: 10px 10px 14px 10px;
-            font-family: "Courier New", monospace;
-            font-size: 13px; line-height: 1.35;
-            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+          @media print { 
+            @page { 
+              size: 76mm auto; 
+              margin: 2mm; 
+            } 
           }
-          pre { margin: 0; white-space: pre; }
+          html, body { 
+            margin: 0; 
+            padding: 0; 
+            background: #fff; 
+            color: #000; 
+          }
+          body {
+            width: 76mm; 
+            padding: 8px 8px 12px 8px;
+            font-family: "Courier New", "Lucida Console", "Monaco", monospace;
+            font-size: 11px; 
+            line-height: 1.2;
+            -webkit-print-color-adjust: exact; 
+            print-color-adjust: exact;
+          }
+          pre { 
+            margin: 0; 
+            white-space: pre; 
+            font-family: "Courier New", "Lucida Console", "Monaco", monospace;
+            font-size: 11px;
+            line-height: 1.2;
+          }
         </style>
       </head>
       <body><pre>${esc(text)}</pre></body>
@@ -604,7 +623,7 @@ function printPlainText(text) {
   }, 100);
 }
 
-// 3) Strict 42-column plain-text receipt (first screenshot jaisa layout)
+// 3) Strict 42-column plain-text receipt with improved readability
 function generatePlainTextReceipt() {
   const currentDate = new Date();
   const shopName = (settings.shopName || "Medical Shop").toUpperCase();
@@ -618,65 +637,80 @@ function generatePlainTextReceipt() {
 
   // ---- helpers (locked to 42 columns for 80mm) ----
   const COLS = 42;
+  
+  // Improved padding functions for better readability
   const pad = (s, n, side = "end") => {
     s = String(s);
     const k = Math.max(n - s.length, 0);
     return side === "start" ? " ".repeat(k) + s : s + " ".repeat(k);
   };
-  const line = (L, R) => pad(L, 28, "end") + pad(R, 14, "start");
+  
+  // Ensure left text is max 28 chars, right text is max 14 chars
+  const line = (L, R) => {
+    const left = String(L).substring(0, 28);
+    const right = String(R).substring(0, 14);
+    return pad(left, 28, "end") + pad(right, 14, "start");
+  };
+  
+  // Center text within 42 columns
   const center = (t) => {
     t = String(t);
     const k = Math.max(Math.floor((COLS - t.length) / 2), 0);
     return " ".repeat(k) + t;
   };
+  
+  // Separator line (exactly 42 characters)
   const sep = (ch = "-") => ch.repeat(COLS);
 
-  // ---- items block ----
+  // ---- items block with improved formatting ----
   let itemsText = "";
   selectedMedicines.forEach((item) => {
     const price = +item.sellingPrice || 0;
     const qty = parseInt(item.quantity) || 0;
     const totalLine = (price * qty).toFixed(2);
+    
+    // Ensure item name fits in 28 characters
     const nm = (item.name || "Unknown Item").toUpperCase();
     const name = nm.length > 28 ? nm.slice(0, 25) + "..." : nm;
 
+    // Format with proper Rs currency and alignment
     itemsText += line(name, `Rs${totalLine}`) + "\n";
     itemsText += `  Qty: ${qty} × Rs${price.toFixed(2)}\n\n`;
   });
 
-  // ---- full receipt text ----
+  // ---- full receipt text with strict 42-column layout ----
   return [
     center(shopName),
     center(shopAddress),
     center(`Tel: ${phoneNumber}`),
     "",
-    "*".repeat(COLS),
+    "*".repeat(COLS),  // Exactly 42 asterisks
     center("CASH RECEIPT"),
-    "*".repeat(COLS),
+    "*".repeat(COLS),  // Exactly 42 asterisks
     "",
     line(`Invoice: ${invoiceNumber}`, ""),
     line(`Date: ${currentDate.toLocaleDateString()}`, ""),
     line(`Time: ${currentDate.toLocaleTimeString()}`, ""),
     line(`Cashier: ${currentUser?.username || "Unknown"}`, ""),
     "",
-    sep("-"),
+    sep("-"),  // Exactly 42 dashes
     line("Description", "Price"),
-    sep("-"),
+    sep("-"),  // Exactly 42 dashes
     "",
     itemsText.trimEnd(),
     "",
-    sep("-"),
+    sep("-"),  // Exactly 42 dashes
     line("Subtotal:", `Rs${subTotal.toFixed(2)}`),
     line(`Discount (${settings.discountPercentage || 0}%):`, `-Rs${discountAmt.toFixed(2)}`),
-    sep("-"),
+    sep("-"),  // Exactly 42 dashes
     line("TOTAL:", `Rs${total.toFixed(2)}`),
     "",
     line("Cash:", `Rs${total.toFixed(2)}`),
     line("Change:", `Rs0.00`),
     "",
-    "*".repeat(COLS),
+    "*".repeat(COLS),  // Exactly 42 asterisks
     center("THANK YOU!"),
-    "*".repeat(COLS),
+    "*".repeat(COLS),  // Exactly 42 asterisks
     "",
     center("Powered by Codebridge"),
     center("Contact: +92 308 2283845"),
@@ -828,6 +862,19 @@ function generatePlainTextReceipt() {
     const discountAmt = calculateTotalDiscount();
     const total = calculateTotal();
 
+    // Helper functions for proper 42-column formatting
+    const COLS = 42;
+    const center = (text) => {
+      const padding = Math.max(0, Math.floor((COLS - text.length) / 2));
+      return ' '.repeat(padding) + text;
+    };
+    const repeat = (char) => char.repeat(COLS);
+    const line = (left, right) => {
+      const leftText = String(left).substring(0, 28);
+      const rightText = String(right).substring(0, 14);
+      return leftText.padEnd(28) + rightText.padStart(14);
+    };
+
     // Build items block with proper formatting and spacing
     const itemsBlock = selectedMedicines.map(item => {
       // Ensure we have valid price values with fallbacks
@@ -838,19 +885,19 @@ function generatePlainTextReceipt() {
       // Debug logging to see what values we're working with
       console.log('Item:', item.name, 'Price:', item.sellingPrice, 'Parsed:', sellingPrice, 'Total:', itemTotal);
       
-      // Use simple formatting to avoid potential issues
-      const itemName = item.name || 'Unknown Item';
+      // Use proper 42-column formatting
+      const itemName = (item.name || 'Unknown Item').substring(0, 28);
       const priceStr = `Rs${itemTotal.toFixed(2)}`;
       const qtyStr = `Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}`;
       
       return [
-        `${itemName.padEnd(28)}${priceStr.padStart(14)}`,
+        line(itemName, priceStr),
         `  ${qtyStr}`,
         ""  // Add empty line for spacing between items
       ].join('\n');
     }).join('\n');
 
-    // Build a professional receipt body matching your examples
+    // Build a professional receipt body with strict 42-column layout
     const receiptText = [
       center(shopName.toUpperCase()),
       center(shopAddress),
@@ -885,7 +932,7 @@ function generatePlainTextReceipt() {
       "",
       center("Powered by Codebridge"),
       center("Contact: +92 308 2283845"),
-    ].join("\n");
+    ].join('\n');
 
     // Debug logging to see the final receipt content
     console.log('Final Receipt Text:', receiptText);
@@ -902,13 +949,13 @@ function generatePlainTextReceipt() {
         @media print {
           @page { 
             size: 76mm auto; 
-            margin: 0; 
+            margin: 2mm; 
           }
           .no-print { display: none !important; }
           body { 
             background: white !important; 
             color: black !important;
-            font-size: 12px !important;
+            font-size: 11px !important;
             line-height: 1.2 !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -916,14 +963,14 @@ function generatePlainTextReceipt() {
           .receipt-container {
             border: none !important;
             box-shadow: none !important;
-            padding: 5mm !important;
-            width: 76mm !important;
+            padding: 3mm !important;
+            width: 74mm !important;
             margin: 0 !important;
             background: white !important;
           }
           pre {
             font-family: "Courier New", "Lucida Console", "Monaco", monospace !important;
-            font-size: 12px !important;
+            font-size: 11px !important;
             line-height: 1.2 !important;
             white-space: pre !important;
             margin: 0 !important;
@@ -956,7 +1003,7 @@ function generatePlainTextReceipt() {
           border: 2px solid #333; background: #fff;
           box-shadow: 0 4px 8px rgba(0,0,0,0.1);
           font-family: "Courier New", "Lucida Console", "Monaco", monospace;
-          font-size: 10px; line-height: 1.0;
+          font-size: 11px; line-height: 1.2;
         }
         pre {
           margin: 0;

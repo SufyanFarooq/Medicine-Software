@@ -13,17 +13,25 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
   const shopAddress = settings.address || "Your Shop Address";
   const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
 
-  // Helper functions for receipt formatting
-  const center = (text) => text.padStart((42 - text.length) / 2 + text.length);
-  const repeat = (char) => char.repeat(42);
-  const line = (left, right) => left.padEnd(28) + right.padStart(14);
+  // Helper functions for receipt formatting - Improved for readability
+  const COLS = 42;
+  const center = (text) => {
+    const padding = Math.max(0, Math.floor((COLS - text.length) / 2));
+    return ' '.repeat(padding) + text;
+  };
+  const repeat = (char) => char.repeat(COLS);
+  const line = (left, right) => {
+    const leftText = String(left).substring(0, 28);
+    const rightText = String(right).substring(0, 14);
+    return leftText.padEnd(28) + rightText.padStart(14);
+  };
   const money = (amount) => {
     const formatted = formatCurrency(amount);
     // Ensure we use Rs format for Pakistani Rupees
     return formatted.replace('$', 'Rs');
   };
   const formatItem = (name, price) => {
-    const shortName = name.length > 25 ? name.substring(0, 22) + '...' : name;
+    const shortName = name.length > 28 ? name.substring(0, 25) + '...' : name;
     // Ensure price uses Rs format
     const formattedPrice = price.replace('$', 'Rs');
     return shortName.padEnd(28) + formattedPrice.padStart(14);
@@ -39,9 +47,10 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
     // Debug logging to see what values we're working with
     console.log('Item:', item.name, 'Price:', item.sellingPrice, 'Parsed:', sellingPrice, 'Total:', itemTotal);
     
+    // Use proper 42-column formatting with Rs currency
     return [
-      formatItem(item.name, formatCurrency(itemTotal)),
-      `  Qty: ${quantity} × ${formatCurrency(sellingPrice)}`,
+      line(item.name, `Rs${itemTotal.toFixed(2)}`),
+      `  Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}`,
       ""  // Add empty line for spacing between items
     ].join('\n');
   }).join('\n');
@@ -94,24 +103,24 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
         @media print {
           @page { 
             size: 76mm auto; 
-            margin: 1mm; 
+            margin: 2mm; 
           }
           .no-print { display: none !important; }
           body { 
             background: white !important; 
-            font-size: 9px !important;
-            line-height: 0.9 !important;
+            font-size: 11px !important;
+            line-height: 1.2 !important;
           }
           .receipt-container {
             border: none !important;
             box-shadow: none !important;
-            padding: 1mm !important;
+            padding: 3mm !important;
             width: 74mm !important;
           }
           pre {
             font-family: "Courier New", "Lucida Console", "Monaco", monospace !important;
-            font-size: 9px !important;
-            line-height: 0.9 !important;
+            font-size: 11px !important;
+            line-height: 1.2 !important;
             white-space: pre !important;
             margin: 0 !important;
             padding: 0 !important;
@@ -134,7 +143,7 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
           border: 2px solid #333; background: #fff;
           box-shadow: 0 4px 8px rgba(0,0,0,0.1);
           font-family: "Courier New", "Lucida Console", "Monaco", monospace;
-          font-size: 10px; line-height: 1.0;
+          font-size: 11px; line-height: 1.2;
         }
         pre {
           margin: 0;
