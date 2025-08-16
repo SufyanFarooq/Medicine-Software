@@ -10,9 +10,16 @@ export default function Settings() {
   const [settings, setSettings] = useState({
     currency: '$',
     discountPercentage: 3,
-    shopName: 'Medical Shop',
+    businessName: 'My Business',
+    businessType: 'Retail Store',
     contactNumber: '',
-    address: ''
+    address: '',
+    email: '',
+    website: '',
+    taxRate: 0,
+    hasExpiryDates: true,
+    hasBatchNumbers: false,
+    lowStockThreshold: 10
   });
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -38,6 +45,16 @@ export default function Settings() {
     { symbol: '₪', name: 'Israeli Shekel' },
     { symbol: '₨', name: 'Pakistani Rupee' },
     { symbol: '₦', name: 'Nigerian Naira' }
+  ];
+
+  const businessTypes = [
+    { value: 'Retail Store', label: 'Retail Store' },
+    { value: 'Restaurant', label: 'Restaurant' },
+    { value: 'Service Business', label: 'Service Business' },
+    { value: 'Wholesale Business', label: 'Wholesale Business' },
+    { value: 'Manufacturing', label: 'Manufacturing' },
+    { value: 'E-commerce', label: 'E-commerce' },
+    { value: 'Other', label: 'Other' }
   ];
 
   const roles = [
@@ -99,8 +116,8 @@ export default function Settings() {
 
       if (response.ok) {
         // Log settings changes
-        if (originalSettings.shopName !== settings.shopName) {
-          logSettingsActivity.updated('shopName', originalSettings.shopName, settings.shopName);
+        if (originalSettings.businessName !== settings.businessName) {
+          logSettingsActivity.updated('businessName', originalSettings.businessName, settings.businessName);
         }
         if (originalSettings.contactNumber !== settings.contactNumber) {
           logSettingsActivity.updated('contactNumber', originalSettings.contactNumber, settings.contactNumber);
@@ -300,20 +317,38 @@ export default function Settings() {
           hasPermission(currentUser?.role, 'canModifySettings') ? (
           <div className="card">
             <h3 className="text-lg font-medium text-gray-900 mb-4">🏪 Company Information</h3>
-            <p className="text-sm text-gray-600 mb-4">Update your shop details that will appear on invoices and receipts</p>
+            <p className="text-sm text-gray-600 mb-4">Update your business details that will appear on invoices and receipts</p>
             <div className="space-y-4">
               <div>
-                <label htmlFor="shopName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Shop Name
+                <label htmlFor="businessName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Business Name
                 </label>
                 <input
                   type="text"
-                  id="shopName"
-                  value={settings.shopName}
-                  onChange={(e) => setSettings(prev => ({ ...prev, shopName: e.target.value }))}
+                  id="businessName"
+                  value={settings.businessName}
+                  onChange={(e) => setSettings(prev => ({ ...prev, businessName: e.target.value }))}
                   className="input-field"
-                  placeholder="Enter shop name"
+                  placeholder="Enter business name"
                 />
+              </div>
+
+              <div>
+                <label htmlFor="businessType" className="block text-sm font-medium text-gray-700 mb-2">
+                  Business Type
+                </label>
+                <select
+                  id="businessType"
+                  value={settings.businessType}
+                  onChange={(e) => setSettings(prev => ({ ...prev, businessType: e.target.value }))}
+                  className="input-field"
+                >
+                  {businessTypes.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -340,7 +375,35 @@ export default function Settings() {
                   value={settings.address}
                   onChange={(e) => setSettings(prev => ({ ...prev, address: e.target.value }))}
                   className="input-field"
-                  placeholder="Enter shop address"
+                  placeholder="Enter business address"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  value={settings.email}
+                  onChange={(e) => setSettings(prev => ({ ...prev, email: e.target.value }))}
+                  className="input-field"
+                  placeholder="Enter business email"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="website" className="block text-sm font-medium text-gray-700 mb-2">
+                  Website
+                </label>
+                <input
+                  type="url"
+                  id="website"
+                  value={settings.website}
+                  onChange={(e) => setSettings(prev => ({ ...prev, website: e.target.value }))}
+                  className="input-field"
+                  placeholder="Enter website URL"
                 />
               </div>
 
@@ -407,6 +470,66 @@ export default function Settings() {
                     className="input-field"
                     placeholder="Enter discount percentage"
                   />
+                </div>
+
+                <div>
+                  <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700 mb-2">
+                    Tax Rate (%)
+                  </label>
+                  <input
+                    type="number"
+                    id="taxRate"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={settings.taxRate}
+                    onChange={(e) => setSettings(prev => ({ ...prev, taxRate: parseFloat(e.target.value) }))}
+                    className="input-field"
+                    placeholder="Enter tax rate"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="lowStockThreshold" className="block text-sm font-medium text-gray-700 mb-2">
+                    Low Stock Threshold
+                  </label>
+                  <input
+                    type="number"
+                    id="lowStockThreshold"
+                    min="1"
+                    value={settings.lowStockThreshold}
+                    onChange={(e) => setSettings(prev => ({ ...prev, lowStockThreshold: parseInt(e.target.value) }))}
+                    className="input-field"
+                    placeholder="Enter low stock threshold"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="hasExpiryDates"
+                      checked={settings.hasExpiryDates}
+                      onChange={(e) => setSettings(prev => ({ ...prev, hasExpiryDates: e.target.checked }))}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="hasExpiryDates" className="ml-2 block text-sm text-gray-700">
+                      Enable Expiry Date Tracking
+                    </label>
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="hasBatchNumbers"
+                      checked={settings.hasBatchNumbers}
+                      onChange={(e) => setSettings(prev => ({ ...prev, hasBatchNumbers: e.target.checked }))}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="hasBatchNumbers" className="ml-2 block text-sm text-gray-700">
+                      Enable Batch Number Tracking
+                    </label>
+                  </div>
                 </div>
 
                 <div className="flex justify-end">

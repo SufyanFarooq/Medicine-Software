@@ -1,18 +1,24 @@
-🏥 MEDICAL SHOP MANAGEMENT TOOL
-================================
+🏪 GENERAL BUSINESS MANAGEMENT SYSTEM
+=====================================
 
-A complete offline medical shop management system built with Next.js and MongoDB.
+A complete offline business management system built with Next.js and MongoDB.
+Perfect for retail stores, restaurants, service businesses, and any type of business.
 
 FEATURES
 --------
-✅ Medicine Management (CRUD operations)
-✅ Search medicines by name or code
-✅ Customer invoice generation with 3% discount
+✅ Product Management (CRUD operations)
+✅ Category-based organization
+✅ Search products by name or code
+✅ Customer invoice generation with configurable discount
 ✅ Printable invoices (PDF format)
 ✅ Local MongoDB database
 ✅ Offline operation after initial setup
 ✅ Responsive design with Tailwind CSS
-✅ Stock management and expiry tracking
+✅ Stock management and expiry tracking (optional)
+✅ Multi-currency support
+✅ Return management system
+✅ Business type configuration
+✅ Service management (for service businesses)
 
 PREREQUISITES
 -------------
@@ -54,45 +60,59 @@ USAGE GUIDE
 -----------
 
 DASHBOARD:
-- View total medicines, low stock items, expiring medicines
+- View total products, low stock items, expiring items
 - Quick access to all features
-- Sales overview
+- Sales overview and business analytics
 
-MEDICINES:
-- Add new medicines with auto-generated codes
-- Edit existing medicines
-- Delete medicines
+PRODUCTS:
+- Add new products with auto-generated codes
+- Organize products by categories
+- Edit existing products
+- Delete products
 - Search by name or code
-- View stock status and expiry dates
+- View stock status and expiry dates (if applicable)
 
 INVOICE GENERATION:
-- Select medicines from available stock
+- Select products from available stock
 - Adjust quantities
-- Automatic 3% discount calculation
+- Automatic discount calculation (configurable)
 - Generate and print invoices
 - Automatic stock reduction after sale
 
+BUSINESS TYPES SUPPORTED:
+- Retail Stores (Electronics, Clothing, etc.)
+- Restaurants & Food Businesses
+- Service Businesses
+- Wholesale Businesses
+- Any other business type
+
 DATABASE STRUCTURE
 ------------------
-Database: medical_shop
+Database: business_management
 Collections:
-- medicines: Medicine inventory data
+- products: Product inventory data
 - invoices: Customer invoice records
+- categories: Product categories
+- settings: Business configuration
 
-MEDICINE FIELDS:
-- name: Medicine name
+PRODUCT FIELDS:
+- name: Product name
 - code: Unique identifier (auto-generated)
+- category: Product category
 - quantity: Available stock
 - purchasePrice: Cost price
 - sellingPrice: Retail price
-- expiryDate: Expiration date
+- expiryDate: Expiration date (optional)
 - batchNo: Batch number (optional)
+- brand: Brand name
+- description: Product description
+- unit: Unit of measurement
 
 INVOICE FIELDS:
 - invoiceNumber: Unique invoice ID
-- items: Array of sold medicines
+- items: Array of sold products
 - subtotal: Total before discount
-- discount: 3% discount amount
+- discount: Configurable discount amount
 - total: Final amount
 - date: Invoice date
 
@@ -138,7 +158,7 @@ SECURITY NOTES
 --------------
 - This is a local application, no external connections
 - Database runs on localhost only
-- No user authentication (single-user system)
+- User authentication system included
 - Keep backup copies of your data
 
 SUPPORT
@@ -149,6 +169,6 @@ For issues or questions:
 3. Ensure MongoDB is running
 4. Check console for error messages
 
-VERSION: 1.0.0
+VERSION: 2.0.0
 BUILT WITH: Next.js, MongoDB, Tailwind CSS
 LICENSE: MIT 

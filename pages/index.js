@@ -6,7 +6,7 @@ import { formatCurrency } from '../lib/currency';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
-    totalMedicines: 0,
+    totalProducts: 0,
     lowStock: 0,
     expiringSoon: 0,
     totalSales: 0,
@@ -20,7 +20,7 @@ export default function Dashboard() {
   const [settings, setSettings] = useState({
     currency: '$',
     discountPercentage: 3,
-    shopName: 'Medical Shop'
+    businessName: 'My Business'
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [chartData, setChartData] = useState({
@@ -60,36 +60,37 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      const [medicinesRes, invoicesRes, returnsRes] = await Promise.all([
-        apiRequest('/api/medicines'),
+      const [productsRes, invoicesRes, returnsRes] = await Promise.all([
+        apiRequest('/api/products'),
         apiRequest('/api/invoices'),
         apiRequest('/api/returns'),
       ]);
 
-      let medicines = [];
-      if (medicinesRes.ok) {
-        medicines = await medicinesRes.json();
-        const lowStock = medicines.filter(m => m.quantity <= 10).length;
-        const expiringSoon = medicines.filter(m => {
-          const expiryDate = new Date(m.expiryDate);
+      let products = [];
+      if (productsRes.ok) {
+        products = await productsRes.json();
+        const lowStock = products.filter(p => p.quantity <= 10).length;
+        const expiringSoon = products.filter(p => {
+          if (!p.expiryDate) return false;
+          const expiryDate = new Date(p.expiryDate);
           const thirtyDaysFromNow = new Date();
           thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
           return expiryDate <= thirtyDaysFromNow;
         }).length;
 
         // Calculate inventory value (current stock × purchase price)
-        const inventoryValue = medicines.reduce((sum, medicine) => {
-          return sum + (medicine.quantity * medicine.purchasePrice);
+        const inventoryValue = products.reduce((sum, product) => {
+          return sum + (product.quantity * product.purchasePrice);
         }, 0);
 
         // Calculate total cost of inventory
-        const totalCost = medicines.reduce((sum, medicine) => {
-          return sum + (medicine.quantity * medicine.purchasePrice);
+        const totalCost = products.reduce((sum, product) => {
+          return sum + (product.quantity * product.purchasePrice);
         }, 0);
 
         setStats(prev => ({
           ...prev,
-          totalMedicines: medicines.length,
+          totalProducts: products.length,
           lowStock,
           expiringSoon,
           inventoryValue,
@@ -109,10 +110,10 @@ export default function Dashboard() {
         
         invoices.forEach(invoice => {
           invoice.items.forEach(item => {
-            // Find the medicine to get purchase price
-            const medicine = medicines.find(m => m._id === item.medicineId);
-            if (medicine) {
-              totalPurchasePrice += item.quantity * medicine.purchasePrice;
+            // Find the product to get purchase price
+            const product = products.find(p => p._id === item.productId);
+            if (product) {
+              totalPurchasePrice += item.quantity * product.purchasePrice;
               totalSellingPrice += item.quantity * item.price;
             }
           });
@@ -525,25 +526,25 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: 'Total Medicines',
-      value: stats.totalMedicines,
-      icon: '💊',
+      title: 'Total Products',
+      value: stats.totalProducts,
+      icon: '📦',
       color: 'bg-blue-500',
-      href: '/medicines',
+      href: '/products',
     },
     {
       title: 'Inventory Value',
       value: `${formatCurrency(stats.inventoryValue)}`,
       icon: '📦',
       color: 'bg-blue-500',
-      href: '/medicines'
+      href: '/products'
     },
     {
       title: 'Total Cost',
       value: `${formatCurrency(stats.totalPurchasePrice || 0)}`,
       icon: '🛒',
       color: 'bg-orange-500',
-      href: '/medicines'
+      href: '/products'
     },
     {
       title: 'Total Sales Value',
@@ -570,10 +571,10 @@ export default function Dashboard() {
 
   const quickActions = [
     {
-      title: 'Add New Medicine',
-      description: 'Add a new medicine to inventory',
+      title: 'Add New Product',
+      description: 'Add a new product to inventory',
       icon: '➕',
-      href: '/medicines/add',
+      href: '/products/add',
       color: 'bg-primary-500',
     },
     {
@@ -584,10 +585,10 @@ export default function Dashboard() {
       color: 'bg-success-500',
     },
     {
-      title: 'View Medicines',
-      description: 'Browse and manage medicines',
+      title: 'View Products',
+      description: 'Browse and manage products',
       icon: '📋',
-      href: '/medicines',
+      href: '/products',
       color: 'bg-warning-500',
     },
   ];
@@ -599,7 +600,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Welcome to {settings.shopName} Management System
+            Welcome to {settings.businessName} Management System
           </p>
         </div>
 

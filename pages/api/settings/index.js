@@ -35,16 +35,23 @@ export default async function handler(req, res) {
         // Get settings (create default if not exists)
         let settings = await settingsCollection.findOne({});
         if (!settings) {
-                  // Create default settings
-        const defaultSettings = {
-          currency: '$',
-          discountPercentage: 3,
-          shopName: 'Medical Shop',
-          contactNumber: '',
-          address: '',
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
+          // Create default settings
+          const defaultSettings = {
+            currency: '$',
+            discountPercentage: 3,
+            businessName: 'My Business',
+            businessType: 'Retail Store',
+            contactNumber: '',
+            address: '',
+            email: '',
+            website: '',
+            taxRate: 0,
+            hasExpiryDates: true,
+            hasBatchNumbers: false,
+            lowStockThreshold: 10,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
           await settingsCollection.insertOne(defaultSettings);
           settings = defaultSettings;
         }
@@ -52,15 +59,32 @@ export default async function handler(req, res) {
         break;
 
       case 'PUT':
-        const { currency, discountPercentage, shopName, contactNumber, address } = req.body;
+        const { 
+          currency, 
+          discountPercentage, 
+          businessName, 
+          businessType,
+          contactNumber, 
+          address,
+          email,
+          website,
+          taxRate,
+          hasExpiryDates,
+          hasBatchNumbers,
+          lowStockThreshold
+        } = req.body;
         
         // Validate input
-        if (!currency || discountPercentage === undefined || !shopName) {
-          return res.status(400).json({ message: 'Currency, discount percentage, and shop name are required' });
+        if (!currency || discountPercentage === undefined || !businessName || !businessType) {
+          return res.status(400).json({ message: 'Currency, discount percentage, business name, and business type are required' });
         }
 
         if (discountPercentage < 0 || discountPercentage > 100) {
           return res.status(400).json({ message: 'Discount percentage must be between 0 and 100' });
+        }
+
+        if (taxRate < 0 || taxRate > 100) {
+          return res.status(400).json({ message: 'Tax rate must be between 0 and 100' });
         }
 
         // Update settings
@@ -70,9 +94,16 @@ export default async function handler(req, res) {
             $set: { 
               currency,
               discountPercentage: parseFloat(discountPercentage),
-              shopName,
+              businessName,
+              businessType,
               contactNumber: contactNumber || '',
               address: address || '',
+              email: email || '',
+              website: website || '',
+              taxRate: parseFloat(taxRate) || 0,
+              hasExpiryDates: hasExpiryDates !== undefined ? hasExpiryDates : true,
+              hasBatchNumbers: hasBatchNumbers !== undefined ? hasBatchNumbers : false,
+              lowStockThreshold: parseInt(lowStockThreshold) || 10,
               updatedAt: new Date(),
               updatedBy: user.userId,
             }

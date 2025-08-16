@@ -1,7 +1,7 @@
 {
-  "name": "medical-shop-tool",
-  "version": "1.0.0",
-  "description": "Offline Medical Shop Management Tool",
+  "name": "general-business-management-system",
+  "version": "2.0.0",
+  "description": "Universal Business Management System - Inventory, Sales, and Management Tool",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -14,7 +14,8 @@
     "seed-all": "npm run seed && npm run seed-invoices && npm run seed-returns",
     "create-admin": "node scripts/create-admin.js",
     "create-super-admin": "node scripts/create-admin.js",
-    "create-test-users": "node scripts/create-test-users.js"
+    "create-test-users": "node scripts/create-test-users.js",
+    "migrate": "node scripts/migrate-to-products.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
