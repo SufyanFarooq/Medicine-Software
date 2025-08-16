@@ -21,8 +21,23 @@ export default function MedicineDetail() {
     timeBasedAnalytics: {
       daily: { inflow: 0, outflow: 0, net: 0 },
       weekly: { inflow: 0, outflow: 0, net: 0 },
-      monthly: { inflow: 0, outflow: 0, net: 0 }
+      monthly: { inflow: 0, outflow: 0, net: 0 },
+      quarterly: { inflow: 0, outflow: 0, net: 0 },
+      yearly: { inflow: 0, outflow: 0, net: 0 }
     }
+  });
+
+  // Custom time range state
+  const [customTimeRange, setCustomTimeRange] = useState({
+    startDate: '',
+    endDate: '',
+    isActive: false
+  });
+
+  const [customAnalytics, setCustomAnalytics] = useState({
+    inflow: 0,
+    outflow: 0,
+    net: 0
   });
 
   useEffect(() => {
@@ -52,6 +67,94 @@ export default function MedicineDetail() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchCustomTimeRangeAnalytics = async (startDate, endDate) => {
+    try {
+      // Convert date strings to proper Date objects with time
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0); // Start of day
+      
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999); // End of day
+      
+      // Fetch inflow data for custom time range using ISO format
+      const inflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${start.toISOString()}&endDate=${end.toISOString()}`);
+      let customInflow = 0;
+      if (inflowResponse.ok) {
+        const inflowData = await inflowResponse.json();
+        customInflow = inflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
+      }
+
+      // Calculate outflow for custom time range
+      let customOutflow = 0;
+      console.log('Checking sales data for custom range:', {
+        start: start.toISOString(),
+        end: end.toISOString(),
+        salesData: analytics.salesData.slice(0, 3) // Show first 3 sales for debugging
+      });
+      
+      analytics.salesData.forEach(sale => {
+        const saleDate = new Date(sale.date);
+        console.log('Sale date check:', {
+          originalDate: sale.date,
+          parsedDate: saleDate.toISOString(),
+          isInRange: saleDate >= start && saleDate <= end,
+          quantity: sale.quantity
+        });
+        if (saleDate >= start && saleDate <= end) {
+          customOutflow += sale.quantity;
+        }
+      });
+
+      const customNet = customInflow - customOutflow;
+      
+      console.log('Custom Time Range Debug:', {
+        startDate: startDate,
+        endDate: endDate,
+        startISO: start.toISOString(),
+        endISO: end.toISOString(),
+        customInflow,
+        customOutflow,
+        customNet,
+        salesDataLength: analytics.salesData.length
+      });
+      
+      setCustomAnalytics({
+        inflow: customInflow,
+        outflow: customOutflow,
+        net: customNet
+      });
+    } catch (error) {
+      console.error('Error fetching custom time range analytics:', error);
+    }
+  };
+
+  const handleCustomTimeRangeChange = (field, value) => {
+    setCustomTimeRange(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const applyCustomTimeRange = () => {
+    if (customTimeRange.startDate && customTimeRange.endDate) {
+      setCustomTimeRange(prev => ({ ...prev, isActive: true }));
+      fetchCustomTimeRangeAnalytics(customTimeRange.startDate, customTimeRange.endDate);
+    }
+  };
+
+  const resetCustomTimeRange = () => {
+    setCustomTimeRange({
+      startDate: '',
+      endDate: '',
+      isActive: false
+    });
+    setCustomAnalytics({
+      inflow: 0,
+      outflow: 0,
+      net: 0
+    });
   };
 
   const fetchAnalytics = async () => {
@@ -121,16 +224,25 @@ export default function MedicineDetail() {
           { label: 'Current Stock', value: currentStock, color: '#10b981' }
         ];
 
-        // Calculate time-based analytics (Daily, Weekly, Monthly)
+        // Calculate time-based analytics (Daily, Weekly, Monthly, Quarterly, Yearly)
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const weekStart = new Date(today);
         weekStart.setDate(today.getDate() - today.getDay());
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        
+        // Calculate quarterly start (Q1: Jan-Mar, Q2: Apr-Jun, Q3: Jul-Sep, Q4: Oct-Dec)
+        const currentQuarter = Math.floor(now.getMonth() / 3);
+        const quarterStart = new Date(now.getFullYear(), currentQuarter * 3, 1);
+        
+        // Calculate yearly start
+        const yearStart = new Date(now.getFullYear(), 0, 1);
 
         let dailyInflow = 0, dailyOutflow = 0;
         let weeklyInflow = 0, weeklyOutflow = 0;
         let monthlyInflow = 0, monthlyOutflow = 0;
+        let quarterlyInflow = 0, quarterlyOutflow = 0;
+        let yearlyInflow = 0, yearlyOutflow = 0;
 
         // Calculate outflow (items sold) for different time periods
         salesData.forEach(sale => {
@@ -149,6 +261,16 @@ export default function MedicineDetail() {
           // Monthly analytics
           if (saleDate >= monthStart) {
             monthlyOutflow += sale.quantity;
+          }
+          
+          // Quarterly analytics
+          if (saleDate >= quarterStart) {
+            quarterlyOutflow += sale.quantity;
+          }
+          
+          // Yearly analytics
+          if (saleDate >= yearStart) {
+            yearlyOutflow += sale.quantity;
           }
         });
 
@@ -200,6 +322,30 @@ export default function MedicineDetail() {
           monthlyInflow = 0;
         }
 
+        // Fetch quarterly inflow data
+        try {
+          const quarterlyInflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${quarterStart.toISOString()}&endDate=${endOfMonth.toISOString()}`);
+          if (quarterlyInflowResponse.ok) {
+            const quarterlyInflowData = await quarterlyInflowResponse.json();
+            quarterlyInflow = quarterlyInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
+          }
+        } catch (error) {
+          console.error('Error fetching quarterly inflow:', error);
+          quarterlyInflow = 0;
+        }
+
+        // Fetch yearly inflow data
+        try {
+          const yearlyInflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${yearStart.toISOString()}&endDate=${endOfMonth.toISOString()}`);
+          if (yearlyInflowResponse.ok) {
+            const yearlyInflowData = await yearlyInflowResponse.json();
+            yearlyInflow = yearlyInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
+          }
+        } catch (error) {
+          console.error('Error fetching yearly inflow:', error);
+          yearlyInflow = 0;
+        }
+
         // Prepare profit breakdown with proper rounding
         const totalRevenue = Math.round((totalSold * (medicine?.sellingPrice || 0)) * 100) / 100;
         const totalCost = Math.round((totalSold * (medicine?.purchasePrice || 0)) * 100) / 100;
@@ -239,6 +385,16 @@ export default function MedicineDetail() {
               inflow: monthlyInflow, 
               outflow: monthlyOutflow, 
               net: monthlyInflow - monthlyOutflow 
+            },
+            quarterly: { 
+              inflow: quarterlyInflow, 
+              outflow: quarterlyOutflow, 
+              net: quarterlyInflow - quarterlyOutflow 
+            },
+            yearly: { 
+              inflow: yearlyInflow, 
+              outflow: yearlyOutflow, 
+              net: yearlyInflow - yearlyOutflow 
             }
           }
         });
@@ -544,10 +700,138 @@ export default function MedicineDetail() {
               ✅ <strong>Real-Time Data:</strong> All inflow (purchases) and outflow (sales) data is now tracked 
               through the inventory management system. Stock updates and sales are automatically recorded.
             </p>
+          </div>
 
+          {/* Custom Time Range Selector */}
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h4 className="text-lg font-semibold text-blue-800 mb-4 flex items-center">
+              🗓️ Custom Time Range Analysis
+            </h4>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-blue-700">From:</label>
+                <input
+                  type="date"
+                  value={customTimeRange.startDate}
+                  onChange={(e) => handleCustomTimeRangeChange('startDate', e.target.value)}
+                  className="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-blue-700">To:</label>
+                <input
+                  type="date"
+                  value={customTimeRange.endDate}
+                  onChange={(e) => handleCustomTimeRangeChange('endDate', e.target.value)}
+                  className="px-3 py-2 border border-blue-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <button
+                onClick={applyCustomTimeRange}
+                disabled={!customTimeRange.startDate || !customTimeRange.endDate}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                🔍 Apply Range
+              </button>
+              {customTimeRange.isActive && (
+                <button
+                  onClick={resetCustomTimeRange}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 text-sm font-medium"
+                >
+                  🔄 Reset
+                </button>
+              )}
+            </div>
+            
+            {/* Quick Preset Buttons */}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="text-sm font-medium text-blue-700 mr-2">Quick Presets:</span>
+              <button
+                onClick={() => {
+                  const end = new Date();
+                  const start = new Date();
+                  start.setDate(end.getDate() - 7);
+                  setCustomTimeRange({
+                    startDate: start.toISOString().split('T')[0],
+                    endDate: end.toISOString().split('T')[0],
+                    isActive: false
+                  });
+                }}
+                className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-xs font-medium"
+              >
+                📅 Last 7 Days
+              </button>
+              <button
+                onClick={() => {
+                  const end = new Date();
+                  const start = new Date();
+                  start.setDate(end.getDate() - 30);
+                  setCustomTimeRange({
+                    startDate: start.toISOString().split('T')[0],
+                    endDate: end.toISOString().split('T')[0],
+                    isActive: false
+                  });
+                }}
+                className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-xs font-medium"
+              >
+                📅 Last 30 Days
+              </button>
+              <button
+                onClick={() => {
+                  const end = new Date();
+                  const start = new Date();
+                  start.setDate(end.getDate() - 90);
+                  setCustomTimeRange({
+                    startDate: start.toISOString().split('T')[0],
+                    endDate: end.toISOString().split('T')[0],
+                    isActive: false
+                  });
+                }}
+                className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-xs font-medium"
+              >
+                📅 Last 3 Months
+              </button>
+              <button
+                onClick={() => {
+                  const end = new Date();
+                  const start = new Date();
+                  start.setDate(end.getDate() - 180);
+                  setCustomTimeRange({
+                    startDate: start.toISOString().split('T')[0],
+                    endDate: end.toISOString().split('T')[0],
+                    isActive: false
+                  });
+                }}
+                className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-xs font-medium"
+              >
+                📅 Last 6 Months
+              </button>
+            </div>
+            
+            {/* Custom Time Range Results */}
+            {customTimeRange.isActive && (
+              <div className="mt-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{customAnalytics.inflow}</div>
+                    <div className="text-sm text-blue-700">Inflow (Custom Range)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-red-600">{customAnalytics.outflow}</div>
+                    <div className="text-sm text-red-700">Outflow (Custom Range)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className={`text-2xl font-bold ${customAnalytics.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {customAnalytics.net >= 0 ? '+' : ''}{customAnalytics.net}
+                    </div>
+                    <div className="text-sm text-gray-700">Net (Custom Range)</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Daily Analytics */}
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
               <h4 className="text-lg font-semibold text-blue-800 mb-4 flex items-center">
@@ -631,10 +915,66 @@ export default function MedicineDetail() {
                 </div>
               </div>
             </div>
+
+            {/* Quarterly Analytics */}
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-4">
+              <h4 className="text-lg font-semibold text-orange-800 mb-4 flex items-center">
+                📊 This Quarter's Flow
+              </h4>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-orange-700">Inflow:</span>
+                  <span className="font-bold text-orange-800">{analytics.timeBasedAnalytics.quarterly.inflow} units</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-red-700">Outflow:</span>
+                  <span className="font-bold text-red-800">{analytics.timeBasedAnalytics.quarterly.outflow} units</span>
+                </div>
+                <div className="border-t border-orange-200 pt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Net:</span>
+                    <span className={`font-bold ${
+                      (analytics.timeBasedAnalytics.quarterly.inflow - analytics.timeBasedAnalytics.quarterly.outflow) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {analytics.timeBasedAnalytics.quarterly.inflow - analytics.timeBasedAnalytics.quarterly.outflow >= 0 ? '+' : ''}
+                      {analytics.timeBasedAnalytics.quarterly.inflow - analytics.timeBasedAnalytics.quarterly.outflow} units
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Yearly Analytics */}
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-lg p-4">
+              <h4 className="text-lg font-semibold text-indigo-800 mb-4 flex items-center">
+                📈 This Year's Flow
+              </h4>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-indigo-700">Inflow:</span>
+                  <span className="font-bold text-indigo-800">{analytics.timeBasedAnalytics.yearly.inflow} units</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-red-700">Outflow:</span>
+                  <span className="font-bold text-red-800">{analytics.timeBasedAnalytics.yearly.outflow} units</span>
+                </div>
+                <div className="border-t border-indigo-200 pt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Net:</span>
+                    <span className={`font-bold ${
+                      (analytics.timeBasedAnalytics.yearly.inflow - analytics.timeBasedAnalytics.yearly.outflow) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {analytics.timeBasedAnalytics.yearly.inflow - analytics.timeBasedAnalytics.yearly.outflow >= 0 ? '+' : ''}
+                      {analytics.timeBasedAnalytics.yearly.inflow - analytics.timeBasedAnalytics.yearly.outflow} units
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Summary Cards */}
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="text-center p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">{analytics.timeBasedAnalytics.daily.outflow}</div>
               <div className="text-sm text-blue-700">Units Sold Today</div>
@@ -646,6 +986,14 @@ export default function MedicineDetail() {
             <div className="text-center p-3 bg-purple-50 border border-purple-200 rounded-lg">
               <div className="text-2xl font-bold text-purple-600">{analytics.timeBasedAnalytics.monthly.outflow}</div>
               <div className="text-sm text-purple-700">Units Sold This Month</div>
+            </div>
+            <div className="text-center p-3 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="text-2xl font-bold text-orange-600">{analytics.timeBasedAnalytics.quarterly.outflow}</div>
+              <div className="text-sm text-orange-700">Units Sold This Quarter</div>
+            </div>
+            <div className="text-center p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+              <div className="text-2xl font-bold text-indigo-600">{analytics.timeBasedAnalytics.yearly.outflow}</div>
+              <div className="text-sm text-indigo-700">Units Sold This Year</div>
             </div>
           </div>
         </div>
