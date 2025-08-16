@@ -492,12 +492,53 @@ export default function MedicineDetail() {
         {/* Recent Sales History */}
         {analytics.salesData.length > 0 && (
           <div className="card">
-            <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
-              📈 Recent Sales History
+            <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center justify-between">
+              <span>📈 Recent Sales History</span>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-500">
+                  Showing {Math.min(analytics.salesData.length, 10)} of {analytics.salesData.length} sales
+                </span>
+                <div className="flex space-x-1">
+                  <button
+                    onClick={() => {
+                      const container = document.getElementById('sales-table-container');
+                      if (container) {
+                        container.scrollTo({
+                          top: container.scrollTop - 200,
+                          behavior: 'smooth'
+                        });
+                      }
+                    }}
+                    className="w-8 h-8 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full flex items-center justify-center transition-colors"
+                    title="Scroll Up"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    onClick={() => {
+                      const container = document.getElementById('sales-table-container');
+                      if (container) {
+                        container.scrollTo({
+                          top: container.scrollTop + 200,
+                          behavior: 'smooth'
+                        });
+                      }
+                    }}
+                    className="w-8 h-8 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full flex items-center justify-center transition-colors"
+                    title="Scroll Down"
+                  >
+                    ↓
+                  </button>
+                </div>
+              </div>
             </h3>
-            <div className="overflow-x-auto">
+            
+            <div 
+              id="sales-table-container"
+              className="overflow-y-auto max-h-96 scroll-smooth border border-gray-200 rounded-lg"
+            >
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
@@ -528,6 +569,11 @@ export default function MedicineDetail() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            
+            {/* Scroll Instructions */}
+            <div className="mt-3 text-center text-xs text-gray-500">
+              💡 Use ↑↓ arrows or scroll to navigate through sales history
             </div>
           </div>
         )}
