@@ -23,7 +23,8 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
   const [stockUpdateData, setStockUpdateData] = useState({
     additionalQuantity: '',
     newTotalBuyingPrice: '',
-    newBatchNo: ''
+    newBatchNo: '',
+    supplier: ''
   });
   const [priceChangeAlert, setPriceChangeAlert] = useState('');
 
@@ -203,67 +204,201 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
   };
 
   const handleStockUpdate = async () => {
-    const { additionalQuantity, newTotalBuyingPrice } = stockUpdateData;
+    const { additionalQuantity, newTotalBuyingPrice, newBatchNo } = stockUpdateData;
     
     if (!additionalQuantity || !newTotalBuyingPrice) {
       setError('Please provide additional quantity and total buying price');
       return;
     }
 
-    const currentQuantity = parseInt(formData.quantity) || 0;
-    const currentPurchasePrice = parseFloat(formData.purchasePrice) || 0;
-    const additionalQty = parseInt(additionalQuantity);
-    const newTotalBuyingPriceValue = parseFloat(newTotalBuyingPrice);
-    
-    // Calculate weighted average purchase price
-    const previousStockValue = currentQuantity * currentPurchasePrice;
-    const newStockValue = newTotalBuyingPriceValue;
-    const totalStockValue = previousStockValue + newStockValue;
-    const newQuantity = currentQuantity + additionalQty;
-    const newPurchasePrice = totalStockValue / newQuantity;
-    const currentSellingPrice = parseFloat(formData.sellingPrice) || 0;
-
-    // Check for price changes and alerts
-    let alertMessage = '';
-    let needsSellingPriceUpdate = false;
-
-    if (Math.abs(newPurchasePrice - currentPurchasePrice) > 0.01) {
-      alertMessage = `Purchase price changed from Rs${currentPurchasePrice.toFixed(2)} to Rs${newPurchasePrice.toFixed(2)}. Please review selling price.`;
-      
-      if (newPurchasePrice > currentSellingPrice) {
-        alertMessage += ` WARNING: New purchase price (Rs${newPurchasePrice.toFixed(2)}) is higher than current selling price (Rs${currentSellingPrice.toFixed(2)}). You must update the selling price!`;
-        needsSellingPriceUpdate = true;
-      }
+    // Check if we have a valid medicine ID
+    if (!medicine || !medicine._id) {
+      setError('Medicine ID not found. Please refresh the page and try again.');
+      return;
     }
 
-    setPriceChangeAlert(alertMessage);
+    // Check if we have the required form data
+    if (!formData.quantity || !formData.purchasePrice) {
+      setError('Current medicine data is incomplete. Please refresh the page and try again.');
+      return;
+    }
 
-    // Update form data
-    setFormData(prev => ({
-      ...prev,
-      quantity: newQuantity.toString(),
-      purchasePrice: newPurchasePrice.toFixed(2),
-      batchNo: stockUpdateData.newBatchNo || prev.batchNo,
-      totalBuyingPrice: newTotalBuyingPrice
-    }));
+    try {
+      setLoading(true);
+      setError('');
 
-    // If selling price needs update, focus on it
-    if (needsSellingPriceUpdate) {
-      // Auto-suggest a selling price (purchase price + 20% margin)
-      const suggestedSellingPrice = newPurchasePrice * 1.2;
+      const additionalQty = parseInt(additionalQuantity);
+      const newTotalBuyingPriceValue = parseFloat(newTotalBuyingPrice);
+      
+      // Validate the values
+      if (additionalQty <= 0) {
+        throw new Error('Additional quantity must be greater than 0');
+      }
+      if (newTotalBuyingPriceValue <= 0) {
+        throw new Error('Total buying price must be greater than 0');
+      }
+      
+      const unitPrice = newTotalBuyingPriceValue / additionalQty;
+
+
+
+      // Record the inflow transaction
+      const transactionData = {
+        medicineId: medicine._id,
+        type: 'inflow',
+        quantity: additionalQty,
+        unitPrice: unitPrice,
+        totalAmount: newTotalBuyingPriceValue,
+        batchNo: newBatchNo || formData.batchNo,
+        expiryDate: formData.expiryDate,
+        supplier: stockUpdateData.supplier || '',
+        notes: 'Stock update via form',
+        referenceType: 'purchase',
+        referenceId: null,
+        date: new Date().toISOString()
+      };
+
+      const response = await apiRequest('/api/inventory', {
+        method: 'POST',
+        body: JSON.stringify(transactionData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to record inventory transaction');
+      }
+
+      const result = await response.json();
+
+      // Calculate new values BEFORE updating the medicine document
+      const currentQuantity = parseInt(formData.quantity) || 0;
+      const currentPurchasePrice = parseFloat(formData.purchasePrice) || 0;
+      const currentTotalValue = currentQuantity * currentPurchasePrice;
+      const newTotalValue = currentTotalValue + newTotalBuyingPriceValue;
+      const newQuantity = currentQuantity + additionalQty;
+      const newPurchasePrice = newTotalValue / newQuantity;
+      const currentSellingPrice = parseFloat(formData.sellingPrice) || 0;
+
+
+
+      // Also update the medicine document to include a transaction history
+      try {
+        const medicineUpdateResponse = await apiRequest(`/api/medicines/${medicine._id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            ...formData,
+            quantity: newQuantity,
+            purchasePrice: newPurchasePrice.toFixed(2),
+            lastStockUpdate: new Date().toISOString(),
+            lastStockUpdateQuantity: additionalQty,
+            lastStockUpdatePrice: newTotalBuyingPriceValue,
+            // Add a simple transaction record in the medicine document
+            stockTransactions: [
+              ...(formData.stockTransactions || []),
+              {
+                date: new Date().toISOString(),
+                type: 'inflow',
+                quantity: additionalQty,
+                unitPrice: unitPrice,
+                totalAmount: newTotalBuyingPriceValue,
+                batchNo: newBatchNo || formData.batchNo,
+                supplier: stockUpdateData.supplier || '',
+                notes: 'Stock update via form'
+              }
+            ]
+          })
+        });
+        
+        if (!medicineUpdateResponse.ok) {
+          console.error('Failed to update medicine:', await medicineUpdateResponse.json());
+        }
+      } catch (updateError) {
+        console.error('Error updating medicine:', updateError);
+      }
+
+      // Check for price changes and alerts
+      let alertMessage = '';
+      let needsSellingPriceUpdate = false;
+
+      if (Math.abs(newPurchasePrice - currentPurchasePrice) > 0.01) {
+        alertMessage = `Purchase price changed from Rs${currentPurchasePrice.toFixed(2)} to Rs${newPurchasePrice.toFixed(2)}. Please review selling price.`;
+        
+        if (newPurchasePrice > currentSellingPrice) {
+          alertMessage += ` WARNING: New purchase price (Rs${newPurchasePrice.toFixed(2)}) is higher than current selling price (Rs${currentSellingPrice.toFixed(2)}). You must update the selling price!`;
+          needsSellingPriceUpdate = true;
+        }
+      }
+
+      setPriceChangeAlert(alertMessage);
+
+      // Update form data
       setFormData(prev => ({
         ...prev,
-        sellingPrice: suggestedSellingPrice.toFixed(2)
+        quantity: newQuantity.toString(),
+        purchasePrice: newPurchasePrice.toFixed(2),
+        batchNo: newBatchNo || prev.batchNo,
+        totalBuyingPrice: (parseFloat(prev.totalBuyingPrice || 0) + newTotalBuyingPriceValue).toString(),
+        // Add transaction to local form data
+        stockTransactions: [
+          ...(prev.stockTransactions || []),
+          {
+            date: new Date().toISOString(),
+            type: 'inflow',
+            quantity: additionalQty,
+            unitPrice: unitPrice,
+            totalAmount: newTotalBuyingPriceValue,
+            batchNo: newBatchNo || prev.batchNo,
+            supplier: stockUpdateData.supplier || '',
+            notes: 'Stock update via form'
+          }
+        ]
       }));
-    }
 
-    // Reset stock update form
-    setStockUpdateData({
-      additionalQuantity: '',
-      newTotalBuyingPrice: '',
-      newBatchNo: ''
-    });
-    setShowStockUpdate(false);
+      // If selling price needs update, focus on it
+      if (needsSellingPriceUpdate) {
+        // Auto-suggest a selling price (purchase price + 20% margin)
+        const suggestedSellingPrice = newPurchasePrice * 1.2;
+        setFormData(prev => ({
+          ...prev,
+          sellingPrice: suggestedSellingPrice.toFixed(2)
+        }));
+      }
+
+              // Reset stock update form
+        setStockUpdateData({
+          additionalQuantity: '',
+          newTotalBuyingPrice: '',
+          newBatchNo: '',
+          supplier: ''
+        });
+      setShowStockUpdate(false);
+
+      // Show success message
+      alert(`Stock updated successfully! New quantity: ${newQuantity}, New purchase price: Rs${newPurchasePrice.toFixed(2)}`);
+
+    } catch (error) {
+      console.error('Stock update error:', error);
+      
+              // Even if inventory transaction fails, update the medicine quantity locally
+        // This ensures the user doesn't lose their work
+        try {
+          const currentQuantity = parseInt(formData.quantity) || 0;
+          const additionalQty = parseInt(stockUpdateData.additionalQuantity);
+          const newQuantity = currentQuantity + additionalQty;
+          
+          // Update form data locally
+          setFormData(prev => ({
+            ...prev,
+            quantity: newQuantity.toString()
+          }));
+          
+          setError(`Inventory transaction failed: ${error.message}. However, quantity has been updated locally.`);
+        } catch (localError) {
+          setError(`Failed to update stock: ${error.message}`);
+        }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStockUpdateCancel = () => {
@@ -309,6 +444,44 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
           logMedicineActivity.updated(formData.name, formData.code);
         } else {
           logMedicineActivity.added(formData.name, formData.code);
+          
+          // For new medicines, create initial inflow transaction
+          try {
+            const medicineData = await response.json();
+            console.log('New medicine created, creating initial inflow transaction...');
+            
+            const initialInflowTransaction = {
+              medicineId: medicineData._id,
+              type: 'inflow',
+              quantity: parseFloat(formData.quantity) || 0,
+              unitPrice: parseFloat(formData.purchasePrice) || 0,
+              totalAmount: parseFloat(formData.totalBuyingPrice) || (parseFloat(formData.quantity) * parseFloat(formData.purchasePrice)),
+              batchNo: formData.batchNo || null,
+              expiryDate: formData.expiryDate ? new Date(formData.expiryDate).toISOString() : null,
+              supplier: 'Initial Stock',
+              notes: 'Initial medicine creation',
+              referenceType: 'creation',
+              referenceId: medicineData._id,
+              date: new Date().toISOString()
+            };
+            
+            console.log('Initial inflow transaction data:', initialInflowTransaction);
+            
+            const inflowResponse = await apiRequest('/api/inventory', {
+              method: 'POST',
+              body: JSON.stringify(initialInflowTransaction)
+            });
+            
+            if (inflowResponse.ok) {
+              const inflowResult = await inflowResponse.json();
+              console.log('Initial inflow transaction created:', inflowResult);
+            } else {
+              console.error('Failed to create initial inflow transaction:', await inflowResponse.json());
+            }
+          } catch (inflowError) {
+            console.error('Error creating initial inflow transaction:', inflowError);
+            // Continue with redirect even if inflow creation fails
+          }
         }
 
         router.push('/medicines');
@@ -581,7 +754,7 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
                   />
                 </div>
 
-                <div className="sm:col-span-2">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     New Batch Number (Optional)
                   </label>
@@ -594,6 +767,22 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
                     }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter new batch number (optional)"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Supplier (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={stockUpdateData.supplier}
+                    onChange={(e) => setStockUpdateData(prev => ({
+                      ...prev,
+                      supplier: e.target.value
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter supplier name (optional)"
                   />
                 </div>
               </div>
@@ -648,6 +837,7 @@ export default function MedicineForm({ medicine = null, isEditing = false }) {
                   <span>✅</span>
                   <span>Apply Stock Update</span>
                 </button>
+
               </div>
             </div>
           )}

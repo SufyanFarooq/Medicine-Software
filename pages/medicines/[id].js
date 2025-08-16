@@ -17,7 +17,12 @@ export default function MedicineDetail() {
     salesData: [],
     profitBreakdown: {},
     monthlySales: [],
-    stockFlow: []
+    stockFlow: [],
+    timeBasedAnalytics: {
+      daily: { inflow: 0, outflow: 0, net: 0 },
+      weekly: { inflow: 0, outflow: 0, net: 0 },
+      monthly: { inflow: 0, outflow: 0, net: 0 }
+    }
   });
 
   useEffect(() => {
@@ -91,15 +96,109 @@ export default function MedicineDetail() {
           });
         });
 
-        // Calculate total received (initial + current stock)
-        const totalReceived = totalSold + (medicine?.quantity || 0);
+        // Calculate total received from inflow transactions (we'll get this from API)
+        let totalReceived = 0;
+        
+        try {
+          const allInflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow`);
+          if (allInflowResponse.ok) {
+            const allInflowData = await allInflowResponse.json();
+            totalReceived = allInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
+          }
+        } catch (error) {
+          console.error('Error fetching total inflow:', error);
+          // Fallback: use medicine quantity + total sold
+          totalReceived = (medicine?.quantity || 0) + totalSold;
+        }
+        
+        // Calculate current stock as Total Received - Total Sold
+        const currentStock = totalReceived - totalSold;
         
         // Prepare stock flow data
         const stockFlow = [
           { label: 'Total Received', value: totalReceived, color: '#3b82f6' },
           { label: 'Total Sold', value: totalSold, color: '#ef4444' },
-          { label: 'Current Stock', value: medicine?.quantity || 0, color: '#10b981' }
+          { label: 'Current Stock', value: currentStock, color: '#10b981' }
         ];
+
+        // Calculate time-based analytics (Daily, Weekly, Monthly)
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay());
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        let dailyInflow = 0, dailyOutflow = 0;
+        let weeklyInflow = 0, weeklyOutflow = 0;
+        let monthlyInflow = 0, monthlyOutflow = 0;
+
+        // Calculate outflow (items sold) for different time periods
+        salesData.forEach(sale => {
+          const saleDate = new Date(sale.date);
+          
+          // Daily analytics
+          if (saleDate >= today) {
+            dailyOutflow += sale.quantity;
+          }
+          
+          // Weekly analytics
+          if (saleDate >= weekStart) {
+            weeklyOutflow += sale.quantity;
+          }
+          
+          // Monthly analytics
+          if (saleDate >= monthStart) {
+            monthlyOutflow += sale.quantity;
+          }
+        });
+
+        // Calculate date ranges for inflow queries
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+        
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+        startOfWeek.setHours(0, 0, 0, 0);
+        const endOfWeek = new Date(now);
+        endOfWeek.setDate(now.getDate() + (6 - now.getDay())); // End of week (Saturday)
+        endOfWeek.setHours(23, 59, 59, 999);
+        
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+        // Fetch real inflow data from inventory transactions
+        try {
+          const inflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${startOfDay.toISOString()}&endDate=${endOfDay.toISOString()}`);
+          if (inflowResponse.ok) {
+            const dailyInflowData = await inflowResponse.json();
+            dailyInflow = dailyInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
+          }
+        } catch (error) {
+          console.error('Error fetching daily inflow:', error);
+          dailyInflow = 0;
+        }
+
+        try {
+          const weeklyInflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${startOfWeek.toISOString()}&endDate=${endOfWeek.toISOString()}`);
+          if (weeklyInflowResponse.ok) {
+            const weeklyInflowData = await weeklyInflowResponse.json();
+            weeklyInflow = weeklyInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
+          }
+        } catch (error) {
+          console.error('Error fetching weekly inflow:', error);
+          weeklyInflow = 0;
+        }
+
+        try {
+          const monthlyInflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${startOfMonth.toISOString()}&endDate=${endOfMonth.toISOString()}`);
+          if (monthlyInflowResponse.ok) {
+            const monthlyInflowData = await monthlyInflowResponse.json();
+            monthlyInflow = monthlyInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
+          }
+        } catch (error) {
+          console.error('Error fetching monthly inflow:', error);
+          monthlyInflow = 0;
+        }
 
         // Prepare profit breakdown with proper rounding
         const totalRevenue = Math.round((totalSold * (medicine?.sellingPrice || 0)) * 100) / 100;
@@ -124,7 +223,24 @@ export default function MedicineDetail() {
             revenue: Math.round(data.revenue * 100) / 100,
             profit: Math.round(data.profit * 100) / 100
           })),
-          stockFlow
+          stockFlow,
+          timeBasedAnalytics: {
+            daily: { 
+              inflow: dailyInflow, 
+              outflow: dailyOutflow, 
+              net: dailyInflow - dailyOutflow 
+            },
+            weekly: { 
+              inflow: weeklyInflow, 
+              outflow: weeklyOutflow, 
+              net: weeklyInflow - weeklyOutflow 
+            },
+            monthly: { 
+              inflow: monthlyInflow, 
+              outflow: monthlyOutflow, 
+              net: monthlyInflow - monthlyOutflow 
+            }
+          }
         });
       }
     } catch (error) {
@@ -415,6 +531,124 @@ export default function MedicineDetail() {
             />
           </div>
         )}
+
+        {/* Time-Based Inflow/Outflow Analytics */}
+        <div className="card">
+          <h3 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+            📊 Time-Based Stock Flow Analysis
+          </h3>
+          
+          {/* Info Note */}
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-sm text-green-700">
+              ✅ <strong>Real-Time Data:</strong> All inflow (purchases) and outflow (sales) data is now tracked 
+              through the inventory management system. Stock updates and sales are automatically recorded.
+            </p>
+
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Daily Analytics */}
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
+              <h4 className="text-lg font-semibold text-blue-800 mb-4 flex items-center">
+                📅 Today's Flow
+              </h4>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-blue-700">Inflow:</span>
+                  <span className="font-bold text-blue-800">{analytics.timeBasedAnalytics.daily.inflow} units</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-red-700">Outflow:</span>
+                  <span className="font-bold text-red-800">{analytics.timeBasedAnalytics.daily.outflow} units</span>
+                </div>
+                <div className="border-t border-blue-200 pt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Net:</span>
+                    <span className={`font-bold ${
+                      (analytics.timeBasedAnalytics.daily.inflow - analytics.timeBasedAnalytics.daily.outflow) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {analytics.timeBasedAnalytics.daily.inflow - analytics.timeBasedAnalytics.daily.outflow >= 0 ? '+' : ''}
+                      {analytics.timeBasedAnalytics.daily.inflow - analytics.timeBasedAnalytics.daily.outflow} units
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Weekly Analytics */}
+            <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-4">
+              <h4 className="text-lg font-semibold text-green-800 mb-4 flex items-center">
+                📊 This Week's Flow
+              </h4>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-green-700">Inflow:</span>
+                  <span className="font-bold text-green-800">{analytics.timeBasedAnalytics.weekly.inflow} units</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-red-700">Outflow:</span>
+                  <span className="font-bold text-red-800">{analytics.timeBasedAnalytics.weekly.outflow} units</span>
+                </div>
+                <div className="border-t border-green-200 pt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Net:</span>
+                    <span className={`font-bold ${
+                      (analytics.timeBasedAnalytics.weekly.inflow - analytics.timeBasedAnalytics.weekly.outflow) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {analytics.timeBasedAnalytics.weekly.inflow - analytics.timeBasedAnalytics.weekly.outflow >= 0 ? '+' : ''}
+                      {analytics.timeBasedAnalytics.weekly.inflow - analytics.timeBasedAnalytics.weekly.outflow} units
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly Analytics */}
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-4">
+              <h4 className="text-lg font-semibold text-purple-800 mb-4 flex items-center">
+                📈 This Month's Flow
+              </h4>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-purple-700">Inflow:</span>
+                  <span className="font-bold text-purple-800">{analytics.timeBasedAnalytics.monthly.inflow} units</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-red-700">Outflow:</span>
+                  <span className="font-bold text-red-800">{analytics.timeBasedAnalytics.monthly.outflow} units</span>
+                </div>
+                <div className="border-t border-purple-200 pt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Net:</span>
+                    <span className={`font-bold ${
+                      (analytics.timeBasedAnalytics.monthly.inflow - analytics.timeBasedAnalytics.monthly.outflow) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {analytics.timeBasedAnalytics.monthly.inflow - analytics.timeBasedAnalytics.monthly.outflow >= 0 ? '+' : ''}
+                      {analytics.timeBasedAnalytics.monthly.inflow - analytics.timeBasedAnalytics.monthly.outflow} units
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Summary Cards */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">{analytics.timeBasedAnalytics.daily.outflow}</div>
+              <div className="text-sm text-blue-700">Units Sold Today</div>
+            </div>
+            <div className="text-center p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="text-2xl font-bold text-green-600">{analytics.timeBasedAnalytics.weekly.outflow}</div>
+              <div className="text-sm text-green-700">Units Sold This Week</div>
+            </div>
+            <div className="text-center p-3 bg-purple-50 border border-purple-200 rounded-lg">
+              <div className="text-2xl font-bold text-purple-600">{analytics.timeBasedAnalytics.monthly.outflow}</div>
+              <div className="text-sm text-purple-700">Units Sold This Month</div>
+            </div>
+          </div>
+        </div>
 
         {/* Detailed Information Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

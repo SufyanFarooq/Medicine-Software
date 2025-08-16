@@ -398,7 +398,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
           }
         }
         
-        // Update medicine quantities
+        // Update medicine quantities and record inventory transactions
         for (const item of selectedMedicines) {
           const originalMedicine = medicines.find(m => m._id === item._id);
           if (originalMedicine) {
@@ -412,6 +412,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
               newQuantity = originalMedicine.quantity - item.quantity;
             }
             
+            // Update medicine quantity
             await apiRequest(`/api/medicines/${item._id}`, {
               method: 'PUT',
               body: JSON.stringify({
@@ -424,6 +425,34 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                 batchNo: originalMedicine.batchNo,
               }),
             });
+
+            // Record inventory transaction for outflow (sale)
+            if (item.quantity > 0) {
+              try {
+                const transactionData = {
+                  medicineId: item._id,
+                  type: 'outflow',
+                  quantity: item.quantity,
+                  unitPrice: item.sellingPrice,
+                  totalAmount: item.sellingPrice * item.quantity,
+                  batchNo: originalMedicine.batchNo,
+                  expiryDate: originalMedicine.expiryDate,
+                  supplier: null,
+                  notes: `Sale via invoice ${invoiceNumber}`,
+                  referenceType: 'sale',
+                  referenceId: null, // Will be updated after invoice is saved
+                  date: new Date().toISOString()
+                };
+
+                await apiRequest('/api/inventory', {
+                  method: 'POST',
+                  body: JSON.stringify(transactionData),
+                });
+              } catch (error) {
+                console.error('Failed to record inventory transaction:', error);
+                // Continue with invoice generation even if transaction recording fails
+              }
+            }
           }
         }
 
@@ -475,7 +504,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       });
 
       if (response.ok) {
-        // Update medicine quantities
+        // Update medicine quantities and record inventory transactions
         for (const item of selectedMedicines) {
           const originalMedicine = medicines.find(m => m._id === item._id);
           if (originalMedicine) {
@@ -497,6 +526,34 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                   quantity: Math.max(0, newQuantity), // Ensure quantity doesn't go negative
                 }),
               });
+
+              // Record inventory transaction for outflow (sale)
+              if (item.quantity > 0) {
+                try {
+                  const transactionData = {
+                    medicineId: item._id,
+                    type: 'outflow',
+                    quantity: item.quantity,
+                    unitPrice: item.sellingPrice,
+                    totalAmount: item.sellingPrice * item.quantity,
+                    batchNo: originalMedicine.batchNo,
+                    expiryDate: originalMedicine.expiryDate,
+                    supplier: null,
+                    notes: `Sale via invoice ${invoiceNumber}`,
+                    referenceType: 'sale',
+                    referenceId: null,
+                    date: new Date().toISOString()
+                  };
+
+                  await apiRequest('/api/inventory', {
+                    method: 'POST',
+                    body: JSON.stringify(transactionData),
+                  });
+                } catch (error) {
+                  console.error('Failed to record inventory transaction:', error);
+                  // Continue with invoice generation even if transaction recording fails
+                }
+              }
             } catch (error) {
               console.error('Error updating medicine quantity:', error);
             }
@@ -891,9 +948,6 @@ function generatePlainTextReceipt() {
       const quantity = parseInt(item.quantity) || 0;
       const itemTotal = sellingPrice * quantity;
       
-      // Debug logging to see what values we're working with
-      console.log('Item:', item.name, 'Price:', item.sellingPrice, 'Parsed:', sellingPrice, 'Total:', itemTotal);
-      
       // Use proper 42-column formatting with Rs currency
       const itemName = (item.name || 'Unknown Item').substring(0, 28);
       const priceStr = `Rs${itemTotal.toFixed(2)}`;
@@ -943,9 +997,7 @@ function generatePlainTextReceipt() {
       center("Contact: +92 308 2283845"),
     ].join('\n');
 
-    // Debug logging to see the final receipt content
-    console.log('Final Receipt Text:', receiptText);
-    console.log('Receipt Length:', receiptText.length);
+
 
   // Enhanced HTML wrapper with print button and better styling
   const printContent = `
@@ -1358,7 +1410,7 @@ function generatePlainTextReceipt() {
                   disabled={loading || selectedMedicines.length === 0}
                   className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? '⏳ Generating...' : '🧾 Generate Invoice'}
+                  {loading ? '⏳ Processing...' : '🧾 Generate Invoice'}
                 </button>
                 <button
                   onClick={saveCurrentInvoiceToQueue}

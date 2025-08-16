@@ -45,10 +45,10 @@ export default function GenerateInvoice() {
     }
   };
 
-  const handleInvoiceGenerated = (invoiceData) => {
+  const handleInvoiceGenerated = async (invoiceData) => {
     alert('Invoice generated successfully!');
-    // Optionally redirect to invoices list
-    // window.location.href = '/invoices';
+    // Refresh medicines list to show updated quantities
+    await fetchMedicines();
   };
 
   if (loading) {

@@ -29,111 +29,142 @@ export default async function handler(req, res) {
   }
 
   try {
-    const inventoryCollection = await getCollection('inventory');
+    const inventoryCollection = await getCollection('inventory_transactions');
     const medicinesCollection = await getCollection('medicines');
 
     switch (method) {
       case 'GET':
-        // Get inventory transactions with optional filters
-        const { medicineId: queryMedicineId, startDate, endDate, type: queryType, limit = 100 } = req.query;
+        const { medicineId, type, startDate, endDate } = req.query;
         
         let filter = {};
         
-        if (queryMedicineId) {
-          filter.medicineId = queryMedicineId;
+        if (medicineId) {
+          filter.medicineId = new ObjectId(medicineId);
         }
         
-        if (queryType) {
-          filter.type = queryType; // 'add', 'sale', 'return', 'adjustment'
+        if (type) {
+          filter.type = type; // 'inflow' or 'outflow'
         }
         
-        if (startDate || endDate) {
-          filter.createdAt = {};
-          if (startDate) {
-            filter.createdAt.$gte = new Date(startDate);
-          }
-          if (endDate) {
-            filter.createdAt.$lte = new Date(endDate);
-          }
+        if (startDate && endDate) {
+          filter.date = {
+            $gte: new Date(startDate),
+            $lte: new Date(endDate)
+          };
         }
-
-        const inventory = await inventoryCollection
+        
+        const transactions = await inventoryCollection
           .find(filter)
-          .sort({ createdAt: -1 })
-          .limit(parseInt(limit))
+          .sort({ date: -1 })
           .toArray();
-
-        // Populate medicine details
-        const populatedInventory = await Promise.all(
-          inventory.map(async (item) => {
-            const medicine = await medicinesCollection.findOne({ _id: new ObjectId(item.medicineId) });
-            return {
-              ...item,
-              medicine: medicine ? {
-                name: medicine.name,
-                code: medicine.code,
-                currentStock: medicine.quantity
-              } : null
-            };
-          })
-        );
-
-        res.status(200).json(populatedInventory);
+        
+        res.status(200).json(transactions);
         break;
 
       case 'POST':
         const { 
-          medicineId, 
-          type, 
+          medicineId: transactionMedicineId, 
+          type: transactionType, 
           quantity, 
-          previousStock, 
-          newStock, 
-          reason, 
+          unitPrice, 
+          totalAmount, 
           batchNo, 
-          expiryDate,
-          purchasePrice,
-          notes 
+          expiryDate, 
+          supplier, 
+          notes,
+          referenceType, // 'purchase', 'sale', 'return', 'adjustment'
+          referenceId, // ID of related invoice, purchase order, etc.
+          date 
         } = req.body;
 
         // Validate required fields
-        if (!medicineId || !type || quantity === undefined || previousStock === undefined || newStock === undefined) {
+        if (!transactionMedicineId || !transactionType || !quantity || !unitPrice || !totalAmount) {
           return res.status(400).json({ message: 'Missing required fields' });
         }
 
-        // Get medicine details
-        const medicine = await medicinesCollection.findOne({ _id: new ObjectId(medicineId) });
+        // Validate type
+        if (!['inflow', 'outflow'].includes(transactionType)) {
+          return res.status(400).json({ message: 'Invalid transaction type' });
+        }
+
+        // Create transaction record
+        const transaction = {
+          medicineId: new ObjectId(transactionMedicineId),
+          type: transactionType,
+          quantity: parseFloat(quantity),
+          unitPrice: parseFloat(unitPrice),
+          totalAmount: parseFloat(totalAmount),
+          batchNo: batchNo || null,
+          expiryDate: expiryDate ? new Date(expiryDate) : null,
+          supplier: supplier || null,
+          notes: notes || null,
+          referenceType: referenceType || null,
+          referenceId: referenceId || null,
+          date: date ? new Date(date) : new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+
+        const result = await inventoryCollection.insertOne(transaction);
+
+        // For outflow transactions from invoices, DON'T update medicine quantities
+        // because they are already updated by the medicine update API
+        if (transactionType === 'outflow' && referenceType === 'sale') {
+          // Just record the transaction, don't update medicine quantity
+          res.status(201).json({
+            message: 'Transaction recorded successfully',
+            transactionId: result.insertedId,
+            newQuantity: null // No quantity change for sale transactions
+          });
+          break;
+        }
+
+        // For other transactions (inflow, returns, etc.), update medicine quantities
+        const medicine = await medicinesCollection.findOne({ _id: new ObjectId(transactionMedicineId) });
         if (!medicine) {
           return res.status(404).json({ message: 'Medicine not found' });
         }
 
-        const inventoryTransaction = {
-          medicineId,
-          medicineName: medicine.name,
-          medicineCode: medicine.code,
-          type, // 'add', 'sale', 'return', 'adjustment'
-          quantity: parseInt(quantity),
-          previousStock: parseInt(previousStock),
-          newStock: parseInt(newStock),
-          reason: reason || '',
-          batchNo: batchNo || '',
-          expiryDate: expiryDate ? new Date(expiryDate) : null,
-          purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
-          notes: notes || '',
-          userId: user.userId,
-          username: user.username,
-          createdAt: new Date()
-        };
+        let newQuantity = medicine.quantity;
+        if (transactionType === 'inflow') {
+          // For new medicine creation, SET the quantity instead of adding
+          if (referenceType === 'creation') {
+            newQuantity = parseFloat(quantity);
+          } else {
+            // For stock updates, add to existing quantity
+            newQuantity += parseFloat(quantity);
+          }
+        } else if (transactionType === 'outflow') {
+          newQuantity -= parseFloat(quantity);
+          if (newQuantity < 0) {
+            return res.status(400).json({ message: 'Insufficient stock for this transaction' });
+          }
+        }
 
-        const result = await inventoryCollection.insertOne(inventoryTransaction);
-        res.status(201).json({ _id: result.insertedId, ...inventoryTransaction });
+        // Update medicine quantity
+        await medicinesCollection.updateOne(
+          { _id: new ObjectId(transactionMedicineId) },
+          { 
+            $set: { 
+              quantity: newQuantity,
+              updatedAt: new Date()
+            }
+          }
+        );
+
+        res.status(201).json({
+          message: 'Transaction recorded successfully',
+          transactionId: result.insertedId,
+          newQuantity
+        });
         break;
 
       default:
         res.setHeader('Allow', ['GET', 'POST']);
-        res.status(405).end(`Method ${method} Not Allowed`);
+        res.status(405).json({ message: `Method ${method} Not Allowed` });
     }
   } catch (error) {
     console.error('Inventory API Error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 }
