@@ -43,8 +43,11 @@ export default function Dashboard() {
     fetchSettings();
     fetchStats();
     fetchRecentActivity();
-    fetchChartData();
   }, []);
+
+  useEffect(() => {
+    fetchChartData();
+  }, [timePeriod]);
 
   const fetchSettings = async () => {
     try {
@@ -238,6 +241,37 @@ export default function Dashboard() {
 
   const fetchChartData = async () => {
     try {
+      // Calculate date ranges based on current time period
+      let startDate, endDate = new Date();
+      
+      switch (timePeriod) {
+        case 'daily':
+          // Get today's data (from midnight to midnight)
+          startDate = new Date();
+          startDate.setHours(0, 0, 0, 0); // Start of today (midnight)
+          endDate = new Date();
+          endDate.setHours(23, 59, 59, 999); // End of today (11:59:59 PM)
+          break;
+        case 'weekly':
+          // Get last 7 days (from 7 days ago midnight to today midnight)
+          startDate = new Date();
+          startDate.setDate(startDate.getDate() - 7);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date();
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        case 'monthly':
+          // Get last 30 days (from 30 days ago midnight to today midnight)
+          startDate = new Date();
+          startDate.setDate(startDate.getDate() - 30);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date();
+          endDate.setHours(23, 59, 59, 999);
+          break;
+        default:
+          startDate = new Date('2020-01-01'); // Very old date to get all data
+      }
+
       const [invoicesRes, returnsRes, medicinesRes] = await Promise.all([
         apiRequest('/api/invoices'),
         apiRequest('/api/returns'),
@@ -261,6 +295,12 @@ export default function Dashboard() {
         
         invoices.forEach(invoice => {
           const date = new Date(invoice.date);
+          
+          // Filter invoices by date range
+          if (date < startDate || date > endDate) {
+            return; // Skip invoices outside the selected time period
+          }
+          
           const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
           const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
           const weekKey = `${date.getFullYear()}-W${String(Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7)).padStart(2, '0')}`;
@@ -362,6 +402,12 @@ export default function Dashboard() {
         
         returns.forEach(returnItem => {
           const date = new Date(returnItem.date);
+          
+          // Filter returns by date range
+          if (date < startDate || date > endDate) {
+            return; // Skip returns outside the selected time period
+          }
+          
           const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
           const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
           const weekKey = `${date.getFullYear()}-W${String(Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7)).padStart(2, '0')}`;

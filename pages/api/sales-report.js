@@ -21,16 +21,27 @@ export default async function handler(req, res) {
       // Use predefined filters
       switch (filter) {
         case 'daily':
+          // Get today's date (from midnight to midnight)
           startDate = new Date();
-          startDate.setHours(startDate.getHours() - 24); // Previous 24 hours
+          startDate.setHours(0, 0, 0, 0); // Start of today (midnight)
+          endDate = new Date();
+          endDate.setHours(23, 59, 59, 999); // End of today (11:59:59 PM)
           break;
         case 'weekly':
+          // Get last 7 days (from 7 days ago midnight to today midnight)
           startDate = new Date();
-          startDate.setDate(startDate.getDate() - 7); // Previous 7 days
+          startDate.setDate(startDate.getDate() - 7);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date();
+          endDate.setHours(23, 59, 59, 999);
           break;
         case 'monthly':
+          // Get last 30 days (from 30 days ago midnight to today midnight)
           startDate = new Date();
-          startDate.setDate(startDate.getDate() - 30); // Previous 30 days
+          startDate.setDate(startDate.getDate() - 30);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date();
+          endDate.setHours(23, 59, 59, 999);
           break;
         default:
           startDate = new Date('2020-01-01'); // Very old date to get all data
@@ -57,7 +68,11 @@ export default async function handler(req, res) {
       .sort({ name: 1 })
       .toArray();
 
-    // Debug: Log sample invoice structure
+    // Debug: Log date ranges and results
+    console.log('Filter:', filter);
+    console.log('Start Date:', startDate);
+    console.log('End Date:', endDate);
+    console.log('Total invoices found:', invoices.length);
     if (invoices.length > 0) {
       console.log('Sample invoice structure:', JSON.stringify(invoices[0], null, 2));
     }
