@@ -223,10 +223,10 @@ export default function SalesReport() {
                     Quantity
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Unit Price (PKR)
+                   Sale Unit Price (PKR)
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Price (PKR)
+                    Sale Total Price (PKR)
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Purchase Price (PKR)
