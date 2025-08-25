@@ -9,9 +9,10 @@
     "start": "next start",
     "lint": "next lint",
     "seed": "node scripts/seed-data.js",
+    "seed-inventory": "node scripts/seed-inventory.js",
     "seed-invoices": "node scripts/seed-invoices.js",
     "seed-returns": "node scripts/seed-returns.js",
-    "seed-all": "npm run seed && npm run seed-invoices && npm run seed-returns",
+    "seed-all": "npm run seed && npm run seed-inventory && npm run seed-invoices && npm run seed-returns",
     "create-admin": "node scripts/create-admin.js",
     "create-super-admin": "node scripts/create-admin.js",
     "create-test-users": "node scripts/create-test-users.js"
