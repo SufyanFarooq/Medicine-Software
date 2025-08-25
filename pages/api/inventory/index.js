@@ -29,17 +29,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const inventoryCollection = await getCollection('inventory_transactions');
-    const medicinesCollection = await getCollection('medicines');
+    const inventoryCollection = await getCollection('inventory');
+    const productsCollection = await getCollection('products');
 
     switch (method) {
       case 'GET':
-        const { medicineId, type, startDate, endDate } = req.query;
+        const { productId, type, startDate, endDate } = req.query;
         
         let filter = {};
         
-        if (medicineId) {
-          filter.medicineId = new ObjectId(medicineId);
+        if (productId) {
+          filter.productId = new ObjectId(productId);
         }
         
         if (type) {
@@ -63,7 +63,7 @@ export default async function handler(req, res) {
 
       case 'POST':
         const { 
-          medicineId: transactionMedicineId, 
+          productId: transactionProductId, 
           type: transactionType, 
           quantity, 
           unitPrice, 
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
         } = req.body;
 
         // Validate required fields
-        if (!transactionMedicineId || !transactionType || !quantity || !unitPrice || !totalAmount) {
+        if (!transactionProductId || !transactionType || !quantity || !unitPrice || !totalAmount) {
           return res.status(400).json({ message: 'Missing required fields' });
         }
 
@@ -89,7 +89,7 @@ export default async function handler(req, res) {
 
         // Create transaction record
         const transaction = {
-          medicineId: new ObjectId(transactionMedicineId),
+          productId: new ObjectId(transactionProductId),
           type: transactionType,
           quantity: parseFloat(quantity),
           unitPrice: parseFloat(unitPrice),
@@ -107,10 +107,10 @@ export default async function handler(req, res) {
 
         const result = await inventoryCollection.insertOne(transaction);
 
-        // For outflow transactions from invoices, DON'T update medicine quantities
-        // because they are already updated by the medicine update API
+        // For outflow transactions from invoices, DON'T update product quantities
+        // because they are already updated by the product update API
         if (transactionType === 'outflow' && referenceType === 'sale') {
-          // Just record the transaction, don't update medicine quantity
+          // Just record the transaction, don't update product quantity
           res.status(201).json({
             message: 'Transaction recorded successfully',
             transactionId: result.insertedId,
@@ -119,15 +119,15 @@ export default async function handler(req, res) {
           break;
         }
 
-        // For other transactions (inflow, returns, etc.), update medicine quantities
-        const medicine = await medicinesCollection.findOne({ _id: new ObjectId(transactionMedicineId) });
-        if (!medicine) {
-          return res.status(404).json({ message: 'Medicine not found' });
+        // For other transactions (inflow, returns, etc.), update product quantities
+        const product = await productsCollection.findOne({ _id: new ObjectId(transactionProductId) });
+        if (!product) {
+          return res.status(404).json({ message: 'Product not found' });
         }
 
-        let newQuantity = medicine.quantity;
+        let newQuantity = product.quantity;
         if (transactionType === 'inflow') {
-          // For new medicine creation, SET the quantity instead of adding
+          // For new product creation, SET the quantity instead of adding
           if (referenceType === 'creation') {
             newQuantity = parseFloat(quantity);
           } else {
@@ -141,9 +141,9 @@ export default async function handler(req, res) {
           }
         }
 
-        // Update medicine quantity
-        await medicinesCollection.updateOne(
-          { _id: new ObjectId(transactionMedicineId) },
+        // Update product quantity
+        await productsCollection.updateOne(
+          { _id: new ObjectId(transactionProductId) },
           { 
             $set: { 
               quantity: newQuantity,

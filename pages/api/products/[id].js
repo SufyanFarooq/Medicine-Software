@@ -24,10 +24,13 @@ export default async function handler(req, res) {
         try {
           const {
             name,
+            code,
+            barcode,
             category,
             quantity,
             purchasePrice,
             sellingPrice,
+            adminDiscount,
             expiryDate,
             batchNo,
             brand,
@@ -35,23 +38,47 @@ export default async function handler(req, res) {
             unit
           } = req.body;
 
-          const updatedProduct = {
-            name,
-            category: category || 'General',
-            quantity: parseInt(quantity) || 0,
-            purchasePrice: parseFloat(purchasePrice) || 0,
-            sellingPrice: parseFloat(sellingPrice) || 0,
-            expiryDate: expiryDate || null,
-            batchNo: batchNo || null,
-            brand: brand || '',
-            description: description || '',
-            unit: unit || 'pcs',
-            updatedAt: new Date()
-          };
+          const productsCol = db.collection('products');
 
-          const result = await db.collection('products').updateOne(
+          // Enforce unique product code if provided/changed
+          if (code) {
+            const clash = await productsCol.findOne({ code, _id: { $ne: new ObjectId(id) } });
+            if (clash) {
+              return res.status(409).json({ error: 'Duplicate product code. Please use a unique code.' });
+            }
+          }
+
+          // Enforce unique barcode if provided/changed
+          if (barcode) {
+            const clashBarcode = await productsCol.findOne({ barcode, _id: { $ne: new ObjectId(id) } });
+            if (clashBarcode) {
+              return res.status(409).json({ error: 'Duplicate barcode. Please use a unique barcode.' });
+            }
+          }
+
+          // Build update object with only provided fields
+          const updateFields = {};
+          
+          if (name !== undefined) updateFields.name = name;
+          if (code !== undefined) updateFields.code = code;
+          if (barcode !== undefined) updateFields.barcode = barcode;
+          if (category !== undefined) updateFields.category = category;
+          if (quantity !== undefined) updateFields.quantity = parseInt(quantity) || 0;
+          if (purchasePrice !== undefined) updateFields.purchasePrice = parseFloat(purchasePrice) || 0;
+          if (sellingPrice !== undefined) updateFields.sellingPrice = parseFloat(sellingPrice) || 0;
+          if (adminDiscount !== undefined) updateFields.adminDiscount = parseFloat(adminDiscount) || 0;
+          if (expiryDate !== undefined) updateFields.expiryDate = expiryDate;
+          if (batchNo !== undefined) updateFields.batchNo = batchNo;
+          if (brand !== undefined) updateFields.brand = brand;
+          if (description !== undefined) updateFields.description = description;
+          if (unit !== undefined) updateFields.unit = unit;
+          
+          // Always update the updatedAt timestamp
+          updateFields.updatedAt = new Date();
+
+          const result = await productsCol.updateOne(
             { _id: new ObjectId(id) },
-            { $set: updatedProduct }
+            { $set: updateFields }
           );
 
           if (result.matchedCount === 0) {

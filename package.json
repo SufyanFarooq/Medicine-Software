@@ -1,30 +1,68 @@
 {
-  "name": "general-business-management-system",
+  "name": "universal-business-management-system",
   "version": "2.0.0",
-  "description": "Universal Business Management System - Inventory, Sales, and Management Tool",
+  "description": "Universal Business Management System - Professional Inventory, Sales, and Management Tool for Any Business",
+  "keywords": [
+    "business-management",
+    "inventory-management",
+    "sales-management",
+    "retail-software",
+    "pharmacy-software",
+    "electronics-store",
+    "clothing-store",
+    "supermarket-software",
+    "hardware-store",
+    "automotive-parts",
+    "bookstore-software",
+    "nextjs",
+    "react",
+    "mongodb",
+    "business-software",
+    "enterprise-solution"
+  ],
+  "author": "Codebridge Team <info@codebridge.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/codebridge/ubms#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codebridge/ubms.git"
+  },
+  "bugs": {
+    "url": "https://github.com/codebridge/ubms/issues"
+  },
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "node scripts/seed-data.js",
-    "seed-invoices": "node scripts/seed-invoices.js",
-    "seed-returns": "node scripts/seed-returns.js",
-    "seed-all": "npm run seed && npm run seed-invoices && npm run seed-returns",
-    "create-admin": "node scripts/create-admin.js",
-    "create-super-admin": "node scripts/create-admin.js",
-    "create-test-users": "node scripts/create-test-users.js",
-    "migrate": "node scripts/migrate-to-products.js"
+    "db:clean": "node scripts/clean-database.js",
+    "db:create-products": "node scripts/create-sample-products.js",
+    "db:seed": "node scripts/seed-products-with-inflow.js",
+    "db:fix-inflow": "node scripts/fix-inflow-records.js",
+    "db:add-admin-discount": "node scripts/add-admin-discount.js",
+    "db:fix-null-names": "node scripts/fix-null-names.js",
+    "db:fix-data-quality": "node scripts/fix-data-quality.js",
+    "db:fix-duplicate-returns": "node scripts/fix-duplicate-returns.js",
+    "db:init-warehouse-inventory": "node scripts/initialize-warehouse-inventory.js",
+    "db:init-batches": "node scripts/initialize-batches.js",
+    "test:notifications": "node scripts/create-test-notifications.js",
+    "generate:reports-data": "node scripts/generate-sample-reports-data.js",
+    "docker:build": "docker build -t business-management-system .",
+    "docker:run": "docker run -p 3000:3000 business-management-system",
+    "docker:compose": "docker-compose up -d",
+    "docker:compose:down": "docker-compose down"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "date-fns": "^4.1.0",
     "html2pdf.js": "^0.10.3",
+    "jsbarcode": "^3.12.1",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.18.0",
     "mongoose": "^8.17.0",
     "next": "^15.4.5",
+    "qrcode": "^1.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "xlsx": "^0.18.5",
@@ -37,5 +75,17 @@
     "eslint-config-next": "^15.4.5",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.11"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "browserslist": [
+    ">0.3%",
+    "not dead",
+    "not op_mini all"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -41,7 +41,6 @@ The Medicine Software now supports dynamic currency symbols that can be configur
 - **¥** - Japanese Yen
 - **₽** - Russian Ruble
 - **₩** - Korean Won
-- **₪** - Israeli Shekel
 - **₨** - Pakistani Rupee
 - **₦** - Nigerian Naira
 

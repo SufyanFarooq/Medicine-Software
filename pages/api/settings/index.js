@@ -49,16 +49,125 @@ export default async function handler(req, res) {
             hasExpiryDates: true,
             hasBatchNumbers: false,
             lowStockThreshold: 10,
+            // Add default notification settings
+            notificationSettings: {
+              lowStockThreshold: 20,
+              expiryWarningDays: 30,
+              criticalExpiryDays: 7,
+              emailNotifications: true,
+              inAppNotifications: true,
+              notificationFrequency: 'realtime',
+              autoCleanupDays: 30,
+              stockoutAlert: true
+            },
             createdAt: new Date(),
             updatedAt: new Date()
           };
           await settingsCollection.insertOne(defaultSettings);
           settings = defaultSettings;
+        } else {
+          // Ensure notification settings exist in existing settings
+          if (!settings.notificationSettings) {
+            settings.notificationSettings = {
+              lowStockThreshold: 20,
+              expiryWarningDays: 30,
+              criticalExpiryDays: 7,
+              emailNotifications: true,
+              inAppNotifications: true,
+              notificationFrequency: 'realtime',
+              autoCleanupDays: 30,
+              stockoutAlert: true
+            };
+          }
         }
         res.status(200).json(settings);
         break;
 
+      case 'POST':
+        // Handle business setup wizard submissions
+        const postData = req.body;
+        
+        // Validate required fields
+        if (!postData.businessName || !postData.businessType || !postData.currency) {
+          return res.status(400).json({ 
+            message: 'Business name, business type, and currency are required' 
+          });
+        }
+
+        // Check if settings already exist
+        const existingSettings = await settingsCollection.findOne({});
+        
+        if (existingSettings) {
+          // Update existing settings
+          const result = await settingsCollection.updateOne(
+            { _id: existingSettings._id },
+            { 
+              $set: { 
+                ...postData,
+                updatedAt: new Date(),
+                updatedBy: user.userId,
+              }
+            }
+          );
+          
+          if (result.modifiedCount > 0 || result.matchedCount > 0) {
+            res.status(200).json({ 
+              message: 'Business setup completed successfully',
+              settingsId: existingSettings._id
+            });
+          } else {
+            res.status(500).json({ message: 'Failed to update settings' });
+          }
+        } else {
+          // Create new settings
+          const newSettings = {
+            ...postData,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            createdBy: user.userId,
+            updatedBy: user.userId,
+          };
+          
+          const result = await settingsCollection.insertOne(newSettings);
+          
+          if (result.insertedId) {
+            res.status(201).json({ 
+              message: 'Business setup completed successfully',
+              settingsId: result.insertedId
+            });
+          } else {
+            res.status(500).json({ message: 'Failed to create settings' });
+          }
+        }
+        break;
+
       case 'PUT':
+        const updateData = req.body;
+        
+        // If this is a notification settings update, handle it differently
+        if (updateData.notificationSettings) {
+          // Update only notification-related settings
+          const result = await settingsCollection.updateOne(
+            {},
+            { 
+              $set: { 
+                ...updateData.notificationSettings,
+                updatedAt: new Date(),
+                updatedBy: user.userId,
+              }
+            },
+            { upsert: true }
+          );
+          
+          if (result.modifiedCount > 0 || result.matchedCount > 0 || result.upsertedCount > 0) {
+            res.status(200).json({ message: 'Notification settings updated successfully' });
+          } else {
+            res.status(500).json({ message: 'Failed to update notification settings' });
+          }
+          break;
+        }
+        
+        // Regular settings update - extract fields
         const { 
           currency, 
           discountPercentage, 
@@ -72,9 +181,9 @@ export default async function handler(req, res) {
           hasExpiryDates,
           hasBatchNumbers,
           lowStockThreshold
-        } = req.body;
+        } = updateData;
         
-        // Validate input
+        // Validate input for regular settings update
         if (!currency || discountPercentage === undefined || !businessName || !businessType) {
           return res.status(400).json({ message: 'Currency, discount percentage, business name, and business type are required' });
         }
@@ -115,7 +224,7 @@ export default async function handler(req, res) {
         break;
 
       default:
-        res.setHeader('Allow', ['GET', 'PUT']);
+        res.setHeader('Allow', ['GET', 'POST', 'PUT']);
         res.status(405).end(`Method ${method} Not Allowed`);
     }
   } catch (error) {

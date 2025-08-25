@@ -68,9 +68,9 @@ export default function Returns() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Returns</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Returns & Refunds</h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage medicine returns
+              Manage product returns and track refunds
             </p>
           </div>
           <Link href="/returns/add" className="btn-primary">
@@ -79,7 +79,7 @@ export default function Returns() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
           <div className="card">
             <div className="flex items-center">
               <div className="flex-shrink-0 p-3 rounded-lg bg-orange-500">
@@ -105,13 +105,45 @@ export default function Returns() {
               </div>
             </div>
           </div>
+
+          <div className="card">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 p-3 rounded-lg bg-green-500">
+                <span className="text-2xl text-white">📦</span>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Stock Restored</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {returns.reduce((sum, returnItem) => sum + (returnItem.quantity || 0), 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 p-3 rounded-lg bg-blue-500">
+                <span className="text-2xl text-white">📊</span>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">This Month</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {returns.filter(r => {
+                    const returnDate = new Date(r.date);
+                    const now = new Date();
+                    return returnDate.getMonth() === now.getMonth() && returnDate.getFullYear() === now.getFullYear();
+                  }).length}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Returns List */}
         <div className="card">
-          {returns.length === 0 ? (
+          {returns.filter(r => r.status !== 'duplicate').length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">No returns found</p>
+              <p className="text-gray-500">No active returns found</p>
               <p className="text-sm text-gray-400 mt-2">
                 Add your first return to get started
               </p>
@@ -122,22 +154,24 @@ export default function Returns() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="table-header">Return #</th>
-                    <th className="table-header">Medicine</th>
+                    <th className="table-header">Product</th>
                     <th className="table-header">Quantity</th>
                     <th className="table-header">Return Value</th>
                     <th className="table-header">Reason</th>
+                    <th className="table-header">Refund Method</th>
+                    <th className="table-header">Status</th>
                     <th className="table-header">Date</th>
                     <th className="table-header">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {returns.map((returnItem) => (
+                  {returns.filter(r => r.status !== 'duplicate').map((returnItem) => (
                     <tr key={returnItem._id} className="hover:bg-gray-50">
                       <td className="table-cell font-medium">{returnItem.returnNumber}</td>
                       <td className="table-cell">
                         <div>
-                          <div className="font-medium">{returnItem.medicineName}</div>
-                          <div className="text-sm text-gray-500">{returnItem.medicineCode}</div>
+                          <div className="font-medium">{returnItem.productName || returnItem.medicineName}</div>
+                          <div className="text-sm text-gray-500">{returnItem.productCode || returnItem.medicineCode}</div>
                         </div>
                       </td>
                       <td className="table-cell">{returnItem.quantity}</td>
@@ -145,6 +179,21 @@ export default function Returns() {
                       <td className="table-cell">
                         <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
                           {returnItem.reason}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                          {returnItem.refundMethod || 'Cash'}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                          returnItem.status === 'processed' ? 'bg-green-100 text-green-800' :
+                          returnItem.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          returnItem.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {returnItem.status || 'Active'}
                         </span>
                       </td>
                       <td className="table-cell">

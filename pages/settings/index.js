@@ -5,6 +5,7 @@ import { setCurrency } from '../../lib/currency';
 import { getUser } from '../../lib/auth';
 import { hasPermission } from '../../lib/permissions';
 import { logSettingsActivity } from '../../lib/activity-logger';
+import Link from 'next/link';
 
 export default function Settings() {
   const [settings, setSettings] = useState({
@@ -19,7 +20,22 @@ export default function Settings() {
     taxRate: 0,
     hasExpiryDates: true,
     hasBatchNumbers: false,
-    lowStockThreshold: 10
+    lowStockThreshold: 10,
+    // Notification settings
+    enableEmailNotifications: false,
+    enableSmsNotifications: false,
+    notificationEmail: '',
+    notificationPhoneNumber: '',
+    notificationSettings: {
+      lowStockThreshold: 20,
+      expiryWarningDays: 30,
+      criticalExpiryDays: 7,
+      emailNotifications: true,
+      inAppNotifications: true,
+      notificationFrequency: 'realtime',
+      autoCleanupDays: 30,
+      stockoutAlert: true
+    }
   });
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -33,6 +49,7 @@ export default function Settings() {
   const [message, setMessage] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('company');
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
 
   const currencies = [
     { symbol: '$', name: 'US Dollar' },
@@ -42,7 +59,6 @@ export default function Settings() {
     { symbol: '¥', name: 'Japanese Yen' },
     { symbol: '₽', name: 'Russian Ruble' },
     { symbol: '₩', name: 'Korean Won' },
-    { symbol: '₪', name: 'Israeli Shekel' },
     { symbol: '₨', name: 'Pakistani Rupee' },
     { symbol: '₦', name: 'Nigerian Naira' }
   ];
@@ -66,11 +82,16 @@ export default function Settings() {
   useEffect(() => {
     const user = getUser();
     setCurrentUser(user);
+    setIsLoadingUser(false);
     fetchSettings();
-    if (hasPermission(user?.role, 'canManageUsers')) {
+  }, []);
+
+  // Separate useEffect for user-dependent operations
+  useEffect(() => {
+    if (currentUser && hasPermission(currentUser.role, 'canManageUsers')) {
       fetchUsers();
     }
-  }, []);
+  }, [currentUser]);
 
   const fetchSettings = async () => {
     try {
@@ -101,6 +122,28 @@ export default function Settings() {
     }
   };
 
+  const testNotification = async () => {
+    try {
+      const response = await apiRequest('/api/notifications', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'process',
+          userId: 'test'
+        })
+      });
+
+      if (response.ok) {
+        setMessage('Test notification processed successfully! Check the notification bell.');
+        setTimeout(() => setMessage(''), 5000);
+      } else {
+        setMessage('Failed to process test notification');
+      }
+    } catch (error) {
+      console.error('Error testing notification:', error);
+      setMessage('Failed to test notification');
+    }
+  };
+
   const handleSettingsSave = async () => {
     if (!hasPermission(currentUser?.role, 'canModifySettings')) {
       setMessage('Access denied. You do not have permission to modify settings.');
@@ -109,32 +152,49 @@ export default function Settings() {
 
     setLoading(true);
     try {
-      const response = await apiRequest('/api/settings', {
-        method: 'PUT',
-        body: JSON.stringify(settings),
-      });
+      let response;
+      
+      // If we're on the notifications tab, send notification settings
+      if (activeTab === 'notifications') {
+        response = await apiRequest('/api/settings', {
+          method: 'PUT',
+          body: JSON.stringify({
+            notificationSettings: settings.notificationSettings
+          }),
+        });
+      } else {
+        // For other tabs, send regular settings
+        response = await apiRequest('/api/settings', {
+          method: 'PUT',
+          body: JSON.stringify(settings),
+        });
+      }
 
       if (response.ok) {
-        // Log settings changes
-        if (originalSettings.businessName !== settings.businessName) {
-          logSettingsActivity.updated('businessName', originalSettings.businessName, settings.businessName);
-        }
-        if (originalSettings.contactNumber !== settings.contactNumber) {
-          logSettingsActivity.updated('contactNumber', originalSettings.contactNumber, settings.contactNumber);
-        }
-        if (originalSettings.address !== settings.address) {
-          logSettingsActivity.updated('address', originalSettings.address, settings.address);
-        }
-        if (originalSettings.currency !== settings.currency) {
-          logSettingsActivity.updated('currency', originalSettings.currency, settings.currency);
-        }
-        if (originalSettings.discountPercentage !== settings.discountPercentage) {
-          logSettingsActivity.updated('discountPercentage', originalSettings.discountPercentage, settings.discountPercentage);
+        // Log settings changes for regular settings
+        if (activeTab !== 'notifications') {
+          if (originalSettings.businessName !== settings.businessName) {
+            logSettingsActivity.updated('businessName', originalSettings.businessName, settings.businessName);
+          }
+          if (originalSettings.contactNumber !== settings.contactNumber) {
+            logSettingsActivity.updated('contactNumber', originalSettings.contactNumber, settings.contactNumber);
+          }
+          if (originalSettings.address !== settings.address) {
+            logSettingsActivity.updated('address', originalSettings.address, settings.address);
+          }
+          if (originalSettings.currency !== settings.currency) {
+            logSettingsActivity.updated('currency', originalSettings.currency, settings.currency);
+          }
+          if (originalSettings.discountPercentage !== settings.discountPercentage) {
+            logSettingsActivity.updated('discountPercentage', originalSettings.discountPercentage, settings.discountPercentage);
+          }
         }
         
-        setMessage('Settings saved successfully!');
-        // Update global currency immediately
-        setCurrency(settings.currency);
+        setMessage(activeTab === 'notifications' ? 'Notification settings saved successfully!' : 'Settings saved successfully!');
+        // Update global currency immediately for regular settings
+        if (activeTab !== 'notifications') {
+          setCurrency(settings.currency);
+        }
         // Update original settings
         setOriginalSettings(settings);
         setTimeout(() => setMessage(''), 3000);
@@ -255,15 +315,54 @@ export default function Settings() {
     }
   };
 
+  if (isLoadingUser) {
+    return (
+      <Layout>
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <Layout>
+        <div className="text-center py-8">
+          <p className="text-gray-600">Please log in to access settings.</p>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage company information, system settings, and users
-          </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Manage company information, system settings, and users
+              </p>
+            </div>
+            
+            {/* Business Setup Button */}
+            {hasPermission(currentUser?.role, 'canManageBusinessSetup') && (
+              <div className="flex flex-col items-end space-y-2">
+                <Link
+                  href="/setup/business-config"
+                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white text-sm font-medium rounded-lg hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                >
+                  🚀 Business Setup Wizard
+                </Link>
+                <p className="text-xs text-gray-500 text-right">
+                  Configure your business type, categories, and features
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {message && (
@@ -300,6 +399,28 @@ export default function Settings() {
               ⚙️ System Settings
             </button>
             <button
+              onClick={() => setActiveTab('notifications')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'notifications'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              🔔 Notification Settings
+            </button>
+            {hasPermission(currentUser?.role, 'canManageBusinessSetup') && (
+              <button
+                onClick={() => setActiveTab('business-setup')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'business-setup'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                🚀 Business Setup
+              </button>
+            )}
+            <button
               onClick={() => setActiveTab('users')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'users'
@@ -315,232 +436,295 @@ export default function Settings() {
         {/* Company Information Tab */}
         {activeTab === 'company' && (
           hasPermission(currentUser?.role, 'canModifySettings') ? (
-          <div className="card">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">🏪 Company Information</h3>
-            <p className="text-sm text-gray-600 mb-4">Update your business details that will appear on invoices and receipts</p>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="businessName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Business Name
-                </label>
-                <input
-                  type="text"
-                  id="businessName"
-                  value={settings.businessName}
-                  onChange={(e) => setSettings(prev => ({ ...prev, businessName: e.target.value }))}
-                  className="input-field"
-                  placeholder="Enter business name"
-                />
+            <div className="space-y-6">
+              {/* Basic Business Information */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">🏪 Basic Business Information</h3>
+                <p className="text-sm text-gray-600 mb-4">Core business details that appear on invoices and receipts</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="businessName" className="block text-sm font-medium text-gray-700 mb-2">
+                      Business Name *
+                    </label>
+                    <input
+                      type="text"
+                      id="businessName"
+                      value={settings.businessName}
+                      onChange={(e) => setSettings(prev => ({ ...prev, businessName: e.target.value }))}
+                      className="input-field"
+                      placeholder="Enter business name"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      This will appear on all invoices and reports
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="businessType" className="block text-sm font-medium text-gray-700 mb-2">
+                      Business Type
+                    </label>
+                    <select
+                      id="businessType"
+                      value={settings.businessType}
+                      onChange={(e) => setSettings(prev => ({ ...prev, businessType: e.target.value }))}
+                      className="input-field"
+                    >
+                      {businessTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Determines default categories and features
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label htmlFor="businessType" className="block text-sm font-medium text-gray-700 mb-2">
-                  Business Type
-                </label>
-                <select
-                  id="businessType"
-                  value={settings.businessType}
-                  onChange={(e) => setSettings(prev => ({ ...prev, businessType: e.target.value }))}
-                  className="input-field"
-                >
-                  {businessTypes.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
+              {/* Contact Information */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">📞 Contact Information</h3>
+                <p className="text-sm text-gray-600 mb-4">Business contact details for customer communication</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="contactNumber" className="block text-sm font-medium text-gray-700 mb-2">
+                      Contact Number
+                    </label>
+                    <input
+                      type="tel"
+                      id="contactNumber"
+                      value={settings.contactNumber}
+                      onChange={(e) => setSettings(prev => ({ ...prev, contactNumber: e.target.value }))}
+                      className="input-field"
+                      placeholder="+92 XXX XXXXXXX"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Customer service contact number
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      value={settings.email}
+                      onChange={(e) => setSettings(prev => ({ ...prev, email: e.target.value }))}
+                      className="input-field"
+                      placeholder="business@example.com"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Business email for customer inquiries
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label htmlFor="contactNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                  Contact Number
-                </label>
-                <input
-                  type="text"
-                  id="contactNumber"
-                  value={settings.contactNumber}
-                  onChange={(e) => setSettings(prev => ({ ...prev, contactNumber: e.target.value }))}
-                  className="input-field"
-                  placeholder="Enter contact number"
-                />
-              </div>
+              {/* Location & Online Presence */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">📍 Location & Online Presence</h3>
+                <p className="text-sm text-gray-600 mb-4">Business address and online information</p>
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
+                      Business Address
+                    </label>
+                    <textarea
+                      id="address"
+                      rows="3"
+                      value={settings.address}
+                      onChange={(e) => setSettings(prev => ({ ...prev, address: e.target.value }))}
+                      className="input-field"
+                      placeholder="Enter complete business address"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Full address for invoices and customer reference
+                    </p>
+                  </div>
 
-              <div>
-                <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
-                  Address
-                </label>
-                <textarea
-                  id="address"
-                  rows="3"
-                  value={settings.address}
-                  onChange={(e) => setSettings(prev => ({ ...prev, address: e.target.value }))}
-                  className="input-field"
-                  placeholder="Enter business address"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  value={settings.email}
-                  onChange={(e) => setSettings(prev => ({ ...prev, email: e.target.value }))}
-                  className="input-field"
-                  placeholder="Enter business email"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="website" className="block text-sm font-medium text-gray-700 mb-2">
-                  Website
-                </label>
-                <input
-                  type="url"
-                  id="website"
-                  value={settings.website}
-                  onChange={(e) => setSettings(prev => ({ ...prev, website: e.target.value }))}
-                  className="input-field"
-                  placeholder="Enter website URL"
-                />
+                  <div>
+                    <label htmlFor="website" className="block text-sm font-medium text-gray-700 mb-2">
+                      Website URL
+                    </label>
+                    <input
+                      type="url"
+                      id="website"
+                      value={settings.website}
+                      onChange={(e) => setSettings(prev => ({ ...prev, website: e.target.value }))}
+                      className="input-field"
+                      placeholder="https://www.example.com"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Optional: Your business website
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end">
-                                  <button
-                    onClick={handleSettingsSave}
-                    disabled={loading}
-                    className="btn-primary"
-                  >
-                    {loading ? '⏳ Saving...' : '💾 Save Company Info'}
-                  </button>
+                <button
+                  onClick={handleSettingsSave}
+                  disabled={loading}
+                  className="btn-primary"
+                >
+                  {loading ? '⏳ Saving...' : '💾 Save Company Information'}
+                </button>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="card">
-            <div className="text-center py-8">
-              <p className="text-gray-500">Company Information</p>
-              <p className="text-sm text-gray-400 mt-2">
-                You do not have permission to modify company information. Contact your Super Admin.
-              </p>
+          ) : (
+            <div className="card">
+              <div className="text-center py-8">
+                <p className="text-gray-500">Company Information</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  You do not have permission to modify company information. Contact your Super Admin.
+                </p>
+              </div>
             </div>
-          </div>
-        )
+          )
         )}
 
         {/* System Settings Tab */}
         {activeTab === 'system' && (
           hasPermission(currentUser?.role, 'canModifySettings') ? (
-            <div className="card">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">⚙️ System Settings</h3>
-              <p className="text-sm text-gray-600 mb-4">Configure system preferences and default values</p>
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">
-                    Currency Symbol
-                  </label>
-                  <select
-                    id="currency"
-                    value={settings.currency}
-                    onChange={(e) => setSettings(prev => ({ ...prev, currency: e.target.value }))}
-                    className="input-field"
-                  >
-                    {currencies.map((currency) => (
-                      <option key={currency.symbol} value={currency.symbol}>
-                        {currency.symbol} - {currency.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="discountPercentage" className="block text-sm font-medium text-gray-700 mb-2">
-                    Default Discount Percentage
-                  </label>
-                  <input
-                    type="number"
-                    id="discountPercentage"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={settings.discountPercentage}
-                    onChange={(e) => setSettings(prev => ({ ...prev, discountPercentage: parseFloat(e.target.value) }))}
-                    className="input-field"
-                    placeholder="Enter discount percentage"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700 mb-2">
-                    Tax Rate (%)
-                  </label>
-                  <input
-                    type="number"
-                    id="taxRate"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={settings.taxRate}
-                    onChange={(e) => setSettings(prev => ({ ...prev, taxRate: parseFloat(e.target.value) }))}
-                    className="input-field"
-                    placeholder="Enter tax rate"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="lowStockThreshold" className="block text-sm font-medium text-gray-700 mb-2">
-                    Low Stock Threshold
-                  </label>
-                  <input
-                    type="number"
-                    id="lowStockThreshold"
-                    min="1"
-                    value={settings.lowStockThreshold}
-                    onChange={(e) => setSettings(prev => ({ ...prev, lowStockThreshold: parseInt(e.target.value) }))}
-                    className="input-field"
-                    placeholder="Enter low stock threshold"
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="hasExpiryDates"
-                      checked={settings.hasExpiryDates}
-                      onChange={(e) => setSettings(prev => ({ ...prev, hasExpiryDates: e.target.checked }))}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="hasExpiryDates" className="ml-2 block text-sm text-gray-700">
-                      Enable Expiry Date Tracking
+            <div className="space-y-6">
+              {/* Currency & Financial Settings */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">💰 Currency & Financial Settings</h3>
+                <p className="text-sm text-gray-600 mb-4">Configure currency, discounts, and tax settings</p>
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">
+                      Currency Symbol
                     </label>
+                    <select
+                      id="currency"
+                      value={settings.currency}
+                      onChange={(e) => setSettings(prev => ({ ...prev, currency: e.target.value }))}
+                      className="input-field"
+                    >
+                      {currencies.map((currency) => (
+                        <option key={currency.symbol} value={currency.symbol}>
+                          {currency.symbol} - {currency.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      This will be used on all invoices and reports
+                    </p>
                   </div>
 
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="hasBatchNumbers"
-                      checked={settings.hasBatchNumbers}
-                      onChange={(e) => setSettings(prev => ({ ...prev, hasBatchNumbers: e.target.checked }))}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="hasBatchNumbers" className="ml-2 block text-sm text-gray-700">
-                      Enable Batch Number Tracking
+                  <div>
+                    <label htmlFor="discountPercentage" className="block text-sm font-medium text-gray-700 mb-2">
+                      Default Discount Percentage
                     </label>
+                    <input
+                      type="number"
+                      id="discountPercentage"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={settings.discountPercentage}
+                      onChange={(e) => setSettings(prev => ({ ...prev, discountPercentage: parseFloat(e.target.value) }))}
+                      className="input-field"
+                      placeholder="Enter discount percentage"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Applied to all new invoices by default
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700 mb-2">
+                      Tax Rate (%)
+                    </label>
+                    <input
+                      type="number"
+                      id="taxRate"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={settings.taxRate}
+                      onChange={(e) => setSettings(prev => ({ ...prev, taxRate: parseFloat(e.target.value) }))}
+                      className="input-field"
+                      placeholder="Enter tax rate"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Tax rate applied to all sales transactions
+                    </p>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleSettingsSave}
-                    disabled={loading}
-                    className="btn-primary"
-                  >
-                    {loading ? '⏳ Saving...' : '⚙️ Save System Settings'}
-                  </button>
+              {/* Inventory Management Settings */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">📦 Inventory Management Settings</h3>
+                <p className="text-sm text-gray-600 mb-4">Configure inventory tracking and alert settings</p>
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="lowStockThreshold" className="block text-sm font-medium text-gray-700 mb-2">
+                      Low Stock Threshold
+                    </label>
+                    <input
+                      type="number"
+                      id="lowStockThreshold"
+                      min="1"
+                      value={settings.lowStockThreshold}
+                      onChange={(e) => setSettings(prev => ({ ...prev, lowStockThreshold: parseInt(e.target.value) }))}
+                      className="input-field"
+                      placeholder="Enter low stock threshold"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Products below this quantity will show low stock warnings
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700">Feature Toggles</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                        <input
+                          type="checkbox"
+                          id="hasExpiryDates"
+                          checked={settings.hasExpiryDates}
+                          onChange={(e) => setSettings(prev => ({ ...prev, hasExpiryDates: e.target.checked }))}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="hasExpiryDates" className="ml-3 block text-sm text-gray-700">
+                          <span className="font-medium">Expiry Date Tracking</span>
+                          <p className="text-xs text-gray-500">Track product expiration dates</p>
+                        </label>
+                      </div>
+
+                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                        <input
+                          type="checkbox"
+                          id="hasBatchNumbers"
+                          checked={settings.hasBatchNumbers}
+                          onChange={(e) => setSettings(prev => ({ ...prev, hasBatchNumbers: e.target.checked }))}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <label htmlFor="hasBatchNumbers" className="ml-3 block text-sm text-gray-700">
+                          <span className="font-medium">Batch Number Tracking</span>
+                          <p className="text-xs text-gray-500">Track product batch numbers</p>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSettingsSave}
+                  disabled={loading}
+                  className="btn-primary"
+                >
+                  {loading ? '⏳ Saving...' : '⚙️ Save System Settings'}
+                </button>
               </div>
             </div>
           ) : (
@@ -549,6 +733,451 @@ export default function Settings() {
                 <p className="text-gray-500">System Settings</p>
                 <p className="text-sm text-gray-400 mt-2">
                   You do not have permission to modify system settings. Contact your Super Admin.
+                </p>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* Notification Settings Tab */}
+        {activeTab === 'notifications' && (
+          hasPermission(currentUser?.role, 'canModifySettings') ? (
+            <div className="space-y-6">
+              {/* Stock Alerts */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">📦 Stock Alerts</h3>
+                <p className="text-sm text-gray-600 mb-4">Configure low-stock alerts and stockout warnings</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Low Stock Threshold (%)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={settings.notificationSettings?.lowStockThreshold || 20}
+                        onChange={(e) => setSettings(prev => ({
+                          ...prev,
+                          notificationSettings: {
+                            ...prev.notificationSettings,
+                            lowStockThreshold: parseInt(e.target.value)
+                          }
+                        }))}
+                        className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-500">% of min stock level</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Alert when stock falls below this percentage of minimum stock level
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Stockout Alert
+                    </label>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={settings.notificationSettings?.stockoutAlert !== false}
+                        onChange={(e) => setSettings(prev => ({
+                          ...prev,
+                          notificationSettings: {
+                            ...prev.notificationSettings,
+                            stockoutAlert: e.target.checked
+                          }
+                        }))}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">
+                        Alert when product is completely out of stock
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Expiry Warnings */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">⏰ Expiry Warnings</h3>
+                <p className="text-sm text-gray-600 mb-4">Configure expiry warning notifications</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Warning Days (Medium Priority)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={settings.notificationSettings?.expiryWarningDays || 30}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        notificationSettings: {
+                          ...prev.notificationSettings,
+                          expiryWarningDays: parseInt(e.target.value)
+                        }
+                      }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Days before expiry to show medium priority warning
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Critical Days (High Priority)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={settings.notificationSettings?.criticalExpiryDays || 7}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        notificationSettings: {
+                          ...prev.notificationSettings,
+                          criticalExpiryDays: parseInt(e.target.value)
+                        }
+                      }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Days before expiry to show critical priority warning
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notification Channels */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">📱 Notification Channels</h3>
+                <p className="text-sm text-gray-600 mb-4">Choose how you want to receive notifications</p>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      In-app notifications (recommended)
+                    </label>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={settings.notificationSettings?.inAppNotifications !== false}
+                        onChange={(e) => setSettings(prev => ({
+                          ...prev,
+                          notificationSettings: {
+                            ...prev.notificationSettings,
+                            inAppNotifications: e.target.checked
+                          }
+                        }))}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">
+                        Show notifications in the app interface
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Email notifications
+                    </label>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={settings.notificationSettings?.emailNotifications === true}
+                        onChange={(e) => setSettings(prev => ({
+                          ...prev,
+                          notificationSettings: {
+                            ...prev.notificationSettings,
+                            emailNotifications: e.target.checked
+                          }
+                        }))}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">
+                        Send notifications via email
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notification Frequency */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">⏱️ Notification Frequency</h3>
+                <p className="text-sm text-gray-600 mb-4">How often should the system check for alerts</p>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Check Frequency
+                  </label>
+                  <select
+                    value={settings.notificationSettings?.notificationFrequency || 'realtime'}
+                    onChange={(e) => setSettings(prev => ({
+                      ...prev,
+                      notificationSettings: {
+                        ...prev.notificationSettings,
+                        notificationFrequency: e.target.value
+                      }
+                    }))}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="realtime">Real-time (immediate)</option>
+                    <option value="hourly">Hourly</option>
+                    <option value="daily">Daily</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Real-time provides instant alerts, while hourly/daily reduces system load
+                  </p>
+                </div>
+              </div>
+
+              {/* Cleanup Settings */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">🧹 Cleanup Settings</h3>
+                <p className="text-sm text-gray-600 mb-4">Automatically clean up old notifications</p>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Auto-cleanup Old Notifications
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={settings.notificationSettings?.autoCleanupDays || 30}
+                      onChange={(e) => setSettings(prev => ({
+                        ...prev,
+                        notificationSettings: {
+                          ...prev.notificationSettings,
+                          autoCleanupDays: parseInt(e.target.value)
+                        }
+                      }))}
+                      className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-500">days old</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Notifications older than this will be automatically removed
+                  </p>
+                </div>
+              </div>
+
+              {/* Test Notifications */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">🧪 Test Notifications</h3>
+                <p className="text-sm text-gray-600 mb-4">Test the notification system to ensure it's working properly</p>
+                
+                <button
+                  type="button"
+                  onClick={testNotification}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                >
+                  🧪 Test Notifications
+                </button>
+                
+                <p className="text-xs text-gray-500 mt-2">
+                  This will create sample notifications to test the system
+                </p>
+              </div>
+
+              {/* Save Button */}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleSettingsSave}
+                  disabled={loading}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading ? '⏳ Saving...' : '💾 Save Notification Settings'}
+                </button>
+              </div>
+
+              {/* How It Works */}
+              <div className="card bg-blue-50 border-blue-200">
+                <h3 className="text-lg font-medium text-blue-900 mb-4">💡 How It Works</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-blue-800">
+                  <div>
+                    <h4 className="font-medium mb-2">Low Stock Alerts</h4>
+                    <p>System monitors product quantities and alerts when stock falls below thresholds</p>
+                  </div>
+                  <div>
+                    <h4 className="font-medium mb-2">Expiry Warnings</h4>
+                    <p>Automatically detects products nearing expiry and sends timely reminders</p>
+                  </div>
+                  <div>
+                    <h4 className="font-medium mb-2">Priority Levels</h4>
+                    <p>Critical (red), High (orange), Medium (yellow), Low (blue) based on urgency</p>
+                  </div>
+                  <div>
+                    <h4 className="font-medium mb-2">Real-time Updates</h4>
+                    <p>Notifications appear instantly in the app and can be sent via email</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="card">
+              <div className="text-center py-8">
+                <p className="text-gray-500">Notification Settings</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  You do not have permission to modify notification settings. Contact your Super Admin.
+                </p>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* Business Setup Tab */}
+        {activeTab === 'business-setup' && (
+          hasPermission(currentUser?.role, 'canManageBusinessSetup') ? (
+            <div className="space-y-6">
+              {/* Business Setup Wizard Card */}
+              <div className="card bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
+                <div className="text-center py-8">
+                  <div className="text-6xl mb-4">🚀</div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Business Setup Wizard</h3>
+                  <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+                    Use our comprehensive wizard to configure your business type, categories, and features. 
+                    This will set up your system according to your business requirements.
+                  </p>
+                  <Link
+                    href="/setup/business-config"
+                    className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white text-lg font-medium rounded-lg hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    🚀 Launch Business Setup Wizard
+                  </Link>
+                </div>
+              </div>
+
+              {/* Business Features Status */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">⚙️ Business Features Status</h3>
+                <p className="text-sm text-gray-600 mb-4">Current features enabled for your business</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-2xl mr-3">📅</span>
+                    <div>
+                      <p className="font-medium text-gray-900">Expiry Dates</p>
+                      <p className="text-sm text-gray-600">
+                        {settings.hasExpiryDates ? '✅ Enabled' : '❌ Disabled'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-2xl mr-3">🏷️</span>
+                    <div>
+                      <p className="font-medium text-gray-900">Batch Numbers</p>
+                      <p className="text-sm text-gray-600">
+                        {settings.hasBatchNumbers ? '✅ Enabled' : '❌ Disabled'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-2xl mr-3">💰</span>
+                    <div>
+                      <p className="font-medium text-gray-900">Default Discount</p>
+                      <p className="text-sm text-gray-600">{settings.discountPercentage}%</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Business Configuration */}
+              <div className="card">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">⚡ Quick Business Configuration</h3>
+                <p className="text-sm text-gray-600 mb-4">Essential business settings that can be quickly modified</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Business Type
+                    </label>
+                    <select
+                      value={settings.businessType}
+                      onChange={(e) => setSettings(prev => ({ ...prev, businessType: e.target.value }))}
+                      className="input-field"
+                    >
+                      {businessTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      This affects default categories and features
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Default Discount (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={settings.discountPercentage}
+                      onChange={(e) => setSettings(prev => ({ ...prev, discountPercentage: parseFloat(e.target.value) }))}
+                      className="input-field"
+                      placeholder="Enter discount percentage"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Applied to all new invoices by default
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={handleSettingsSave}
+                    disabled={loading}
+                    className="btn-primary"
+                  >
+                    {loading ? '⏳ Saving...' : '💾 Save Quick Settings'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Business Setup Tips */}
+              <div className="card bg-blue-50 border-blue-200">
+                <h3 className="text-lg font-medium text-blue-900 mb-4">💡 Business Setup Tips</h3>
+                <div className="space-y-3 text-sm text-blue-800">
+                  <div className="flex items-start">
+                    <span className="text-blue-600 mr-2">•</span>
+                    <p>Use the Business Setup Wizard for complete configuration</p>
+                  </div>
+                  <div className="flex items-start">
+                    <span className="text-blue-600 mr-2">•</span>
+                    <p>Business type determines default categories and features</p>
+                  </div>
+                  <div className="flex items-start">
+                    <span className="text-blue-600 mr-2">•</span>
+                    <p>Default discount applies to all new invoices</p>
+                  </div>
+                  <div className="flex items-start">
+                    <span className="text-blue-600 mr-2">•</span>
+                    <p>Contact support for advanced business configuration</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="card">
+              <div className="text-center py-8">
+                <p className="text-gray-500">Business Setup Wizard</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  You do not have permission to manage business setup. Contact your Super Admin.
                 </p>
               </div>
             </div>

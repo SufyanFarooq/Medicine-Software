@@ -7,7 +7,7 @@ import { getUser, hasPermission } from '../../lib/auth';
 import { canPerformAction } from '../../lib/permissions';
 
 // Print invoice function - COMPLETELY REWRITTEN for perfect readability
-const printInvoice = (invoice, settings = {}, currentUser = null) => {
+const printInvoice = async (invoice, settings = {}, currentUser = null) => {
   const currentDate = new Date();
   const shopName = settings.shopName || "Medical Shop";
   const shopAddress = settings.address || "Your Shop Address";
@@ -28,18 +28,59 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
     return leftText.padEnd(28) + rightText.padStart(14);
   };
 
+  // Fetch product adminDiscounts for all items (handles both productId and medicineId)
+  const productIdToDiscount = {};
+  try {
+    await Promise.all(
+      (invoice.items || []).map(async (it) => {
+        const pid = it.productId || it.medicineId;
+        if (!pid || productIdToDiscount[pid] !== undefined) return;
+        try {
+          const res = await apiRequest(`/api/products/${pid}`);
+          if (res.ok) {
+            const prod = await res.json();
+            productIdToDiscount[pid] = parseFloat(prod.adminDiscount) || 0;
+          } else {
+            productIdToDiscount[pid] = 0;
+          }
+        } catch {
+          productIdToDiscount[pid] = 0;
+        }
+      })
+    );
+  } catch {}
+
   // Build items block with SIMPLE formatting
-  const itemsBlock = invoice.items.map(item => {
+  const itemsBlock = (invoice.items || []).map(item => {
     const sellingPrice = parseFloat(item.sellingPrice) || parseFloat(item.price) || 0;
     const quantity = parseInt(item.quantity) || 0;
     const itemTotal = sellingPrice * quantity;
+    const pid = item.productId || item.medicineId;
+    const adminPct = productIdToDiscount[pid] || 0;
+    const adminTag = adminPct > 0 ? ` (${adminPct}% OFF)` : '';
     
     return [
       line(item.name, `Rs${itemTotal.toFixed(2)}`),
-      `  Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}`,
+      `  Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}${adminTag}`,
       ""
     ].join('\n');
   }).join('\n');
+
+  // Compute discount breakdown (prefer stored invoice.discount for accuracy)
+  const subtotalValue = parseFloat(invoice.subtotal || 0);
+  const storedTotalDiscount = parseFloat(invoice.discount || 0);
+  const productDiscountTotal = (invoice.items || []).reduce((sum, it) => {
+    const price = parseFloat(it.sellingPrice) || parseFloat(it.price) || 0;
+    const qty = parseInt(it.quantity) || 0;
+    const pid = it.productId || it.medicineId;
+    const pct = (productIdToDiscount[pid] || 0) / 100;
+    return sum + price * qty * pct;
+  }, 0);
+  // Derive global discount from stored total to stay consistent with original invoice
+  const globalDiscount = Math.max(0, storedTotalDiscount - productDiscountTotal);
+  const totalValue = parseFloat(invoice.total || (subtotalValue - storedTotalDiscount));
+  // Use saved global discount percentage from invoice, not current settings
+  const savedGlobalDiscountPercentage = invoice.globalDiscountPercentage || settings.discountPercentage || 0;
 
   // Build receipt with PERFECT 42-column layout
   const receiptText = [
@@ -62,12 +103,14 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
     "",
     itemsBlock,
     repeat("-"),
-    line("Subtotal:", `Rs${parseFloat(invoice.subtotal || 0).toFixed(2)}`),
-    line(`Discount (${settings.discountPercentage || 0}%):`, `-Rs${parseFloat(invoice.discount || 0).toFixed(2)}`),
+    line("Subtotal:", `Rs${subtotalValue.toFixed(2)}`),
+    ...(productDiscountTotal > 0 ? [line("Product Discounts:", `-Rs${productDiscountTotal.toFixed(2)}`)] : []),
+    ...(globalDiscount > 0 ? [line(`Global Discount (${savedGlobalDiscountPercentage}%):`, `-Rs${globalDiscount.toFixed(2)}`)] : []),
+    ...(storedTotalDiscount > 0 ? [repeat("-"), line("Total Discount:", `-Rs${storedTotalDiscount.toFixed(2)}`)] : []),
     repeat("-"),
-    line("TOTAL:", `Rs${parseFloat(invoice.total || 0).toFixed(2)}`),
+    line("TOTAL:", `Rs${totalValue.toFixed(2)}`),
     "",
-    line("Cash:", `Rs${parseFloat(invoice.total || 0).toFixed(2)}`),
+    line("Cash:", `Rs${totalValue.toFixed(2)}`),
     line("Change:", "Rs0.00"),
     "",
     repeat("*"),
@@ -297,7 +340,7 @@ export default function Invoices() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
           <div className="card">
             <div className="flex items-center">
               <div className="flex-shrink-0 p-3 rounded-lg bg-blue-500">
@@ -316,9 +359,9 @@ export default function Invoices() {
                 <span className="text-2xl text-white">💰</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Total Sales</p>
+                <p className="text-sm font-medium text-gray-500">Gross Sales</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {formatCurrency(invoices.reduce((sum, invoice) => sum + invoice.total, 0))}
+                  {formatCurrency(invoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0))}
                 </p>
               </div>
             </div>
@@ -331,7 +374,26 @@ export default function Invoices() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Returns</p>
-                <p className="text-2xl font-semibold text-gray-900">{returns.length}</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {formatCurrency(invoices.reduce((sum, invoice) => sum + (invoice.totalReturns || 0), 0))}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 p-3 rounded-lg bg-purple-500">
+                <span className="text-2xl text-white">📊</span>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Net Sales</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {formatCurrency(
+                    invoices.reduce((sum, invoice) => sum + (invoice.total || 0), 0) - 
+                    invoices.reduce((sum, invoice) => sum + (invoice.totalReturns || 0), 0)
+                  )}
+                </p>
               </div>
             </div>
           </div>
@@ -357,6 +419,8 @@ export default function Invoices() {
                     <th className="table-header">Subtotal</th>
                     <th className="table-header">Discount</th>
                     <th className="table-header">Total</th>
+                    <th className="table-header">Returns</th>
+                    <th className="table-header">Status</th>
                     <th className="table-header">Actions</th>
                   </tr>
                 </thead>
@@ -367,10 +431,50 @@ export default function Invoices() {
                       <td className="table-cell">
                         {new Date(invoice.date).toLocaleDateString()}
                       </td>
-                      <td className="table-cell">{invoice.items.length}</td>
+                      <td className="table-cell">
+                        <div>
+                          <div>{invoice.items.length} items</div>
+                          {invoice.totalReturnQuantity > 0 && (
+                            <div className="text-xs text-orange-600">
+                              {invoice.totalReturnQuantity} returned
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td className="table-cell">{formatCurrency(invoice.subtotal)}</td>
                       <td className="table-cell">{formatCurrency(invoice.discount)}</td>
-                      <td className="table-cell font-medium">{formatCurrency(invoice.total)}</td>
+                      <td className="table-cell font-medium">
+                        <div>
+                          <div>{formatCurrency(invoice.total)}</div>
+                          {invoice.totalReturns > 0 && (
+                            <div className="text-xs text-red-600">
+                              -{formatCurrency(invoice.totalReturns)} returns
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="table-cell">
+                        {invoice.totalReturns > 0 ? (
+                          <div className="text-orange-600 font-medium">
+                            {formatCurrency(invoice.totalReturns)}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="table-cell">
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                          invoice.status === 'fully_returned' ? 'bg-red-100 text-red-800' :
+                          invoice.status === 'partially_returned' ? 'bg-orange-100 text-orange-800' :
+                          invoice.status === 'paid' ? 'bg-green-100 text-green-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {invoice.status === 'fully_returned' ? 'Fully Returned' :
+                           invoice.status === 'partially_returned' ? 'Partially Returned' :
+                           invoice.status === 'paid' ? 'Paid' :
+                           'Active'}
+                        </span>
+                      </td>
                       <td className="table-cell">
                         <div className="flex space-x-3">
                           <button

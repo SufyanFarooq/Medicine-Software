@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import ProductForm from '../../components/ProductForm';
 import SearchBar from '../../components/SearchBar';
+import Link from 'next/link';
 import { apiRequest } from '../../lib/auth';
 import { formatCurrency } from '../../lib/currency';
 
 export default function Products() {
+  const router = useRouter();
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -141,8 +144,7 @@ export default function Products() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <SearchBar
-              value={searchTerm}
-              onChange={setSearchTerm}
+              onSearch={setSearchTerm}
               placeholder="Search products by name, code, or brand..."
             />
             <select
@@ -167,16 +169,25 @@ export default function Products() {
                     Product
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Code
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Barcode
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Category
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Stock
+                    Quantity
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Purchase Price
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Selling Price
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Admin Discount
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -186,20 +197,53 @@ export default function Products() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredProducts.map((product) => (
                   <tr key={product._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {product.name}
+                                         <td className="px-6 py-4 whitespace-nowrap">
+                       <div>
+                         <div className="text-sm font-medium text-gray-900">
+                           <button
+                             onClick={() => router.push(`/products/${product._id}`)}
+                             className="text-blue-600 hover:text-blue-900 hover:underline"
+                           >
+                             {product.name}
+                             {product.adminDiscount > 0 && (
+                               <span className="ml-2 text-xs bg-blue-500 text-white px-2 py-0.5 rounded font-medium">
+                                 🎯 {product.adminDiscount}%
+                               </span>
+                             )}
+                           </button>
+                         </div>
+                         <div className="text-sm text-gray-500">
+                           Code: {product.code}
+                         </div>
+                         {product.brand && (
+                           <div className="text-sm text-gray-500">
+                             Brand: {product.brand}
+                           </div>
+                         )}
+                       </div>
+                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {product.code || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {product.barcode ? (
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs">{product.barcode}</span>
+                          <button
+                            onClick={() => {
+                              // Copy barcode to clipboard
+                              navigator.clipboard.writeText(product.barcode);
+                              alert('Barcode copied to clipboard!');
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-xs"
+                            title="Copy barcode"
+                          >
+                            📋
+                          </button>
                         </div>
-                        <div className="text-sm text-gray-500">
-                          Code: {product.code}
-                        </div>
-                        {product.brand && (
-                          <div className="text-sm text-gray-500">
-                            Brand: {product.brand}
-                          </div>
-                        )}
-                      </div>
+                      ) : (
+                        'N/A'
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -223,8 +267,17 @@ export default function Products() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatCurrency(product.sellingPrice)}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {product.adminDiscount ? `${product.adminDiscount}%` : 'N/A'}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
+                        <Link
+                          href={`/products/${product._id}`}
+                          className="text-green-600 hover:text-green-900"
+                        >
+                          View Details
+                        </Link>
                         <button
                           onClick={() => {
                             setEditingProduct(product);

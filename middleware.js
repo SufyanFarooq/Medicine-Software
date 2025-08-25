@@ -16,6 +16,14 @@ export function middleware(request) {
   
   // For API routes, check for Authorization header
   if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/')) {
+    // Allow products, categories, warehouses, and transfers API without authentication for now
+    if (pathname.startsWith('/api/products') || 
+        pathname.startsWith('/api/categories') ||
+        pathname.startsWith('/api/warehouses') ||
+        pathname.startsWith('/api/transfers')) {
+      return NextResponse.next();
+    }
+    
     const authHeader = request.headers.get('authorization');
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

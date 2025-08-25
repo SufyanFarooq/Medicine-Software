@@ -1,17 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-export default function SearchBar({ onSearch, placeholder = "Search medicines..." }) {
-  const [searchTerm, setSearchTerm] = useState('');
+export default function SearchBar({ onSearch, onChange, value, placeholder = "Search..." }) {
+  const [searchTerm, setSearchTerm] = useState(value || '');
+
+  // Update internal state when external value changes
+  useEffect(() => {
+    if (value !== undefined) {
+      setSearchTerm(value);
+    }
+  }, [value]);
 
   const handleSearch = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
-    onSearch(value);
+    
+    // Support both onSearch and onChange props
+    if (onSearch) {
+      onSearch(value);
+    }
+    if (onChange) {
+      onChange(value);
+    }
   };
 
   const handleClear = () => {
     setSearchTerm('');
-    onSearch('');
+    
+    // Support both onSearch and onChange props
+    if (onSearch) {
+      onSearch('');
+    }
+    if (onChange) {
+      onChange('');
+    }
   };
 
   return (
@@ -35,7 +56,7 @@ export default function SearchBar({ onSearch, placeholder = "Search medicines...
         type="text"
         value={searchTerm}
         onChange={handleSearch}
-        className="input-field pl-10 pr-10"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         placeholder={placeholder}
       />
       {searchTerm && (

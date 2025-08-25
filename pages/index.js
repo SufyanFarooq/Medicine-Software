@@ -604,6 +604,40 @@ export default function Dashboard() {
           </p>
         </div>
 
+        {/* Business Setup Notification */}
+        {settings.businessName === 'My Business' && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <span className="text-2xl">🚀</span>
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-medium text-blue-900">
+                  Complete Your Business Setup
+                </h3>
+                <p className="mt-1 text-sm text-blue-700">
+                  Welcome! To get started, please complete your business configuration. 
+                  This will set up your system according to your business type and requirements.
+                </p>
+                <div className="mt-3">
+                  <Link
+                    href="/setup/business-config"
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+                  >
+                    🚀 Launch Business Setup Wizard
+                  </Link>
+                  <Link
+                    href="/settings?tab=business-setup"
+                    className="ml-3 inline-flex items-center px-4 py-2 bg-white text-blue-600 text-sm font-medium rounded-md border border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+                  >
+                    ⚙️ Go to Settings
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {statCards.map((stat) => (

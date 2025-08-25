@@ -4,7 +4,15 @@ import { formatCurrency } from '../lib/currency';
 import { logInvoiceActivity } from '../lib/activity-logger';
 import { getUser } from '../lib/auth';
 
-export default function InvoiceTable({ medicines, settings = { discountPercentage: 3 }, onInvoiceGenerated }) {
+export default function InvoiceTable({ 
+  medicines = [], 
+  settings = {}, 
+  onInvoiceGenerated,
+  scannedProduct = null, // Add scanned product prop
+  autoAddProduct = null, // Add auto-add product prop
+  onProductAdded = null, // Add callback prop
+  externalSearchTerm = '' // External search seed (from scanner)
+}) {
   const [selectedMedicines, setSelectedMedicines] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredMedicines, setFilteredMedicines] = useState([]);
@@ -14,6 +22,10 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
   const [originalQuantities, setOriginalQuantities] = useState({});
   const [pendingInvoices, setPendingInvoices] = useState([]);
   const [currentInvoiceId, setCurrentInvoiceId] = useState(null);
+  const [pickingMethod, setPickingMethod] = useState('FIFO');
+  const [showPickingOptions, setShowPickingOptions] = useState(false);
+
+  // Removed externalSearchTerm syncing to keep search user-driven only
 
   useEffect(() => {
     setFilteredMedicines(medicines);
@@ -24,13 +36,60 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     if (searchTerm.trim()) {
       const filtered = medicines.filter(medicine =>
         medicine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        medicine.code.toLowerCase().includes(searchTerm.toLowerCase())
+        (medicine.code && medicine.code.toLowerCase().includes(searchTerm.toLowerCase()))
       );
       setFilteredMedicines(filtered);
     } else {
       setFilteredMedicines(medicines);
     }
   }, [searchTerm, medicines]);
+
+  // Auto-add scanned product to invoice
+  useEffect(() => {
+    if (autoAddProduct && !selectedMedicines.some(item => item._id === autoAddProduct._id)) {
+      // Add the product to invoice automatically
+      const productToAdd = {
+        _id: autoAddProduct._id,
+        name: autoAddProduct.name,
+        code: autoAddProduct.code,
+        sellingPrice: autoAddProduct.sellingPrice,
+        quantity: 1, // Default quantity
+        adminDiscount: autoAddProduct.adminDiscount || 0
+      };
+      
+      setSelectedMedicines(prev => [...prev, productToAdd]);
+      
+      // Call callback to notify parent component
+      if (onProductAdded) {
+        onProductAdded();
+      }
+      
+      // Show success message
+      console.log(`Product "${autoAddProduct.name}" automatically added to invoice`);
+    }
+  }, [autoAddProduct, selectedMedicines, onProductAdded]);
+
+  // Auto-scroll to scanned product when available
+  useEffect(() => {
+    if (scannedProduct) {
+      // Find the scanned product element and scroll to it
+      const scannedElement = document.querySelector(`[data-product-id="${scannedProduct._id}"]`);
+      if (scannedElement) {
+        scannedElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+        
+        // Add a brief highlight effect
+        scannedElement.style.transform = 'scale(1.02)';
+        scannedElement.style.transition = 'transform 0.3s ease';
+        
+        setTimeout(() => {
+          scannedElement.style.transform = 'scale(1)';
+        }, 300);
+      }
+    }
+  }, [scannedProduct]);
 
   const generateInvoiceNumber = () => {
     const timestamp = Date.now().toString().slice(-8);
@@ -283,9 +342,26 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
   };
 
   const calculateTotalDiscount = () => {
+    let totalDiscount = 0;
+    
+    // Calculate product-specific admin discounts first
+    for (const item of selectedMedicines) {
+      const originalProduct = medicines.find(m => m._id === item._id);
+      if (originalProduct && originalProduct.adminDiscount > 0) {
+        const itemSubtotal = item.sellingPrice * item.quantity;
+        const adminDiscountAmount = itemSubtotal * (originalProduct.adminDiscount / 100);
+        totalDiscount += adminDiscountAmount;
+      }
+    }
+    
+    // Then apply global discount on remaining amount
     const subtotal = calculateSubtotal();
-    const adminDiscount = subtotal * (settings.discountPercentage / 100);
-    return adminDiscount;
+    const remainingAfterAdminDiscount = subtotal - totalDiscount;
+    const globalDiscount = remainingAfterAdminDiscount * (settings.discountPercentage / 100);
+    
+    totalDiscount += globalDiscount;
+    
+    return totalDiscount;
   };
 
   const calculateTotal = () => {
@@ -294,17 +370,44 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     return subtotal - discount;
   };
 
+  // Helper function to get discount breakdown
+  const getDiscountBreakdown = () => {
+    let adminDiscountTotal = 0;
+    let globalDiscountTotal = 0;
+    
+    // Calculate admin discounts
+    for (const item of selectedMedicines) {
+      const originalProduct = medicines.find(m => m._id === item._id);
+      if (originalProduct && originalProduct.adminDiscount > 0) {
+        const itemSubtotal = item.sellingPrice * item.quantity;
+        const adminDiscountAmount = itemSubtotal * (originalProduct.adminDiscount / 100);
+        adminDiscountTotal += adminDiscountAmount;
+      }
+    }
+    
+    // Calculate global discount
+    const subtotal = calculateSubtotal();
+    const remainingAfterAdminDiscount = subtotal - adminDiscountTotal;
+    globalDiscountTotal = remainingAfterAdminDiscount * (settings.discountPercentage / 100);
+    
+    return {
+      adminDiscount: adminDiscountTotal,
+      globalDiscount: globalDiscountTotal,
+      totalDiscount: adminDiscountTotal + globalDiscountTotal
+    };
+  };
+
   const handleGenerateInvoice = async () => {
     if (selectedMedicines.length === 0) {
-      alert('Please select at least one medicine');
+      alert('Please select at least one product');
       return;
     }
 
     // Validate quantities before generating invoice
     for (const item of selectedMedicines) {
-      const originalMedicine = medicines.find(m => m._id === item._id);
-      if (originalMedicine && item.quantity > originalMedicine.quantity) {
-        alert(`Cannot generate invoice: ${originalMedicine.name} quantity (${item.quantity}) exceeds available stock (${originalMedicine.quantity})`);
+      const originalProduct = medicines.find(m => m._id === item._id);
+      if (originalProduct && item.quantity > originalProduct.quantity) {
+        alert(`Cannot generate invoice: ${originalProduct.name} quantity (${item.quantity}) exceeds available stock (${originalProduct.quantity})`);
         return;
       }
     }
@@ -315,15 +418,15 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       const returnsToProcess = [];
       
       for (const item of selectedMedicines) {
-        const originalMedicine = medicines.find(m => m._id === item._id);
-        if (originalMedicine) {
+        const originalProduct = medicines.find(m => m._id === item._id);
+        if (originalProduct) {
           // If quantity is negative, create return for the absolute value
           if (item.quantity < 0) {
             const returnQuantity = Math.abs(item.quantity); // Convert negative to positive
-            const returnValue = originalMedicine.sellingPrice * returnQuantity * (1 - (settings.discountPercentage / 100));
+            const returnValue = originalProduct.sellingPrice * returnQuantity * (1 - (settings.discountPercentage / 100));
             
             returnsToProcess.push({
-              medicine: originalMedicine,
+              product: originalProduct,
               returnQuantity,
               returnValue
             });
@@ -333,18 +436,27 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
 
       const invoiceData = {
         invoiceNumber,
-        items: selectedMedicines.map(item => ({
-          medicineId: item._id,
-          name: item.name,
-          code: item.code,
-          quantity: item.quantity,
-          price: item.sellingPrice,
-          total: item.sellingPrice * item.quantity,
-        })),
+        items: selectedMedicines.map(item => {
+          const originalProduct = medicines.find(m => m._id === item._id);
+          const adminDiscount = originalProduct?.adminDiscount || 0;
+          
+          return {
+            productId: item._id,
+            name: item.name,
+            code: item.code,
+            quantity: item.quantity,
+            price: item.sellingPrice,
+            total: item.sellingPrice * item.quantity,
+            adminDiscount: adminDiscount, // Add product-specific discount
+            discountAmount: (item.sellingPrice * item.quantity * adminDiscount) / 100 // Calculate discount amount for this item
+          };
+        }),
         subtotal: calculateSubtotal(),
         discount: calculateTotalDiscount(),
         total: calculateTotal(),
+        globalDiscountPercentage: settings.discountPercentage || 0, // Save global discount percentage at time of invoice creation
         date: new Date().toISOString(),
+        type: 'product'
       };
 
       const response = await apiRequest('/api/invoices', {
@@ -358,9 +470,9 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
           try {
             const returnRecord = {
               returnNumber: generateReturnNumber(),
-              medicineId: returnData.medicine._id,
-              medicineName: returnData.medicine.name,
-              medicineCode: returnData.medicine.code,
+              productId: returnData.product._id,
+              productName: returnData.product.name,
+              productCode: returnData.product.code,
               quantity: returnData.returnQuantity,
               reason: 'Negative Quantity Adjustment',
               notes: `Negative quantity during invoice generation`,
@@ -383,7 +495,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
               // Add notification
               const notification = {
                 id: Date.now() + Math.random(),
-                message: `Return created: ${returnData.returnQuantity} units of ${returnData.medicine.name} (${formatCurrency(returnData.returnValue)})`,
+                message: `Return created: ${returnData.returnQuantity} units of ${returnData.product.name} (${formatCurrency(returnData.returnValue)})`,
                 type: 'success'
               };
               setReturnNotifications(prev => [...prev, notification]);
@@ -398,31 +510,37 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
           }
         }
         
-        // Update medicine quantities and record inventory transactions
+        // Update product quantities and record inventory transactions
         for (const item of selectedMedicines) {
-          const originalMedicine = medicines.find(m => m._id === item._id);
-          if (originalMedicine) {
+          const originalProduct = medicines.find(m => m._id === item._id);
+          if (originalProduct) {
             let newQuantity;
             
             if (item.quantity < 0) {
               // For negative quantities, add the absolute value back to stock
-              newQuantity = originalMedicine.quantity + Math.abs(item.quantity);
+              newQuantity = originalProduct.quantity + Math.abs(item.quantity);
             } else {
               // For positive quantities, subtract from stock
-              newQuantity = originalMedicine.quantity - item.quantity;
+              newQuantity = originalProduct.quantity - item.quantity;
             }
             
-            // Update medicine quantity
-            await apiRequest(`/api/medicines/${item._id}`, {
+            // Update product quantity
+            await apiRequest(`/api/products/${item._id}`, {
               method: 'PUT',
               body: JSON.stringify({
-                name: originalMedicine.name,
-                code: originalMedicine.code,
+                name: originalProduct.name,
+                code: originalProduct.code,
+                category: originalProduct.category,
                 quantity: newQuantity,
-                purchasePrice: originalMedicine.purchasePrice,
-                sellingPrice: originalMedicine.sellingPrice,
-                expiryDate: originalMedicine.expiryDate,
-                batchNo: originalMedicine.batchNo,
+                purchasePrice: originalProduct.purchasePrice,
+                sellingPrice: originalProduct.sellingPrice,
+                adminDiscount: originalProduct.adminDiscount, // Added admin discount field
+                totalBuyingPrice: originalProduct.totalBuyingPrice,
+                expiryDate: originalProduct.expiryDate,
+                batchNo: originalProduct.batchNo,
+                brand: originalProduct.brand,
+                description: originalProduct.description,
+                unit: originalProduct.unit,
               }),
             });
 
@@ -430,13 +548,13 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
             if (item.quantity > 0) {
               try {
                 const transactionData = {
-                  medicineId: item._id,
+                  productId: item._id,
                   type: 'outflow',
                   quantity: item.quantity,
                   unitPrice: item.sellingPrice,
                   totalAmount: item.sellingPrice * item.quantity,
-                  batchNo: originalMedicine.batchNo,
-                  expiryDate: originalMedicine.expiryDate,
+                  batchNo: originalProduct.batchNo,
+                  expiryDate: originalProduct.expiryDate,
                   supplier: null,
                   notes: `Sale via invoice ${invoiceNumber}`,
                   referenceType: 'sale',
@@ -484,17 +602,25 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     try {
       const invoiceData = {
         invoiceNumber,
-        items: selectedMedicines.map(item => ({
-          medicineId: item._id,
-          name: item.name,
-          code: item.code,
-          quantity: item.quantity,
-          price: item.sellingPrice,
-          total: item.sellingPrice * item.quantity,
-        })),
+        items: selectedMedicines.map(item => {
+          const originalProduct = medicines.find(m => m._id === item._id);
+          const adminDiscount = originalProduct?.adminDiscount || 0;
+          
+          return {
+            medicineId: item._id,
+            name: item.name,
+            code: item.code,
+            quantity: item.quantity,
+            price: item.sellingPrice,
+            total: item.sellingPrice * item.quantity,
+            adminDiscount: adminDiscount, // Add product-specific discount
+            discountAmount: (item.sellingPrice * item.quantity * adminDiscount) / 100 // Calculate discount amount for this item
+          };
+        }),
         subtotal: calculateSubtotal(),
         discount: calculateTotalDiscount(),
         total: calculateTotal(),
+        globalDiscountPercentage: settings.discountPercentage || 0, // Save global discount percentage at time of invoice creation
         date: new Date().toISOString(),
       };
 
@@ -726,13 +852,24 @@ function generatePlainTextReceipt() {
     const qty = parseInt(item.quantity) || 0;
     const totalLine = (price * qty).toFixed(2);
     
+    // Find original product for admin discount info
+    const originalProduct = medicines.find(m => m._id === item._id);
+    const adminDiscount = originalProduct?.adminDiscount || 0;
+    
     // Ensure item name fits in 28 characters
     const nm = (item.name || "Unknown Item").toUpperCase();
     const name = nm.length > 28 ? nm.slice(0, 25) + "..." : nm;
 
     // Format with proper Rs currency and alignment
     itemsText += line(name, `Rs${totalLine}`) + "\n";
-    itemsText += `  Qty: ${qty} × Rs${price.toFixed(2)}\n\n`;
+    itemsText += `  Qty: ${qty} × Rs${price.toFixed(2)}`;
+    
+    // Add admin discount info if exists
+    if (adminDiscount > 0) {
+      itemsText += ` (${adminDiscount}% OFF)`;
+    }
+    
+    itemsText += "\n\n";
   });
 
   // ---- full receipt text with strict 42-column layout ----
@@ -758,7 +895,31 @@ function generatePlainTextReceipt() {
     "",
     sep("-"),  // Exactly 42 dashes
     line("Subtotal:", `Rs${subTotal.toFixed(2)}`),
-    line(`Discount (${settings.discountPercentage || 0}%):`, `-Rs${discountAmt.toFixed(2)}`),
+    
+    // Add detailed discount breakdown
+    ...(() => {
+      const breakdown = getDiscountBreakdown();
+      const lines = [];
+      
+      // Show product-specific admin discounts
+      if (breakdown.adminDiscount > 0) {
+        lines.push(line("Product Discounts:", `-Rs${breakdown.adminDiscount.toFixed(2)}`));
+      }
+      
+      // Show global discount
+      if (breakdown.globalDiscount > 0) {
+        lines.push(line(`Global Discount (${settings.discountPercentage || 0}%):`, `-Rs${breakdown.globalDiscount.toFixed(2)}`));
+      }
+      
+      // Show total discount if there are any discounts
+      if (breakdown.totalDiscount > 0) {
+        lines.push(sep("-")); // Add separator before total discount
+        lines.push(line("Total Discount:", `-Rs${breakdown.totalDiscount.toFixed(2)}`));
+      }
+      
+      return lines;
+    })(),
+    
     sep("-"),  // Exactly 42 dashes
     line("TOTAL:", `Rs${total.toFixed(2)}`),
     "",
@@ -948,10 +1109,15 @@ function generatePlainTextReceipt() {
       const quantity = parseInt(item.quantity) || 0;
       const itemTotal = sellingPrice * quantity;
       
+      // Lookup original product to show admin discount if any
+      const originalProduct = medicines.find(m => m._id === item._id);
+      const adminDiscountPct = originalProduct?.adminDiscount || 0;
+      const adminTag = adminDiscountPct > 0 ? ` (${adminDiscountPct}% OFF)` : '';
+      
       // Use proper 42-column formatting with Rs currency
       const itemName = (item.name || 'Unknown Item').substring(0, 28);
       const priceStr = `Rs${itemTotal.toFixed(2)}`;
-      const qtyStr = `Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}`;
+      const qtyStr = `Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}${adminTag}`;
       
       return [
         line(itemName, priceStr),
@@ -959,8 +1125,21 @@ function generatePlainTextReceipt() {
         ""  // Add empty line for spacing between items
       ].join('\n');
     }).join('\n');
-
+ 
     // Build a professional receipt body with strict 42-column layout
+    const breakdown = getDiscountBreakdown();
+    const discountLines = [];
+    if (breakdown.adminDiscount > 0) {
+      discountLines.push(line('Product Discounts:', `-Rs${breakdown.adminDiscount.toFixed(2)}`));
+    }
+    if (breakdown.globalDiscount > 0) {
+      discountLines.push(line(`Global Discount (${settings.discountPercentage || 0}%):`, `-Rs${breakdown.globalDiscount.toFixed(2)}`));
+    }
+    if (breakdown.totalDiscount > 0) {
+      discountLines.push(repeat('-'));
+      discountLines.push(line('Total Discount:', `-Rs${breakdown.totalDiscount.toFixed(2)}`));
+    }
+
     const receiptText = [
       center(shopName.toUpperCase()),
       center(shopAddress),
@@ -982,7 +1161,7 @@ function generatePlainTextReceipt() {
       itemsBlock,
       repeat("-"),
       line("Subtotal:", `Rs${subTotal.toFixed(2)}`),
-      line(`Discount (${settings.discountPercentage || 0}%):`, `-Rs${discountAmt.toFixed(2)}`),
+      ...discountLines,
       repeat("-"),
       line("TOTAL:", `Rs${total.toFixed(2)}`),
       "",
@@ -1240,15 +1419,15 @@ function generatePlainTextReceipt() {
         {/* Available Medicines */}
         <div className="card">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Available Medicines</h3>
+            <h3 className="text-lg font-medium text-gray-900">Available Products</h3>
             <div className="text-sm text-gray-500">
-              {filteredMedicines.length} of {medicines.length} medicines
+              {filteredMedicines.length} of {medicines.length} products
             </div>
           </div>
           <div className="mb-3">
             <input
               type="text"
-              placeholder="Search medicines by name or code..."
+              placeholder="Search products by name or code..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input-field"
@@ -1256,23 +1435,38 @@ function generatePlainTextReceipt() {
           </div>
           <div className="max-h-96 overflow-y-auto">
             {filteredMedicines.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No medicines available</p>
+              <p className="text-gray-500 text-center py-4">No products available</p>
             ) : (
               <div className="grid grid-cols-1 gap-1">
                 {filteredMedicines.map((medicine) => {
                   const isAlreadyAdded = selectedMedicines.some(item => item._id === medicine._id);
+                  const isScannedProduct = scannedProduct && scannedProduct._id === medicine._id;
+                  
                   return (
                     <div
                       key={medicine._id}
+                      data-product-id={medicine._id}
                       className={`flex items-center justify-between p-2 border rounded transition-colors ${
                         isAlreadyAdded 
                           ? 'border-green-300 bg-green-50 hover:bg-green-100' 
+                          : isScannedProduct
+                          ? 'border-blue-400 bg-blue-50 hover:bg-blue-100 shadow-md'
                           : 'border-gray-200 hover:bg-gray-50'
                       }`}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900 truncate flex items-center">
                           {medicine.name}
+                          {medicine.adminDiscount > 0 && (
+                            <span className="ml-2 text-xs bg-blue-500 text-white px-2 py-0.5 rounded font-medium">
+                              {medicine.adminDiscount}% OFF
+                            </span>
+                          )}
+                          {isScannedProduct && (
+                            <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-medium">
+                              🏷️ Scanned
+                            </span>
+                          )}
                           {isAlreadyAdded && (
                             <span className="ml-2 text-xs bg-green-500 text-white px-1 py-0.5 rounded">
                               Added
@@ -1321,7 +1515,7 @@ function generatePlainTextReceipt() {
             </div>
           </div>
           {selectedMedicines.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No medicines selected</p>
+            <p className="text-gray-500 text-center py-4">No products selected</p>
           ) : (
             <>
               {/* Stock Warning */}
@@ -1342,6 +1536,18 @@ function generatePlainTextReceipt() {
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900 truncate">{item.name}</div>
                         <div className="text-xs text-gray-500">Code: {item.code}</div>
+                        {/* Show admin discount if exists */}
+                        {(() => {
+                          const originalProduct = medicines.find(m => m._id === item._id);
+                          if (originalProduct && originalProduct.adminDiscount > 0) {
+                            return (
+                              <div className="text-xs text-blue-600 font-medium">
+                                Admin Discount: {originalProduct.adminDiscount}%
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                       <div className="flex items-center space-x-2 ml-2">
                         <div className="relative">
@@ -1379,64 +1585,110 @@ function generatePlainTextReceipt() {
                   ))}
                 </div>
 
+                {/* Picking Method Selection */}
+                <div className="border-t pt-4 pb-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm font-medium text-gray-700">Stock Picking Method:</label>
+                      <select
+                        value={pickingMethod}
+                        onChange={(e) => setPickingMethod(e.target.value)}
+                        className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="FIFO">FIFO (First In, First Out)</option>
+                        <option value="FEFO">FEFO (First Expiry, First Out)</option>
+                        <option value="LIFO">LIFO (Last In, First Out)</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setShowPickingOptions(!showPickingOptions)}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      >
+                        ℹ️ Info
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Picking Method Info */}
+                  {showPickingOptions && (
+                    <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h4 className="font-medium text-blue-900 mb-2">Picking Method Explanation:</h4>
+                      <div className="text-sm text-blue-800 space-y-1">
+                        <p><strong>FIFO:</strong> Sells oldest stock first (best for most products)</p>
+                        <p><strong>FEFO:</strong> Sells products with earliest expiry first (best for perishables)</p>
+                        <p><strong>LIFO:</strong> Sells newest stock first (rarely used, mainly for non-perishables)</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Invoice Summary */}
                 <div className="border-t pt-4 space-y-2 sticky bottom-0 bg-white">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>{formatCurrency(calculateSubtotal())}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Admin Discount ({settings.discountPercentage}%):</span>
-                  <span>-{formatCurrency(calculateTotalDiscount())}</span>
-                </div>
-                {/* {pendingReturns.length > 0 && ( // No longer needed
-                  <div className="flex justify-between text-green-600">
-                    <span>Pending Returns:</span>
-                    <span>-{formatCurrency(pendingReturns.reduce((total, ret) => total + ret.returnValue, 0))}</span>
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>{formatCurrency(calculateSubtotal())}</span>
                   </div>
-                )} */}
-                <div className="flex justify-between font-bold text-lg">
-                  <span>Total:</span>
-                  <span>{formatCurrency(calculateTotal())}</span>
+                  
+                  {/* Discount Breakdown */}
+                  {(() => {
+                    const breakdown = getDiscountBreakdown();
+                    return (
+                      <>
+                        {breakdown.adminDiscount > 0 && (
+                          <div className="flex justify-between text-blue-600">
+                            <span>Product Discounts:</span>
+                            <span>-{formatCurrency(breakdown.adminDiscount)}</span>
+                          </div>
+                        )}
+                        {breakdown.globalDiscount > 0 && (
+                          <div className="flex justify-between text-green-600">
+                            <span>Global Discount ({settings.discountPercentage}%):</span>
+                            <span>-{formatCurrency(breakdown.globalDiscount)}</span>
+                          </div>
+                        )}
+                        {breakdown.totalDiscount > 0 && (
+                          <div className="flex justify-between font-medium text-gray-700 border-t pt-1">
+                            <span>Total Discount:</span>
+                            <span>-{formatCurrency(breakdown.totalDiscount)}</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                  
+                  <div className="flex justify-between font-bold text-lg border-t pt-2">
+                    <span>Total:</span>
+                    <span>{formatCurrency(calculateTotal())}</span>
+                  </div>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div className="flex space-x-3 pt-4 sticky bottom-0 bg-white">
-                <button
-                  onClick={handleGenerateInvoice}
-                  disabled={loading || selectedMedicines.length === 0}
-                  className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? '⏳ Processing...' : '🧾 Generate Invoice'}
-                </button>
-                <button
-                  onClick={saveCurrentInvoiceToQueue}
-                  disabled={selectedMedicines.length === 0}
-                  className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Save to Queue
-                </button>
-                {/* <button
-                  onClick={handlePreviewInvoice}
-                  disabled={selectedMedicines.length === 0}
-                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  👁️ Preview Receipt
-                </button> */}
-
-                <button
-                  onClick={handlePrint}
-                  disabled={selectedMedicines.length === 0 || loading}
-                  className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? '⏳ Saving & Printing...' : '💾 Save & Print Invoice'}
-                </button>
-              </div>
-            </>
-          )}
+                {/* Actions */}
+                <div className="flex space-x-3 pt-4 sticky bottom-0 bg-white">
+                  <button
+                    onClick={handleGenerateInvoice}
+                    disabled={loading || selectedMedicines.length === 0}
+                    className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? '⏳ Processing...' : '🧾 Generate Invoice'}
+                  </button>
+                  <button
+                    onClick={saveCurrentInvoiceToQueue}
+                    disabled={selectedMedicines.length === 0}
+                    className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Save to Queue
+                  </button>
+                  <button
+                    onClick={handlePrint}
+                    disabled={selectedMedicines.length === 0 || loading}
+                    className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? '⏳ Saving & Printing...' : '💾 Save & Print Invoice'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 const { MongoClient } = require('mongodb');
 
 const MONGODB_URI = 'mongodb://localhost:27017';
-const DB_NAME = 'business_management';
+const DB_NAME = 'medical_shop';
 
 async function migrateData() {
   const client = new MongoClient(MONGODB_URI);

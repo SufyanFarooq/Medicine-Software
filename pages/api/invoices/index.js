@@ -37,7 +37,7 @@ export default async function handler(req, res) {
         break;
 
       case 'POST':
-        const { invoiceNumber, items, subtotal, discount, total, date } = req.body;
+        const { invoiceNumber, items, subtotal, discount, total, date, globalDiscountPercentage, type } = req.body;
 
         // Validate required fields
         if (!invoiceNumber || !items || !Array.isArray(items) || items.length === 0) {
@@ -50,6 +50,8 @@ export default async function handler(req, res) {
           subtotal: parseFloat(subtotal),
           discount: parseFloat(discount),
           total: parseFloat(total),
+          globalDiscountPercentage: parseFloat(globalDiscountPercentage) || 0, // Save global discount percentage
+          type: type || 'product', // Save invoice type
           date: new Date(date),
           createdAt: new Date(),
           updatedAt: new Date(),
