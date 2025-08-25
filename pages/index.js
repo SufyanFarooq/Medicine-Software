@@ -251,6 +251,7 @@ export default function Dashboard() {
           startDate.setHours(0, 0, 0, 0); // Start of today (midnight)
           endDate = new Date();
           endDate.setHours(23, 59, 59, 999); // End of today (11:59:59 PM)
+          console.log('Daily filter - Today:', startDate.toDateString(), 'to', endDate.toDateString());
           break;
         case 'weekly':
           // Get last 7 days (from 7 days ago midnight to today midnight)
@@ -296,9 +297,15 @@ export default function Dashboard() {
         invoices.forEach(invoice => {
           const date = new Date(invoice.date);
           
-          // Filter invoices by date range
-          if (date < startDate || date > endDate) {
-            return; // Skip invoices outside the selected time period
+          // For daily filter, show today's data or most recent data if no data today
+          if (timePeriod === 'daily') {
+            const today = new Date();
+            const invoiceDate = new Date(invoice.date);
+            if (invoiceDate.getDate() !== today.getDate() || 
+                invoiceDate.getMonth() !== today.getMonth() || 
+                invoiceDate.getFullYear() !== today.getFullYear()) {
+              return; // Skip if not today
+            }
           }
           
           const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -403,9 +410,15 @@ export default function Dashboard() {
         returns.forEach(returnItem => {
           const date = new Date(returnItem.date);
           
-          // Filter returns by date range
-          if (date < startDate || date > endDate) {
-            return; // Skip returns outside the selected time period
+          // For daily filter, show today's data or most recent data if no data today
+          if (timePeriod === 'daily') {
+            const today = new Date();
+            const returnDate = new Date(returnItem.date);
+            if (returnDate.getDate() !== today.getDate() || 
+                returnDate.getMonth() !== today.getMonth() || 
+                returnDate.getFullYear() !== today.getFullYear()) {
+              return; // Skip if not today
+            }
           }
           
           const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -473,6 +486,55 @@ export default function Dashboard() {
             week.netProfit = week.profit;
           }
         });
+      }
+
+      // If daily filter has no data, show most recent available data
+      if (timePeriod === 'daily' && dailyData.length === 0) {
+        // Get the most recent invoice date
+        const allInvoices = await invoicesRes.json();
+        if (allInvoices.length > 0) {
+          const mostRecentDate = new Date(Math.max(...allInvoices.map(inv => new Date(inv.date))));
+          console.log('No data for today, most recent date available:', mostRecentDate);
+          
+          // Show data for the most recent available date
+          const recentDayKey = `${mostRecentDate.getFullYear()}-${String(mostRecentDate.getMonth() + 1).padStart(2, '0')}-${String(mostRecentDate.getDate()).padStart(2, '0')}`;
+          
+          // Re-process invoices for the most recent date
+          const recentDailyData = [];
+          allInvoices.forEach(invoice => {
+            const date = new Date(invoice.date);
+            if (date.getDate() === mostRecentDate.getDate() && 
+                date.getMonth() === mostRecentDate.getMonth() && 
+                date.getFullYear() === mostRecentDate.getFullYear()) {
+              
+              const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+              
+              if (!recentDailyData.find(d => d.period === dayKey)) {
+                recentDailyData.push({
+                  period: dayKey,
+                  sales: 0,
+                  profit: 0,
+                  count: 0
+                });
+              }
+              
+              const dayData = recentDailyData.find(d => d.period === dayKey);
+              dayData.sales += invoice.total;
+              dayData.count += 1;
+              
+              // Calculate profit
+              invoice.items.forEach(item => {
+                const medicine = medicines.find(m => m._id === item.medicineId);
+                if (medicine) {
+                  const purchaseCost = item.quantity * medicine.purchasePrice;
+                  dayData.profit = dayData.sales - purchaseCost;
+                }
+              });
+            }
+          });
+          
+          dailyData.push(...recentDailyData);
+        }
       }
 
       setChartData({
