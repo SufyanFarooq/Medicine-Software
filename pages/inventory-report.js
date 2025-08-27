@@ -182,6 +182,49 @@ export default function InventoryReport() {
               </div>
             )}
 
+            {/* Quick Date Selectors for Custom Date */}
+            {timeFilter === 'custom' && (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">Quick Select:</span>
+                <button
+                  onClick={() => {
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const yesterdayStr = yesterday.toISOString().split('T')[0];
+                    setCustomStartDate(yesterdayStr);
+                    setCustomEndDate(yesterdayStr);
+                  }}
+                  className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                >
+                  Yesterday
+                </button>
+                <button
+                  onClick={() => {
+                    const twoDaysAgo = new Date();
+                    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+                    const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
+                    setCustomStartDate(twoDaysAgoStr);
+                    setCustomEndDate(twoDaysAgoStr);
+                  }}
+                  className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                >
+                  2 Days Ago
+                </button>
+                <button
+                  onClick={() => {
+                    const threeDaysAgo = new Date();
+                    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+                    const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
+                    setCustomStartDate(threeDaysAgoStr);
+                    setCustomEndDate(threeDaysAgoStr);
+                  }}
+                  className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+                >
+                  3 Days Ago
+                </button>
+              </div>
+            )}
+
             {/* Pagination Controls */}
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
