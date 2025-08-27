@@ -38,6 +38,7 @@ export default function Dashboard() {
     toDate: new Date().toISOString().split('T')[0] // today
   });
   const [customDateEnabled, setCustomDateEnabled] = useState(false);
+  const [isLoadingCharts, setIsLoadingCharts] = useState(true);
 
   useEffect(() => {
     fetchSettings();
@@ -240,6 +241,7 @@ export default function Dashboard() {
   };
 
   const fetchChartData = async () => {
+    setIsLoadingCharts(true);
     try {
       // Calculate date ranges based on current time period
       let startDate, endDate = new Date();
@@ -285,9 +287,13 @@ export default function Dashboard() {
       const dailyData = [];
       const weeklyData = [];
 
+      // Declare variables at function scope so they can be used throughout
+      let invoices = [];
+      let medicines = [];
+
       if (invoicesRes.ok && medicinesRes.ok) {
-        const invoices = await invoicesRes.json();
-        const medicines = await medicinesRes.json();
+        invoices = await invoicesRes.json();
+        medicines = await medicinesRes.json();
         
         // Group invoices by month with profit calculation
         const monthlySales = {};
@@ -297,20 +303,28 @@ export default function Dashboard() {
         invoices.forEach(invoice => {
           const date = new Date(invoice.date);
           
-          // For daily filter, show today's data or most recent data if no data today
+          // For daily filter, show last 7 days of data for better trend visibility
           if (timePeriod === 'daily') {
-            const today = new Date();
-            const invoiceDate = new Date(invoice.date);
-            if (invoiceDate.getDate() !== today.getDate() || 
-                invoiceDate.getMonth() !== today.getMonth() || 
-                invoiceDate.getFullYear() !== today.getFullYear()) {
-              return; // Skip if not today
+            // Use UTC dates to avoid timezone issues across different systems
+            const now = new Date();
+            const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            
+            // Convert both dates to local midnight for consistent comparison
+            const invoiceLocalDate = new Date(invoice.date);
+            invoiceLocalDate.setHours(0, 0, 0, 0);
+            
+            const sevenDaysAgoLocal = new Date(sevenDaysAgo);
+            sevenDaysAgoLocal.setHours(0, 0, 0, 0);
+            
+            if (invoiceLocalDate < sevenDaysAgoLocal) {
+              return; // Skip if older than 7 days
             }
           }
           
-          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-          const weekKey = `${date.getFullYear()}-W${String(Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7)).padStart(2, '0')}`;
+          // Use consistent date formatting to avoid timezone issues
+          const monthKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+          const dayKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+          const weekKey = `${date.getUTCFullYear()}-W${String(Math.ceil((date.getUTCDate() + new Date(date.getUTCFullYear(), date.getUTCMonth(), 1).getUTCDay()) / 7)).padStart(2, '0')}`;
           
           // Monthly data
           if (!monthlySales[monthKey]) {
@@ -410,20 +424,28 @@ export default function Dashboard() {
         returns.forEach(returnItem => {
           const date = new Date(returnItem.date);
           
-          // For daily filter, show today's data or most recent data if no data today
+          // For daily filter, show last 7 days of data for better trend visibility
           if (timePeriod === 'daily') {
-            const today = new Date();
-            const returnDate = new Date(returnItem.date);
-            if (returnDate.getDate() !== today.getDate() || 
-                returnDate.getMonth() !== today.getMonth() || 
-                returnDate.getFullYear() !== today.getFullYear()) {
-              return; // Skip if not today
+            // Use UTC dates to avoid timezone issues across different systems
+            const now = new Date();
+            const sevenDaysAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            
+            // Convert both dates to local midnight for consistent comparison
+            const returnLocalDate = new Date(returnItem.date);
+            returnLocalDate.setHours(0, 0, 0, 0);
+            
+            const sevenDaysAgoLocal = new Date(sevenDaysAgo);
+            sevenDaysAgoLocal.setHours(0, 0, 0, 0);
+            
+            if (returnLocalDate < sevenDaysAgoLocal) {
+              return; // Skip if older than 7 days
             }
           }
           
-          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-          const weekKey = `${date.getFullYear()}-W${String(Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7)).padStart(2, '0')}`;
+          // Use consistent date formatting to avoid timezone issues
+          const monthKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+          const dayKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+          const weekKey = `${date.getUTCFullYear()}-W${String(Math.ceil((date.getUTCDate() + new Date(date.getUTCFullYear(), date.getUTCMonth(), 1).getUTCDay()) / 7)).padStart(2, '0')}`;
           
           // Monthly returns
           if (!monthlyReturns[monthKey]) {
@@ -491,23 +513,23 @@ export default function Dashboard() {
       // If daily filter has no data, show most recent available data
       if (timePeriod === 'daily' && dailyData.length === 0) {
         // Get the most recent invoice date
-        const allInvoices = await invoicesRes.json();
-        if (allInvoices.length > 0) {
-          const mostRecentDate = new Date(Math.max(...allInvoices.map(inv => new Date(inv.date))));
+        // Use the invoices data we already fetched earlier
+        if (invoices && invoices.length > 0) {
+          const mostRecentDate = new Date(Math.max(...invoices.map(inv => new Date(inv.date))));
           console.log('No data for today, most recent date available:', mostRecentDate);
           
           // Show data for the most recent available date
-          const recentDayKey = `${mostRecentDate.getFullYear()}-${String(mostRecentDate.getMonth() + 1).padStart(2, '0')}-${String(mostRecentDate.getDate()).padStart(2, '0')}`;
+          const recentDayKey = `${mostRecentDate.getUTCFullYear()}-${String(mostRecentDate.getUTCMonth() + 1).padStart(2, '0')}-${String(mostRecentDate.getUTCDate()).padStart(2, '0')}`;
           
           // Re-process invoices for the most recent date
           const recentDailyData = [];
-          allInvoices.forEach(invoice => {
+          invoices.forEach(invoice => {
             const date = new Date(invoice.date);
-            if (date.getDate() === mostRecentDate.getDate() && 
-                date.getMonth() === mostRecentDate.getMonth() && 
-                date.getFullYear() === mostRecentDate.getFullYear()) {
+            if (date.getUTCDate() === mostRecentDate.getUTCDate() && 
+                date.getUTCMonth() === mostRecentDate.getUTCMonth() && 
+                date.getUTCFullYear() === mostRecentDate.getUTCFullYear()) {
               
-              const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+              const dayKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
               
               if (!recentDailyData.find(d => d.period === dayKey)) {
                 recentDailyData.push({
@@ -546,6 +568,8 @@ export default function Dashboard() {
       });
     } catch (error) {
       console.error('Error fetching chart data:', error);
+    } finally {
+      setIsLoadingCharts(false);
     }
   };
 
@@ -805,8 +829,13 @@ export default function Dashboard() {
               const periodLabel = timePeriod === 'daily' ? 'Daily' : 
                                  timePeriod === 'weekly' ? 'Weekly' : 'Monthly';
               
-              return currentData.length > 0 ? (
-                <div className="space-y-6">
+              return isLoadingCharts ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-500">Loading {timePeriod} data...</p>
+                </div>
+              ) : currentData.length > 0 ? (
+                <div key={`${timePeriod}-${currentData.length}`} className="space-y-6">
                   {/* Charts Row */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Bar Chart */}
