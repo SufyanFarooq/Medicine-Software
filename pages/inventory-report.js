@@ -61,9 +61,9 @@ export default function InventoryReport() {
     
     if (searchTerm) {
       filtered = inventoryData.filter(item =>
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.batchNo.toLowerCase().includes(searchTerm.toLowerCase())
+        (item.name && item.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.category && item.category.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.batchNo && item.batchNo.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
     
