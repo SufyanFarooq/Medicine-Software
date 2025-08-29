@@ -2,48 +2,63 @@ const { MongoClient } = require('mongodb');
 const bcrypt = require('bcryptjs');
 
 const MONGODB_URI = 'mongodb://localhost:27017';
-const MONGODB_DB = 'medical_shop';
+const MONGODB_DB = 'crane_management_db';
 
 async function createSuperAdmin() {
+  const client = new MongoClient(MONGODB_URI);
+  
   try {
-    const client = await MongoClient.connect(MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-
+    await client.connect();
+    console.log('Connected to MongoDB');
+    
     const db = client.db(MONGODB_DB);
     const usersCollection = db.collection('users');
-
+    
     // Check if super admin already exists
-    const existingSuperAdmin = await usersCollection.findOne({ username: 'superadmin' });
-    if (existingSuperAdmin) {
+    const existingAdmin = await usersCollection.findOne({ role: 'Super Admin' });
+    
+    if (existingAdmin) {
       console.log('Super Admin user already exists!');
-      console.log('Username: superadmin');
-      console.log('Role: Super Admin');
-      client.close();
+      console.log(`Username: ${existingAdmin.username}`);
+      console.log(`Role: ${existingAdmin.role}`);
       return;
     }
-
+    
     // Create super admin user
-    const hashedPassword = await bcrypt.hash('superadmin123', 10);
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    
     const superAdminUser = {
       username: 'superadmin',
+      email: 'admin@cranemanagement.ae',
       password: hashedPassword,
-      role: 'super_admin',
+      role: 'Super Admin',
+      fullName: 'System Administrator',
+      phone: '+971-50-123-4567',
+      department: 'IT Management',
+      permissions: [
+        'manage_users',
+        'manage_cranes',
+        'manage_projects',
+        'manage_maintenance',
+        'manage_finances',
+        'view_reports',
+        'system_settings'
+      ],
+      isActive: true,
       createdAt: new Date(),
       updatedAt: new Date()
     };
-
+    
     await usersCollection.insertOne(superAdminUser);
     console.log('Super Admin user created successfully!');
     console.log('Username: superadmin');
-    console.log('Password: superadmin123');
+    console.log('Password: admin123');
     console.log('Role: Super Admin');
-    console.log('Please change the password after first login.');
-
-    client.close();
+    
   } catch (error) {
-    console.error('Error creating super admin user:', error);
+    console.error('Error creating super admin:', error);
+  } finally {
+    await client.close();
   }
 }
 

@@ -8,9 +8,9 @@ import { logSettingsActivity } from '../../lib/activity-logger';
 
 export default function Settings() {
   const [settings, setSettings] = useState({
-    currency: '$',
+    currency: 'AED',
     discountPercentage: 3,
-    shopName: 'Medical Shop',
+    shopName: 'Crain Management UAE',
     contactNumber: '',
     address: ''
   });
@@ -28,6 +28,7 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('company');
 
   const currencies = [
+    { symbol: 'AED', name: 'UAE Dirham' },
     { symbol: '$', name: 'US Dollar' },
     { symbol: '€', name: 'Euro' },
     { symbol: '£', name: 'British Pound' },

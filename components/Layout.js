@@ -13,7 +13,7 @@ export default function Layout({ children }) {
   const [currentDate, setCurrentDate] = useState('');
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [shopName, setShopName] = useState('Medical Shop');
+  const [shopName, setShopName] = useState('Crane Management UAE');
 
   const isActive = (href) => router.pathname === href;
 
@@ -56,7 +56,7 @@ export default function Layout({ children }) {
         // Set global currency symbol
         setCurrency(data.currency);
         // Set shop name from settings or use default
-        setShopName(data.shopName || 'Medical Shop');
+        setShopName(data.companyName || 'Crane Management UAE');
       }
     } catch (error) {
       console.error('Error fetching settings:', error);

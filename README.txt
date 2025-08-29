@@ -1,18 +1,19 @@
-🏥 MEDICAL SHOP MANAGEMENT TOOL
-================================
+🏗️ CRAIN MANAGEMENT SYSTEM - UAE
+==================================
 
-A complete offline medical shop management system built with Next.js and MongoDB.
+A complete offline business management system for Crain Management UAE operations built with Next.js and MongoDB.
 
 FEATURES
 --------
-✅ Medicine Management (CRUD operations)
-✅ Search medicines by name or code
+✅ Business Management (CRUD operations)
+✅ Search items by name or code
 ✅ Customer invoice generation with 3% discount
 ✅ Printable invoices (PDF format)
 ✅ Local MongoDB database
 ✅ Offline operation after initial setup
 ✅ Responsive design with Tailwind CSS
-✅ Stock management and expiry tracking
+✅ Stock management and tracking
+✅ UAE Dirham (AED) currency support
 
 PREREQUISITES
 -------------
@@ -74,18 +75,18 @@ INVOICE GENERATION:
 
 DATABASE STRUCTURE
 ------------------
-Database: medical_shop
+Database: crain_management_uae
 Collections:
-- medicines: Medicine inventory data
+- medicines: Business inventory data
 - invoices: Customer invoice records
 
-MEDICINE FIELDS:
-- name: Medicine name
+INVENTORY FIELDS:
+- name: Item name
 - code: Unique identifier (auto-generated)
 - quantity: Available stock
 - purchasePrice: Cost price
 - sellingPrice: Retail price
-- expiryDate: Expiration date
+- expiryDate: Expiration date (if applicable)
 - batchNo: Batch number (optional)
 
 INVOICE FIELDS:

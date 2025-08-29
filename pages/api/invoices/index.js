@@ -1,71 +1,159 @@
-import { getCollection } from '../../../lib/mongodb';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-
-// Helper function to verify token
-const verifyToken = (req) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-  
-  const token = authHeader.substring(7);
-  try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (error) {
-    return null;
-  }
-};
+import { connectToDatabase } from '../../../lib/mongodb';
 
 export default async function handler(req, res) {
-  const { method } = req;
+  if (req.method === 'GET') {
+    try {
+      const { db } = await connectToDatabase();
+      const invoicesCollection = db.collection('invoices');
+      
+      const invoices = await invoicesCollection.find({}).sort({ createdAt: -1 }).toArray();
+      
+      res.status(200).json(invoices);
+    } catch (error) {
+      console.error('Error fetching invoices:', error);
+      res.status(500).json({ error: 'Failed to fetch invoices' });
+    }
+  } else if (req.method === 'POST') {
+    try {
+      const { db } = await connectToDatabase();
+      const invoicesCollection = db.collection('invoices');
+      const customersCollection = db.collection('customers');
+      const cranesCollection = db.collection('cranes');
+      
+      const {
+        customerId,
+        customerName,
+        customerEmail,
+        customerPhone,
+        projectName,
+        projectLocation,
+        startDate,
+        endDate,
+        rentalType, // 'hourly' or 'daily'
+        craneDetails,
+        notes,
+        paymentTerms,
+        dueDate
+      } = req.body;
 
-  // Verify authentication for all methods
-  const user = verifyToken(req);
-  if (!user) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
+      // Validate required fields
+      if (!customerId || !projectName || !startDate || !endDate || !rentalType || !craneDetails || !Array.isArray(craneDetails) || craneDetails.length === 0) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
 
-  try {
-    const invoicesCollection = await getCollection('invoices');
-
-    switch (method) {
-      case 'GET':
-        const invoices = await invoicesCollection.find({}).sort({ date: -1 }).toArray();
-        res.status(200).json(invoices);
-        break;
-
-      case 'POST':
-        const { invoiceNumber, items, subtotal, discount, total, date } = req.body;
-
-        // Validate required fields
-        if (!invoiceNumber || !items || !Array.isArray(items) || items.length === 0) {
-          return res.status(400).json({ message: 'Missing required fields' });
+      // Calculate rental duration and costs
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const durationMs = end - start;
+      
+      let totalAmount = 0;
+      let subtotal = 0;
+      
+      // Process each crane rental
+      for (const craneRental of craneDetails) {
+        const { craneId, hours, days } = craneRental;
+        
+        // Get crane details for pricing
+        const crane = await cranesCollection.findOne({ _id: craneId });
+        if (!crane) {
+          return res.status(400).json({ error: `Crane not found: ${craneId}` });
         }
 
-        const newInvoice = {
-          invoiceNumber,
-          items,
-          subtotal: parseFloat(subtotal),
-          discount: parseFloat(discount),
-          total: parseFloat(total),
-          date: new Date(date),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          createdBy: user.userId,
-        };
+        let craneCost = 0;
+        if (rentalType === 'hourly') {
+          const hourlyRate = crane.dailyRate / 8; // Assume 8-hour work day
+          craneCost = hourlyRate * hours;
+        } else {
+          craneCost = crane.dailyRate * days;
+        }
+        
+        craneRental.craneName = crane.name;
+        craneRental.craneCode = crane.code;
+        craneRental.craneType = crane.type;
+        craneRental.craneCost = craneCost;
+        craneRental.hourlyRate = crane.dailyRate / 8;
+        craneRental.dailyRate = crane.dailyRate;
+        
+        subtotal += craneCost;
+      }
 
-        const result = await invoicesCollection.insertOne(newInvoice);
-        res.status(201).json({ _id: result.insertedId, ...newInvoice });
-        break;
+      // Calculate VAT (5% UAE standard)
+      const vatRate = 0.05;
+      const vatAmount = subtotal * vatRate;
+      totalAmount = subtotal + vatAmount;
 
-      default:
-        res.setHeader('Allow', ['GET', 'POST']);
-        res.status(405).end(`Method ${method} Not Allowed`);
+      // Generate invoice number
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const invoiceCount = await invoicesCollection.countDocuments({
+        createdAt: {
+          $gte: new Date(year, today.getMonth(), 1),
+          $lt: new Date(year, today.getMonth() + 1, 1)
+        }
+      });
+      const invoiceNumber = `INV-${year}${month}-${String(invoiceCount + 1).padStart(3, '0')}`;
+
+      // Create invoice
+      const newInvoice = {
+        invoiceNumber,
+        customerId,
+        customerName,
+        customerEmail,
+        customerPhone,
+        projectName,
+        projectLocation,
+        startDate: start,
+        endDate: end,
+        rentalType,
+        duration: {
+          hours: rentalType === 'hourly' ? Math.ceil(durationMs / (1000 * 60 * 60)) : 0,
+          days: rentalType === 'daily' ? Math.ceil(durationMs / (1000 * 60 * 60 * 24)) : 0
+        },
+        craneDetails,
+        subtotal,
+        vatRate,
+        vatAmount,
+        totalAmount,
+        paymentTerms: paymentTerms || 'Net 30',
+        dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        status: 'Pending',
+        notes,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      const result = await invoicesCollection.insertOne(newInvoice);
+
+      // Update customer statistics
+      await customersCollection.updateOne(
+        { _id: customerId },
+        {
+          $inc: { 
+            totalRentals: 1,
+            totalSpent: totalAmount
+          },
+          $set: { 
+            lastRental: new Date(),
+            updatedAt: new Date()
+          }
+        }
+      );
+
+      res.status(201).json({
+        message: 'Crane rental invoice created successfully',
+        invoiceId: result.insertedId,
+        invoiceNumber,
+        totalAmount
+      });
+
+    } catch (error) {
+      console.error('Error creating invoice:', error);
+      res.status(500).json({ error: 'Failed to create invoice' });
     }
-  } catch (error) {
-    console.error('API Error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+  } else {
+    res.setHeader('Allow', ['GET', 'POST']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 } 

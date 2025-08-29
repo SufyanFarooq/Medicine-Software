@@ -1,7 +1,7 @@
 const { MongoClient } = require('mongodb');
 
 const MONGODB_URI = 'mongodb://localhost:27017';
-const MONGODB_DB = 'medical_shop';
+const MONGODB_DB = 'crane_management_db';
 
 async function testSettings() {
   const client = new MongoClient(MONGODB_URI);

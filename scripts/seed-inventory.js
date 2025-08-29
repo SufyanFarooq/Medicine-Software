@@ -1,7 +1,7 @@
 const { MongoClient } = require('mongodb');
 
 const MONGODB_URI = 'mongodb://localhost:27017';
-const MONGODB_DB = 'medical_shop';
+const MONGODB_DB = 'crane_management_db';
 
 async function seedInventory() {
   const client = new MongoClient(MONGODB_URI);
@@ -11,42 +11,431 @@ async function seedInventory() {
     console.log('Connected to MongoDB');
     
     const db = client.db(MONGODB_DB);
-    const medicinesCollection = db.collection('medicines');
     const inventoryCollection = db.collection('inventory_transactions');
+    const cranesCollection = db.collection('cranes');
     
-    // Get all medicines
-    const medicines = await medicinesCollection.find({}).toArray();
-    console.log(`Found ${medicines.length} medicines`);
+    // Get available cranes for reference
+    const cranes = await cranesCollection.find({}).toArray();
     
+    if (cranes.length === 0) {
+      console.log('No cranes found. Please run seed-data.js first.');
+      return;
+    }
+    
+    // Sample inventory transactions for crane operations
+    const sampleTransactions = [
+      {
+        transactionId: 'INV-TXN-001',
+        craneId: cranes[0]._id,
+        craneName: cranes[0].name,
+        craneCode: cranes[0].code,
+        transactionType: 'Rental Out',
+        projectName: 'Dubai Marina Tower',
+        clientName: 'Dubai Construction Co.',
+        startDate: new Date('2024-01-15'),
+        endDate: new Date('2024-01-30'),
+        duration: 15,
+        dailyRate: cranes[0].dailyRate,
+        totalAmount: cranes[0].dailyRate * 15,
+        status: 'Completed',
+        operator: cranes[0].operator,
+        location: 'Dubai Marina',
+        notes: 'Foundation work completed successfully',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-002',
+        craneId: cranes[1]._id,
+        craneName: cranes[1].name,
+        craneCode: cranes[1].code,
+        transactionType: 'Rental Out',
+        projectName: 'Abu Dhabi Central Station',
+        clientName: 'Abu Dhabi Infrastructure Ltd.',
+        startDate: new Date('2024-01-20'),
+        endDate: new Date('2024-02-10'),
+        duration: 20,
+        dailyRate: cranes[1].dailyRate,
+        totalAmount: cranes[1].dailyRate * 20,
+        status: 'Active',
+        operator: cranes[1].operator,
+        location: 'Abu Dhabi Downtown',
+        notes: 'Station construction in progress',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-003',
+        craneId: cranes[2]._id,
+        craneName: cranes[2].name,
+        craneCode: cranes[2].code,
+        transactionType: 'Maintenance',
+        projectName: 'Sharjah Industrial Complex',
+        clientName: 'Sharjah Industrial Group',
+        startDate: new Date('2024-02-28'),
+        endDate: new Date('2024-03-10'),
+        duration: 10,
+        dailyRate: 0,
+        totalAmount: 15000,
+        status: 'Completed',
+        operator: 'Maintenance Team',
+        location: 'Sharjah Industrial',
+        notes: 'Emergency structural repair completed',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-004',
+        craneId: cranes[3]._id,
+        craneName: cranes[3].name,
+        craneCode: cranes[3].code,
+        transactionType: 'Rental Out',
+        projectName: 'Port Expansion Project',
+        clientName: 'Ras Al Khaimah Port Authority',
+        startDate: new Date('2024-02-01'),
+        endDate: new Date('2024-02-26'),
+        duration: 25,
+        dailyRate: cranes[3].dailyRate,
+        totalAmount: cranes[3].dailyRate * 25,
+        status: 'Completed',
+        operator: cranes[3].operator,
+        location: 'Ras Al Khaimah Port',
+        notes: 'Port expansion completed successfully',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-005',
+        craneId: cranes[4]._id,
+        craneName: cranes[4].name,
+        craneCode: cranes[4].code,
+        transactionType: 'Rental Out',
+        projectName: 'Free Zone Development',
+        clientName: 'Fujairah Free Zone Company',
+        startDate: new Date('2024-02-05'),
+        endDate: new Date('2024-02-23'),
+        duration: 18,
+        dailyRate: cranes[4].dailyRate,
+        totalAmount: cranes[4].dailyRate * 18,
+        status: 'Completed',
+        operator: cranes[4].operator,
+        location: 'Fujairah Free Zone',
+        notes: 'Warehouse construction completed',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-006',
+        craneId: cranes[5]._id,
+        craneName: cranes[5].name,
+        craneCode: cranes[5].code,
+        transactionType: 'Rental Out',
+        projectName: 'Residential Complex Phase 2',
+        clientName: 'Dubai Hills Development',
+        startDate: new Date('2024-02-10'),
+        endDate: new Date('2024-03-27'),
+        duration: 45,
+        dailyRate: cranes[5].dailyRate,
+        totalAmount: cranes[5].dailyRate * 45,
+        status: 'Active',
+        operator: cranes[5].operator,
+        location: 'Dubai Hills Estate',
+        notes: 'Long-term residential project',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-007',
+        craneId: cranes[6]._id,
+        craneName: cranes[6].name,
+        craneCode: cranes[6].code,
+        transactionType: 'Rental Out',
+        projectName: 'Financial District Tower',
+        clientName: 'Abu Dhabi Global Market',
+        startDate: new Date('2024-02-15'),
+        endDate: new Date('2024-04-16'),
+        duration: 60,
+        dailyRate: cranes[6].dailyRate,
+        totalAmount: cranes[6].dailyRate * 60,
+        status: 'Active',
+        operator: cranes[6].operator,
+        location: 'Abu Dhabi Global Market',
+        notes: 'High-rise construction project',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-008',
+        craneId: cranes[7]._id,
+        craneName: cranes[7].name,
+        craneCode: cranes[7].code,
+        transactionType: 'Rental Out',
+        projectName: 'New Engineering Building',
+        clientName: 'Sharjah University',
+        startDate: new Date('2024-02-20'),
+        endDate: new Date('2024-04-01'),
+        duration: 40,
+        dailyRate: cranes[7].dailyRate,
+        totalAmount: cranes[7].dailyRate * 40,
+        status: 'Completed',
+        operator: cranes[7].operator,
+        location: 'Sharjah University City',
+        notes: 'University building completed',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-009',
+        craneId: cranes[8]._id,
+        craneName: cranes[8].name,
+        craneCode: cranes[8].code,
+        transactionType: 'Rental Out',
+        projectName: 'Port Terminal Expansion',
+        clientName: 'Jebel Ali Port Authority',
+        startDate: new Date('2024-02-25'),
+        endDate: new Date('2024-04-01'),
+        duration: 35,
+        dailyRate: cranes[8].dailyRate,
+        totalAmount: cranes[8].dailyRate * 35,
+        status: 'Active',
+        operator: cranes[8].operator,
+        location: 'Jebel Ali Port',
+        notes: 'Port terminal expansion in progress',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-010',
+        craneId: cranes[9]._id,
+        craneName: cranes[9].name,
+        craneCode: cranes[9].code,
+        transactionType: 'Maintenance',
+        projectName: 'Container Terminal Upgrade',
+        clientName: 'Mina Zayed Port Company',
+        startDate: new Date('2024-03-05'),
+        endDate: new Date('2024-04-02'),
+        duration: 28,
+        dailyRate: 0,
+        totalAmount: 12000,
+        status: 'Completed',
+        operator: 'Maintenance Team',
+        location: 'Mina Zayed Port',
+        notes: 'Port infrastructure upgrade completed',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-011',
+        craneId: cranes[10]._id,
+        craneName: cranes[10].name,
+        craneCode: cranes[10].code,
+        transactionType: 'Rental Out',
+        projectName: 'Al Ain Industrial City',
+        clientName: 'Al Ain Industrial Development',
+        startDate: new Date('2024-03-10'),
+        endDate: new Date('2024-04-05'),
+        duration: 26,
+        dailyRate: cranes[10].dailyRate,
+        totalAmount: cranes[10].dailyRate * 26,
+        status: 'Completed',
+        operator: cranes[10].operator,
+        location: 'Al Ain Industrial City',
+        notes: 'Industrial facility construction completed',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-012',
+        craneId: cranes[11]._id,
+        craneName: cranes[11].name,
+        craneCode: cranes[11].code,
+        transactionType: 'Rental Out',
+        projectName: 'Umm Al Quwain Development',
+        clientName: 'Umm Al Quwain Municipality',
+        startDate: new Date('2024-03-15'),
+        endDate: new Date('2024-04-10'),
+        duration: 26,
+        dailyRate: cranes[11].dailyRate,
+        totalAmount: cranes[11].dailyRate * 26,
+        status: 'Completed',
+        operator: cranes[11].operator,
+        location: 'Umm Al Quwain',
+        notes: 'Municipal development project completed',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-013',
+        craneId: cranes[12]._id,
+        craneName: cranes[12].name,
+        craneCode: cranes[12].code,
+        transactionType: 'Rental Out',
+        projectName: 'Ajman Free Zone Expansion',
+        clientName: 'Ajman Free Zone Authority',
+        startDate: new Date('2024-03-20'),
+        endDate: new Date('2024-04-18'),
+        duration: 29,
+        dailyRate: cranes[12].dailyRate,
+        totalAmount: cranes[12].dailyRate * 29,
+        status: 'Completed',
+        operator: cranes[12].operator,
+        location: 'Ajman Free Zone',
+        notes: 'Free zone expansion completed',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-014',
+        craneId: cranes[13]._id,
+        craneName: cranes[13].name,
+        craneCode: cranes[13].code,
+        transactionType: 'Rental Out',
+        projectName: 'Dubai Creek Harbour',
+        clientName: 'Dubai Creek Harbour Development',
+        startDate: new Date('2024-03-08'),
+        endDate: new Date('2024-05-08'),
+        duration: 61,
+        dailyRate: cranes[13].dailyRate,
+        totalAmount: cranes[13].dailyRate * 61,
+        status: 'Active',
+        operator: cranes[13].operator,
+        location: 'Dubai Creek Harbour',
+        notes: 'Luxury development project in progress',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-015',
+        craneId: cranes[14]._id,
+        craneName: cranes[14].name,
+        craneCode: cranes[14].code,
+        transactionType: 'Rental Out',
+        projectName: 'Abu Dhabi Corniche Project',
+        clientName: 'Abu Dhabi Municipality',
+        startDate: new Date('2024-03-18'),
+        endDate: new Date('2024-04-18'),
+        duration: 31,
+        dailyRate: cranes[14].dailyRate,
+        totalAmount: cranes[14].dailyRate * 31,
+        status: 'Completed',
+        operator: cranes[14].operator,
+        location: 'Abu Dhabi Corniche',
+        notes: 'Corniche beautification project completed',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-016',
+        craneId: cranes[15]._id,
+        craneName: cranes[15].name,
+        craneCode: cranes[15].code,
+        transactionType: 'Rental Out',
+        projectName: 'Sharjah Al Qasimiya Development',
+        clientName: 'Sharjah Development Authority',
+        startDate: new Date('2024-03-12'),
+        endDate: new Date('2024-05-12'),
+        duration: 61,
+        dailyRate: cranes[15].dailyRate,
+        totalAmount: cranes[15].dailyRate * 61,
+        status: 'Active',
+        operator: cranes[15].operator,
+        location: 'Sharjah Al Qasimiya',
+        notes: 'Government development project in progress',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-017',
+        craneId: cranes[16]._id,
+        craneName: cranes[16].name,
+        craneCode: cranes[16].code,
+        transactionType: 'Rental Out',
+        projectName: 'Dubai World Central',
+        clientName: 'Dubai Aviation Corporation',
+        startDate: new Date('2024-03-28'),
+        endDate: new Date('2024-04-28'),
+        duration: 31,
+        dailyRate: cranes[16].dailyRate,
+        totalAmount: cranes[16].dailyRate * 31,
+        status: 'Completed',
+        operator: cranes[16].operator,
+        location: 'Dubai World Central',
+        notes: 'Aviation infrastructure project completed',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-018',
+        craneId: cranes[17]._id,
+        craneName: cranes[17].name,
+        craneCode: cranes[17].code,
+        transactionType: 'Maintenance',
+        projectName: 'Abu Dhabi Airport Maintenance',
+        clientName: 'Abu Dhabi Airports Company',
+        startDate: new Date('2024-04-01'),
+        endDate: new Date('2024-04-18'),
+        duration: 17,
+        dailyRate: 0,
+        totalAmount: 5800,
+        status: 'Completed',
+        operator: 'Maintenance Team',
+        location: 'Abu Dhabi Airport',
+        notes: 'Airport maintenance completed',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-019',
+        craneId: cranes[18]._id,
+        craneName: cranes[18].name,
+        craneCode: cranes[18].code,
+        transactionType: 'Rental Out',
+        projectName: 'Sharjah International Airport',
+        clientName: 'Sharjah Airport Authority',
+        startDate: new Date('2024-04-05'),
+        endDate: new Date('2024-05-05'),
+        duration: 30,
+        dailyRate: cranes[18].dailyRate,
+        totalAmount: cranes[18].dailyRate * 30,
+        status: 'Active',
+        operator: cranes[18].operator,
+        location: 'Sharjah International Airport',
+        notes: 'Airport expansion project in progress',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        transactionId: 'INV-TXN-020',
+        craneId: cranes[19]._id,
+        craneName: cranes[19].name,
+        craneCode: cranes[19].code,
+        transactionType: 'Rental Out',
+        projectName: 'Fujairah Port Development',
+        clientName: 'Fujairah Port Authority',
+        startDate: new Date('2024-04-10'),
+        endDate: new Date('2024-05-10'),
+        duration: 30,
+        dailyRate: cranes[19].dailyRate,
+        totalAmount: cranes[19].dailyRate * 30,
+        status: 'Active',
+        operator: cranes[19].operator,
+        location: 'Fujairah Port',
+        notes: 'Port development project in progress',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    ];
+
     // Clear existing inventory transactions
     await inventoryCollection.deleteMany({});
     console.log('Cleared existing inventory transactions');
-    
-    // Create inventory transactions for each medicine
-    const inventoryTransactions = medicines.map(medicine => ({
-      medicineId: medicine._id,
-      type: 'inflow', // This represents inventory being added
-      quantity: medicine.quantity,
-      unitPrice: medicine.purchasePrice,
-      totalAmount: medicine.quantity * medicine.purchasePrice,
-      batchNo: medicine.batchNo,
-      expiryDate: medicine.expiryDate,
-      supplier: 'Initial Stock',
-      notes: 'Initial inventory from seed data',
-      referenceType: 'creation',
-      referenceId: medicine._id,
-      date: medicine.createdAt,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }));
-    
-    // Insert inventory transactions
-    const result = await inventoryCollection.insertMany(inventoryTransactions);
-    console.log(`Inserted ${result.insertedCount} inventory transactions`);
-    
+
+    // Insert sample inventory transactions
+    await inventoryCollection.insertMany(sampleTransactions);
+    console.log('Inserted 20 inventory transactions');
     console.log('Inventory seeding completed successfully!');
-    console.log('Now the Inventory Report will show the actual inventory added.');
-    
+    console.log('Now the Inventory Report will show the actual crane operations.');
+
   } catch (error) {
     console.error('Error seeding inventory:', error);
   } finally {
@@ -54,5 +443,4 @@ async function seedInventory() {
   }
 }
 
-// Run the seed function
 seedInventory();

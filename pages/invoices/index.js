@@ -8,10 +8,16 @@ import { canPerformAction } from '../../lib/permissions';
 
 // Print invoice function - COMPLETELY REWRITTEN for perfect readability
 const printInvoice = (invoice, settings = {}, currentUser = null) => {
+  // Safety check for invoice structure
+  if (!invoice) {
+    console.error('No invoice provided to print function');
+    return;
+  }
+  
   const currentDate = new Date();
-  const shopName = settings.shopName || "Medical Shop";
-  const shopAddress = settings.address || "Your Shop Address";
-  const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
+  const shopName = settings.shopName || "Crane Management UAE";
+  const shopAddress = settings.address || "Your Company Address";
+  const phoneNumber = settings.contactNumber || "+971 XXX XXXXXX";
 
   // SIMPLE and RELIABLE helper functions
   const center = (text) => {
@@ -29,17 +35,38 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
   };
 
   // Build items block with SIMPLE formatting
-  const itemsBlock = invoice.items.map(item => {
-    const sellingPrice = parseFloat(item.sellingPrice) || parseFloat(item.price) || 0;
-    const quantity = parseInt(item.quantity) || 0;
-    const itemTotal = sellingPrice * quantity;
-    
-    return [
-      line(item.name, `Rs${itemTotal.toFixed(2)}`),
-      `  Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}`,
-      ""
-    ].join('\n');
-  }).join('\n');
+  let itemsBlock = '';
+  
+  if (invoice.items && invoice.items.length > 0) {
+    // Traditional invoice with items
+    itemsBlock = invoice.items.map(item => {
+      const sellingPrice = parseFloat(item.sellingPrice) || parseFloat(item.price) || 0;
+      const quantity = parseInt(item.quantity) || 0;
+      const itemTotal = sellingPrice * quantity;
+      
+      return [
+        line(item.name, `Rs${itemTotal.toFixed(2)}`),
+        `  Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}`,
+        ""
+      ].join('\n');
+    }).join('\n');
+  } else if (invoice.craneDetails && invoice.craneDetails.length > 0) {
+    // Crane rental invoice
+    itemsBlock = invoice.craneDetails.map(crane => {
+      const craneCost = parseFloat(crane.craneCost) || 0;
+      const hours = crane.hours || 0;
+      const days = crane.days || 0;
+      const billingType = invoice.rentalType || 'daily';
+      
+      return [
+        line(crane.craneName || 'Crane Rental', `Rs${craneCost.toFixed(2)}`),
+        `  ${billingType === 'hourly' ? `${hours} hours` : `${days} days`} × ${crane.craneName || 'Crane'}`,
+        ""
+      ].join('\n');
+    }).join('\n');
+  } else {
+    itemsBlock = "No items specified";
+  }
 
   // Build receipt with PERFECT 42-column layout
   const receiptText = [
@@ -51,9 +78,9 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
     center("CASH RECEIPT"),
     repeat("*"),
     "",
-    `Invoice: ${invoice.invoiceNumber}`,
-    `Date: ${new Date(invoice.date).toLocaleDateString()}`,
-    `Time: ${new Date(invoice.date).toLocaleTimeString()}`,
+    `Invoice: ${invoice.invoiceNumber || 'N/A'}`,
+    `Date: ${new Date(invoice.date || invoice.createdAt).toLocaleDateString()}`,
+    `Time: ${new Date(invoice.date || invoice.createdAt).toLocaleTimeString()}`,
     `Cashier: ${currentUser?.username || "Unknown"}`,
     "",
     repeat("-"),
@@ -62,12 +89,12 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
     "",
     itemsBlock,
     repeat("-"),
-    line("Subtotal:", `Rs${parseFloat(invoice.subtotal || 0).toFixed(2)}`),
+    line("Subtotal:", `Rs${parseFloat(invoice.subtotal || invoice.subtotal || 0).toFixed(2)}`),
     line(`Discount (${settings.discountPercentage || 0}%):`, `-Rs${parseFloat(invoice.discount || 0).toFixed(2)}`),
     repeat("-"),
-    line("TOTAL:", `Rs${parseFloat(invoice.total || 0).toFixed(2)}`),
+    line("TOTAL:", `Rs${parseFloat(invoice.total || invoice.totalAmount || 0).toFixed(2)}`),
     "",
-    line("Cash:", `Rs${parseFloat(invoice.total || 0).toFixed(2)}`),
+    line("Cash:", `Rs${parseFloat(invoice.total || invoice.totalAmount || 0).toFixed(2)}`),
     line("Change:", "Rs0.00"),
     "",
     repeat("*"),
@@ -176,7 +203,7 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
       
       <div class="info-text no-print">
         <strong>📄 Receipt Preview</strong><br>
-        Invoice: ${invoice.invoiceNumber} | Date: ${new Date(invoice.date).toLocaleDateString()}<br>
+        Invoice: ${invoice.invoiceNumber} | Date: ${new Date(invoice.date || invoice.createdAt).toLocaleDateString()}<br>
         <span style="color: #28a745; font-weight: bold;">🖨️ Click the Green Print Button to Print</span><br>
         <span style="color: #666; font-size: 11px;">Or use Ctrl+P (Cmd+P on Mac) to print</span>
       </div>
@@ -291,9 +318,14 @@ export default function Invoices() {
               View and manage customer invoices
             </p>
           </div>
-          <Link href="/invoices/generate" className="btn-primary">
-            🧾 Generate Invoice
-          </Link>
+          <div className="flex space-x-3">
+            <Link href="/invoices/generate" className="btn-primary">
+              🧾 Generate Invoice
+            </Link>
+            <Link href="/invoices/generate-crane-rental" className="btn-primary bg-green-600 hover:bg-green-700">
+              🚁 Crane Rental Invoice
+            </Link>
+          </div>
         </div>
 
         {/* Stats */}
@@ -318,7 +350,7 @@ export default function Invoices() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Total Sales</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {formatCurrency(invoices.reduce((sum, invoice) => sum + invoice.total, 0))}
+                  {formatCurrency(invoices.reduce((sum, invoice) => sum + (invoice.total || invoice.totalAmount || 0), 0))}
                 </p>
               </div>
             </div>
@@ -353,7 +385,8 @@ export default function Invoices() {
                   <tr>
                     <th className="table-header">Invoice #</th>
                     <th className="table-header">Date</th>
-                    <th className="table-header">Items</th>
+                    <th className="table-header">Type</th>
+                    <th className="table-header">Items/Cranes</th>
                     <th className="table-header">Subtotal</th>
                     <th className="table-header">Discount</th>
                     <th className="table-header">Total</th>
@@ -365,12 +398,22 @@ export default function Invoices() {
                     <tr key={invoice._id} className="hover:bg-gray-50">
                       <td className="table-cell font-medium">{invoice.invoiceNumber}</td>
                       <td className="table-cell">
-                        {new Date(invoice.date).toLocaleDateString()}
+                        {new Date(invoice.date || invoice.createdAt).toLocaleDateString()}
                       </td>
-                      <td className="table-cell">{invoice.items.length}</td>
-                      <td className="table-cell">{formatCurrency(invoice.subtotal)}</td>
-                      <td className="table-cell">{formatCurrency(invoice.discount)}</td>
-                      <td className="table-cell font-medium">{formatCurrency(invoice.total)}</td>
+                      <td className="table-cell">
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                          invoice.craneDetails ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                        }`}>
+                          {invoice.craneDetails ? '🚁 Crane Rental' : '🧾 Standard'}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        {invoice.items ? invoice.items.length : 
+                         invoice.craneDetails ? invoice.craneDetails.length : 0}
+                      </td>
+                      <td className="table-cell">{formatCurrency(invoice.subtotal || 0)}</td>
+                      <td className="table-cell">{formatCurrency(invoice.discount || 0)}</td>
+                      <td className="table-cell font-medium">{formatCurrency(invoice.total || invoice.totalAmount || 0)}</td>
                       <td className="table-cell">
                         <div className="flex space-x-3">
                           <button
