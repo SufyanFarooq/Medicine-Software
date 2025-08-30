@@ -23,7 +23,7 @@ export default async function handler(req, res) {
       
       const {
         customerId,
-        craneId,
+        craneRentals, // New multi-crane structure
         projectName,
         projectLocation,
         startDate,
@@ -31,24 +31,16 @@ export default async function handler(req, res) {
         startTime,
         endTime,
         billingType, // 'hourly' or 'daily'
-        hourlyRate,
-        dailyRate,
-        totalHours,
-        totalDays,
         notes,
         operator,
-        additionalServices
+        additionalServices,
+        contractStatus,
+        contractEndDate
       } = req.body;
 
       // Validate required fields
-      if (!customerId || !craneId || !startDate || !endDate || !billingType) {
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
-
-      // Get crane details
-      const crane = await cranesCollection.findOne({ _id: new ObjectId(craneId) });
-      if (!crane) {
-        return res.status(404).json({ error: 'Crane not found' });
+      if (!customerId || !craneRentals || !Array.isArray(craneRentals) || craneRentals.length === 0 || !startDate || !endDate || !billingType) {
+        return res.status(400).json({ error: 'Missing required fields: customerId, craneRentals (array), startDate, endDate, billingType' });
       }
 
       // Get customer details
@@ -57,16 +49,50 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
-      // Calculate billing
+      // Validate and process each crane rental
       let totalAmount = 0;
       let subtotal = 0;
-      
-      if (billingType === 'hourly') {
-        const rate = hourlyRate || crane.dailyRate / 8; // Default hourly rate
-        subtotal = rate * totalHours;
-      } else {
-        const rate = dailyRate || crane.dailyRate;
-        subtotal = rate * totalDays;
+      const processedCraneRentals = [];
+
+      for (const craneRental of craneRentals) {
+        // Validate crane rental fields
+        if (!craneRental.craneId || !craneRental.craneName || !craneRental.craneCode) {
+          return res.status(400).json({ error: `Missing crane details for crane rental` });
+        }
+
+        // Get crane details
+        const crane = await cranesCollection.findOne({ _id: new ObjectId(craneRental.craneId) });
+        if (!crane) {
+          return res.status(404).json({ error: `Crane not found: ${craneRental.craneId}` });
+        }
+
+        // Calculate billing for this crane
+        let craneSubtotal = 0;
+        if (billingType === 'hourly') {
+          const rate = craneRental.hourlyRate || crane.dailyRate / 8;
+          craneSubtotal = rate * craneRental.totalHours;
+        } else {
+          const rate = craneRental.dailyRate || crane.dailyRate;
+          craneSubtotal = rate * craneRental.totalDays;
+        }
+
+        subtotal += craneSubtotal;
+
+        // Process crane rental data
+        processedCraneRentals.push({
+          craneId: new ObjectId(craneRental.craneId),
+          craneName: craneRental.craneName,
+          craneCode: craneRental.craneCode,
+          craneType: craneRental.craneType,
+          craneCapacity: craneRental.craneCapacity,
+          hourlyRate: billingType === 'hourly' ? craneRental.hourlyRate : null,
+          dailyRate: billingType === 'daily' ? craneRental.dailyRate : null,
+          totalHours: billingType === 'hourly' ? craneRental.totalHours : null,
+          totalDays: billingType === 'daily' ? craneRental.totalDays : null,
+          craneStatus: craneRental.craneStatus || 'Active',
+          completionDate: craneRental.completionDate,
+          individualAmount: craneSubtotal
+        });
       }
 
       // Add additional services
@@ -84,9 +110,7 @@ export default async function handler(req, res) {
         customerName: customer.companyName || customer.contactPerson,
         customerEmail: customer.email,
         customerPhone: customer.phone,
-        craneId: new ObjectId(craneId),
-        craneName: crane.name,
-        craneCode: crane.code,
+        craneRentals: processedCraneRentals, // New multi-crane structure
         projectName,
         projectLocation,
         startDate: new Date(startDate),
@@ -94,34 +118,34 @@ export default async function handler(req, res) {
         startTime,
         endTime,
         billingType,
-        hourlyRate: billingType === 'hourly' ? hourlyRate : null,
-        dailyRate: billingType === 'daily' ? dailyRate : null,
-        totalHours: billingType === 'hourly' ? totalHours : null,
-        totalDays: billingType === 'daily' ? totalDays : null,
         subtotal,
         additionalServicesTotal,
         totalAmount,
         notes,
-        operator: operator || crane.operator,
+        operator: operator || '',
         additionalServices: additionalServices || [],
-        status: 'Active', // Active, Completed, Cancelled
+        contractStatus: contractStatus || 'Active', // Active, Completed, Cancelled
+        status: 'Active', // Overall rental status
         paymentStatus: 'Pending', // Pending, Partial, Paid
+        contractEndDate: contractEndDate || null,
         createdAt: new Date(),
         updatedAt: new Date()
       };
 
       const result = await rentalsCollection.insertOne(rentalData);
 
-      // Update crane status to 'In Use'
-      await cranesCollection.updateOne(
-        { _id: new ObjectId(craneId) },
-        { 
-          $set: { 
-            status: 'In Use',
-            updatedAt: new Date()
+      // Update status of all cranes to 'In Use'
+      for (const craneRental of craneRentals) {
+        await cranesCollection.updateOne(
+          { _id: new ObjectId(craneRental.craneId) },
+          { 
+            $set: { 
+              status: 'In Use',
+              updatedAt: new Date()
+            }
           }
-        }
-      );
+        );
+      }
 
       // Update customer statistics
       await customersCollection.updateOne(

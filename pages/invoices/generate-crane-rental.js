@@ -7,15 +7,17 @@ import { formatCurrency } from '../../lib/currency';
 
 export default function GenerateCraneRentalInvoice() {
   const router = useRouter();
+  const { rentalId } = router.query;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   
+  const [rental, setRental] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [cranes, setCranes] = useState([]);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
   
   const [invoiceData, setInvoiceData] = useState({
+    rentalId: '',
     customerId: '',
     customerName: '',
     customerEmail: '',
@@ -24,7 +26,7 @@ export default function GenerateCraneRentalInvoice() {
     projectLocation: '',
     startDate: '',
     endDate: '',
-    rentalType: 'daily', // 'hourly' or 'daily'
+    billingType: 'daily',
     craneDetails: [],
     notes: '',
     paymentTerms: 'Net 30',
@@ -34,7 +36,50 @@ export default function GenerateCraneRentalInvoice() {
   useEffect(() => {
     fetchCustomers();
     fetchCranes();
-  }, []);
+    if (rentalId) {
+      fetchRental();
+    }
+  }, [rentalId]);
+
+  const fetchRental = async () => {
+    try {
+      const response = await apiRequest(`/api/crane-rentals/${rentalId}`);
+      if (response.ok) {
+        const rentalData = await response.json();
+
+        setRental(rentalData);
+        
+        // Auto-fill invoice data from rental
+        setInvoiceData({
+          rentalId: rentalData._id,
+          customerId: rentalData.customerId,
+          customerName: rentalData.customerName,
+          customerEmail: rentalData.customerEmail,
+          customerPhone: rentalData.customerPhone,
+          projectName: rentalData.projectName,
+          projectLocation: rentalData.projectLocation,
+          startDate: rentalData.startDate ? new Date(rentalData.startDate).toISOString().split('T')[0] : '',
+          endDate: rentalData.endDate ? new Date(rentalData.endDate).toISOString().split('T')[0] : '',
+          billingType: rentalData.billingType,
+          craneDetails: [{
+            craneId: rentalData.craneId,
+            craneName: rentalData.craneName,
+            craneCode: rentalData.craneCode,
+            craneType: rentalData.craneType,
+            hours: rentalData.totalHours || 0,
+            days: rentalData.totalDays || 0,
+            craneCost: rentalData.totalAmount
+          }],
+          notes: rentalData.notes || '',
+          paymentTerms: 'Net 30',
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching rental:', error);
+      setError('Failed to load rental details');
+    }
+  };
 
   const fetchCustomers = async () => {
     try {
@@ -373,7 +418,7 @@ export default function GenerateCraneRentalInvoice() {
                       Start Date *
                     </label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       value={invoiceData.startDate}
                       onChange={(e) => setInvoiceData(prev => ({ ...prev, startDate: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
@@ -386,7 +431,7 @@ export default function GenerateCraneRentalInvoice() {
                       End Date *
                     </label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       value={invoiceData.endDate}
                       onChange={(e) => setInvoiceData(prev => ({ ...prev, endDate: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
