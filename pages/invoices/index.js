@@ -319,12 +319,9 @@ export default function Invoices() {
             </p>
           </div>
           <div className="flex space-x-3">
-            <Link href="/invoices/generate" className="btn-primary">
-              🧾 Generate Invoice
-            </Link>
-            <Link href="/invoices/generate-crane-rental" className="btn-primary bg-green-600 hover:bg-green-700">
-              🚁 Crane Rental Invoice
-            </Link>
+                          <Link href="/invoices/generate-crane-rental" className="btn-primary">
+                🚁 Generate Crane Rental Invoice
+              </Link>
           </div>
         </div>
 
@@ -416,10 +413,17 @@ export default function Invoices() {
                       <td className="table-cell font-medium">{formatCurrency(invoice.total || invoice.totalAmount || 0)}</td>
                       <td className="table-cell">
                         <div className="flex space-x-3">
+                          <Link
+                            href={`/invoices/${invoice._id}`}
+                            className="text-blue-600 hover:text-blue-900 text-lg cursor-pointer transition-colors duration-200"
+                            title="View Invoice"
+                          >
+                            👁️
+                          </Link>
                           <button
                             onClick={() => printInvoice(invoice, settings, currentUser)}
                             className="text-blue-600 hover:text-blue-900 text-lg cursor-pointer transition-colors duration-200"
-                            title="Print Invoice"
+                            title="Print Receipt (Old Format)"
                           >
                             🖨️
                           </button>

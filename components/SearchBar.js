@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function SearchBar({ onSearch, placeholder = "Search medicines..." }) {
+export default function SearchBar({ onSearch, placeholder = "Search..." }) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const handleSearch = (e) => {

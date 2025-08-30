@@ -1,4 +1,5 @@
 import { connectToDatabase } from '../../../lib/mongodb';
+import { ObjectId } from 'mongodb';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
@@ -29,16 +30,17 @@ export default async function handler(req, res) {
         projectLocation,
         startDate,
         endDate,
-        rentalType, // 'hourly' or 'daily'
+        billingType, // 'hourly' or 'daily' - updated field name
         craneDetails,
         notes,
         paymentTerms,
-        dueDate
+        dueDate,
+        rentalId // Add rental ID for reference
       } = req.body;
 
       // Validate required fields
-      if (!customerId || !projectName || !startDate || !endDate || !rentalType || !craneDetails || !Array.isArray(craneDetails) || craneDetails.length === 0) {
-        return res.status(400).json({ error: 'Missing required fields' });
+      if (!customerId || !projectName || !startDate || !endDate || !billingType || !craneDetails || !Array.isArray(craneDetails) || craneDetails.length === 0) {
+        return res.status(400).json({ error: 'Missing required fields: customerId, projectName, startDate, endDate, billingType, craneDetails' });
       }
 
       // Calculate rental duration and costs
@@ -54,13 +56,13 @@ export default async function handler(req, res) {
         const { craneId, hours, days } = craneRental;
         
         // Get crane details for pricing
-        const crane = await cranesCollection.findOne({ _id: craneId });
+        const crane = await cranesCollection.findOne({ _id: new ObjectId(craneId) });
         if (!crane) {
           return res.status(400).json({ error: `Crane not found: ${craneId}` });
         }
 
         let craneCost = 0;
-        if (rentalType === 'hourly') {
+        if (billingType === 'hourly') {
           const hourlyRate = crane.dailyRate / 8; // Assume 8-hour work day
           craneCost = hourlyRate * hours;
         } else {
@@ -106,10 +108,10 @@ export default async function handler(req, res) {
         projectLocation,
         startDate: start,
         endDate: end,
-        rentalType,
+        billingType,
         duration: {
-          hours: rentalType === 'hourly' ? Math.ceil(durationMs / (1000 * 60 * 60)) : 0,
-          days: rentalType === 'daily' ? Math.ceil(durationMs / (1000 * 60 * 60 * 24)) : 0
+          hours: billingType === 'hourly' ? Math.ceil(durationMs / (1000 * 60 * 60)) : 0,
+          days: billingType === 'daily' ? Math.ceil(durationMs / (1000 * 60 * 60 * 24)) : 0
         },
         craneDetails,
         subtotal,
@@ -128,7 +130,7 @@ export default async function handler(req, res) {
 
       // Update customer statistics
       await customersCollection.updateOne(
-        { _id: customerId },
+        { _id: new ObjectId(customerId) },
         {
           $inc: { 
             totalRentals: 1,

@@ -57,12 +57,6 @@ export default function Activities() {
 
   const getActionIcon = (action) => {
     switch (action) {
-      case 'MEDICINE_ADDED':
-        return '💊';
-      case 'MEDICINE_UPDATED':
-        return '✏️';
-      case 'MEDICINE_DELETED':
-        return '🗑️';
       case 'INVOICE_GENERATED':
         return '🧾';
       case 'INVOICE_PRINTED':
@@ -74,6 +68,12 @@ export default function Activities() {
       case 'RETURN_UPDATED':
         return '✏️';
       case 'RETURN_DELETED':
+        return '🗑️';
+      case 'CUSTOMER_ADDED':
+        return '👤';
+      case 'CUSTOMER_UPDATED':
+        return '✏️';
+      case 'CUSTOMER_DELETED':
         return '🗑️';
       case 'USER_LOGIN':
         return '🔑';
@@ -122,7 +122,7 @@ export default function Activities() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">User Activities</h1>
             <p className="mt-1 text-sm text-gray-500">
-              Track all user activities and actions
+              Track all medicine operations, sales, and user activities
             </p>
           </div>
         </div>
@@ -141,15 +141,15 @@ export default function Activities() {
                 className="input-field"
               >
                 <option value="">All Actions</option>
-                <option value="MEDICINE_ADDED">Medicine Added</option>
-                <option value="MEDICINE_UPDATED">Medicine Updated</option>
-                <option value="MEDICINE_DELETED">Medicine Deleted</option>
                 <option value="INVOICE_GENERATED">Invoice Generated</option>
                 <option value="INVOICE_PRINTED">Invoice Printed</option>
                 <option value="INVOICE_DELETED">Invoice Deleted</option>
                 <option value="RETURN_CREATED">Return Created</option>
                 <option value="RETURN_UPDATED">Return Updated</option>
                 <option value="RETURN_DELETED">Return Deleted</option>
+                <option value="CUSTOMER_ADDED">Customer Added</option>
+                <option value="CUSTOMER_UPDATED">Customer Updated</option>
+                <option value="CUSTOMER_DELETED">Customer Deleted</option>
                 <option value="USER_LOGIN">User Login</option>
                 <option value="USER_LOGOUT">User Logout</option>
                 <option value="USER_CREATED">User Created</option>

@@ -30,43 +30,67 @@ export default async function handler(req, res) {
       delete updateData.rentalNumber;
       delete updateData.createdAt;
 
-      // If status is being updated to Completed, update crane status to Available
-      if (updateData.status === 'Completed') {
+      // If contract status is being updated to Completed/Cancelled, update ALL crane statuses to Available
+      if (updateData.status === 'Completed' || updateData.status === 'Cancelled' || updateData.contractStatus === 'Completed' || updateData.contractStatus === 'Cancelled') {
         const rental = await rentalsCollection.findOne({ _id: new ObjectId(id) });
-        if (rental && rental.craneId) {
+        if (rental && rental.craneRentals && Array.isArray(rental.craneRentals)) {
           const cranesCollection = db.collection('cranes');
-          await cranesCollection.updateOne(
-            { _id: new ObjectId(rental.craneId) },
-            { $set: { status: 'Available' } }
-          );
+          // Update ALL cranes to Available when contract is completed/cancelled
+          for (const craneRental of rental.craneRentals) {
+            await cranesCollection.updateOne(
+              { _id: new ObjectId(craneRental.craneId) },
+              { $set: { status: 'Available', updatedAt: new Date() } }
+            );
+          }
+          
+          // Also update the craneRentals array in the rental document
+          const updatedCraneRentals = rental.craneRentals.map(crane => ({
+            ...crane,
+            craneStatus: 'Completed',
+            completionDate: new Date()
+          }));
+          
+          updateData.craneRentals = updatedCraneRentals;
         }
       }
 
-      // If status is being updated to Active, update crane status to In Use
-      if (updateData.status === 'Active') {
+      // If contract status is being updated to Active, update ALL crane statuses to In Use
+      if (updateData.status === 'Active' || updateData.contractStatus === 'Active') {
         const rental = await rentalsCollection.findOne({ _id: new ObjectId(id) });
-        if (rental && rental.craneId) {
+        if (rental && rental.craneRentals && Array.isArray(rental.craneRentals)) {
           const cranesCollection = db.collection('cranes');
-          await cranesCollection.updateOne(
-            { _id: new ObjectId(rental.craneId) },
-            { $set: { status: 'In Use' } }
-          );
+          // Update ALL cranes to In Use when contract is active
+          for (const craneRentals of rental.craneRentals) {
+            await cranesCollection.updateOne(
+              { _id: new ObjectId(craneRentals.craneId) },
+              { $set: { status: 'In Use', updatedAt: new Date() } }
+            );
+          }
+          
+          // Also update the craneRentals array in the rental document
+          const updatedCraneRentals = rental.craneRentals.map(crane => ({
+            ...crane,
+            craneStatus: 'Active',
+            completionDate: null
+          }));
+          
+          updateData.craneRentals = updatedCraneRentals;
         }
       }
 
-      // Handle multiple cranes status updates
+      // Handle individual crane status updates
       if (updateData.craneRentals) {
         const cranesCollection = db.collection('cranes');
         for (const craneRental of updateData.craneRentals) {
           if (craneRental.craneStatus === 'Completed') {
             await cranesCollection.updateOne(
               { _id: new ObjectId(craneRental.craneId) },
-              { $set: { status: 'Available' } }
+              { $set: { status: 'Available', updatedAt: new Date() } }
             );
           } else if (craneRental.craneStatus === 'Active') {
             await cranesCollection.updateOne(
               { _id: new ObjectId(craneRental.craneId) },
-              { $set: { status: 'In Use' } }
+              { $set: { status: 'In Use', updatedAt: new Date() } }
             );
           }
         }

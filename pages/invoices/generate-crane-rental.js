@@ -49,7 +49,17 @@ export default function GenerateCraneRentalInvoice() {
 
         setRental(rentalData);
         
-        // Auto-fill invoice data from rental
+        // Auto-fill invoice data from rental with multi-crane support
+        const craneDetails = rentalData.craneRentals ? rentalData.craneRentals.map(crane => ({
+          craneId: crane.craneId,
+          craneName: crane.craneName,
+          craneCode: crane.craneCode,
+          craneType: crane.craneType,
+          hours: crane.totalHours || 0,
+          days: crane.totalDays || 0,
+          craneCost: crane.individualAmount || 0
+        })) : [];
+
         setInvoiceData({
           rentalId: rentalData._id,
           customerId: rentalData.customerId,
@@ -60,16 +70,8 @@ export default function GenerateCraneRentalInvoice() {
           projectLocation: rentalData.projectLocation,
           startDate: rentalData.startDate ? new Date(rentalData.startDate).toISOString().split('T')[0] : '',
           endDate: rentalData.endDate ? new Date(rentalData.endDate).toISOString().split('T')[0] : '',
-          billingType: rentalData.billingType,
-          craneDetails: [{
-            craneId: rentalData.craneId,
-            craneName: rentalData.craneName,
-            craneCode: rentalData.craneCode,
-            craneType: rentalData.craneType,
-            hours: rentalData.totalHours || 0,
-            days: rentalData.totalDays || 0,
-            craneCost: rentalData.totalAmount
-          }],
+          billingType: rentalData.billingType || 'daily',
+          craneDetails: craneDetails,
           notes: rentalData.notes || '',
           paymentTerms: 'Net 30',
           dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -176,7 +178,7 @@ export default function GenerateCraneRentalInvoice() {
       if (crane.craneId && (crane.hours > 0 || crane.days > 0)) {
         const selectedCrane = cranes.find(c => c._id === crane.craneId);
         if (selectedCrane) {
-          if (invoiceData.rentalType === 'hourly') {
+          if (invoiceData.billingType === 'hourly') {
             const hourlyRate = selectedCrane.dailyRate / 8;
             crane.craneCost = hourlyRate * crane.hours;
           } else {
@@ -221,13 +223,13 @@ export default function GenerateCraneRentalInvoice() {
           return;
         }
         
-        if (invoiceData.rentalType === 'hourly' && crane.hours <= 0) {
+        if (invoiceData.billingType === 'hourly' && crane.hours <= 0) {
           setError('Please enter valid hours for hourly rentals');
           setLoading(false);
           return;
         }
         
-        if (invoiceData.rentalType === 'daily' && crane.days <= 0) {
+        if (invoiceData.billingType === 'daily' && crane.days <= 0) {
           setError('Please enter valid days for daily rentals');
           setLoading(false);
           return;
@@ -538,13 +540,13 @@ export default function GenerateCraneRentalInvoice() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          {invoiceData.rentalType === 'hourly' ? 'Hours' : 'Days'} *
+                          {invoiceData.billingType === 'hourly' ? 'Hours' : 'Days'} *
                         </label>
                         <input
                           type="number"
-                          value={invoiceData.rentalType === 'hourly' ? craneRental.hours : craneRental.days}
+                          value={invoiceData.billingType === 'hourly' ? craneRental.hours : craneRental.days}
                           onChange={(e) => {
-                            const field = invoiceData.rentalType === 'hourly' ? 'hours' : 'days';
+                            const field = invoiceData.billingType === 'hourly' ? 'hours' : 'days';
                             updateCraneRental(index, field, parseFloat(e.target.value) || 0);
                           }}
                           min="0"
@@ -561,7 +563,7 @@ export default function GenerateCraneRentalInvoice() {
                         <input
                           type="text"
                           value={craneRental.craneId ? 
-                            (invoiceData.rentalType === 'hourly' ? 
+                            (invoiceData.billingType === 'hourly' ? 
                               `${formatCurrency(cranes.find(c => c._id === craneRental.craneId)?.dailyRate / 8 || 0)}/hr` :
                               `${formatCurrency(cranes.find(c => c._id === craneRental.craneId)?.dailyRate || 0)}/day`
                             ) : 'N/A'

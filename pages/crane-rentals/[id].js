@@ -18,6 +18,8 @@ export default function CraneRentalDetailPage() {
     }
   }, [id]);
 
+
+
   const fetchRental = async () => {
     try {
       setLoading(true);
@@ -53,7 +55,35 @@ export default function CraneRentalDetailPage() {
 
       if (response.ok) {
         const updatedRental = await response.json();
-        setRental(updatedRental);
+        
+        // Update local state to reflect the changes immediately
+        if (newStatus === 'Completed' || newStatus === 'Cancelled') {
+          // When contract is completed/cancelled, all cranes should be completed
+          const updatedCraneRentals = updatedRental.craneRentals.map(crane => ({
+            ...crane,
+            craneStatus: 'Completed',
+            completionDate: new Date().toISOString()
+          }));
+          
+          setRental({
+            ...updatedRental,
+            craneRentals: updatedCraneRentals
+          });
+        } else if (newStatus === 'Active') {
+          // When contract is active, all cranes should be active
+          const updatedCraneRentals = updatedRental.craneRentals.map(crane => ({
+            ...crane,
+            craneStatus: 'Active',
+            completionDate: null
+          }));
+          
+          setRental({
+            ...updatedRental,
+            craneRentals: updatedCraneRentals
+          });
+        } else {
+          setRental(updatedRental);
+        }
       }
     } catch (error) {
       console.error('Error updating rental status:', error);
@@ -92,6 +122,8 @@ export default function CraneRentalDetailPage() {
         } else if (newStatus === 'Active') {
           await updateCraneAvailability(updatedCraneRentals[craneIndex].craneId, 'In Use');
         }
+        
+
       }
     } catch (error) {
       console.error('Error updating crane status:', error);
