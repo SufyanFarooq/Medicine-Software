@@ -64,10 +64,10 @@ export default function AddReturn() {
 
     const filtered = invoices.filter(invoice =>
       invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.items.some(item => 
+      (invoice.items && invoice.items.some(item => 
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.code.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      ))
     );
     setFilteredInvoices(filtered);
   };
@@ -330,10 +330,10 @@ export default function AddReturn() {
                         Date: {new Date(invoice.date).toLocaleDateString()}
                       </div>
                       <div className="text-sm text-gray-500">
-                        Items: {invoice.items.length} | Total: {formatCurrency(invoice.total)}
+                        Items: {invoice.items?.length || 0} | Total: {formatCurrency(invoice.total || 0)}
                       </div>
                       <div className="text-xs text-gray-400 mt-1">
-                        {invoice.items.map(item => item.name).join(', ')}
+                        {invoice.items?.map(item => item.name).join(', ') || 'No items'}
                       </div>
                     </div>
                   ))
@@ -373,7 +373,7 @@ export default function AddReturn() {
                   #{selectedInvoice.invoiceNumber} - {new Date(selectedInvoice.date).toLocaleDateString()}
                 </div>
                 <div className="text-sm text-blue-700 mt-1">
-                  Total Items: {selectedInvoice.items.length} | Total: {formatCurrency(selectedInvoice.total)}
+                  Total Items: {selectedInvoice.items?.length || 0} | Total: {formatCurrency(selectedInvoice.total || 0)}
                 </div>
               </div>
             ) : selectedMedicine ? (
@@ -394,7 +394,7 @@ export default function AddReturn() {
               <div className="mb-4">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Select Items to Return:</h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {selectedInvoice.items.map((item) => {
+                  {selectedInvoice.items?.map((item) => {
                     const isSelected = selectedInvoiceItems.find(selected => selected.medicineId === item.medicineId);
                     return (
                       <div
@@ -435,7 +435,7 @@ export default function AddReturn() {
                         </div>
                       </div>
                     );
-                  })}
+                  }) || <p className="text-gray-500 text-center py-4">No items found in this invoice</p>}
                 </div>
               </div>
             )}

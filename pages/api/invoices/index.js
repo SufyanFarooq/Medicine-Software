@@ -1,13 +1,16 @@
-import { connectToDatabase } from '../../../lib/mongodb';
-import { ObjectId } from 'mongodb';
+import dbConnect from '../../../lib/db';
+import { Invoice, Crane, Customer } from '../../../models';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
-      const { db } = await connectToDatabase();
-      const invoicesCollection = db.collection('invoices');
+      await dbConnect();
       
-      const invoices = await invoicesCollection.find({}).sort({ createdAt: -1 }).toArray();
+      const invoices = await Invoice.find({})
+        .populate('customerId', 'name email phone')
+        .populate('craneRentalId')
+        .sort({ createdAt: -1 })
+        .lean();
       
       res.status(200).json(invoices);
     } catch (error) {
@@ -16,10 +19,7 @@ export default async function handler(req, res) {
     }
   } else if (req.method === 'POST') {
     try {
-      const { db } = await connectToDatabase();
-      const invoicesCollection = db.collection('invoices');
-      const customersCollection = db.collection('customers');
-      const cranesCollection = db.collection('cranes');
+      await dbConnect();
       
       const {
         customerId,
@@ -55,8 +55,8 @@ export default async function handler(req, res) {
       for (const craneRental of craneDetails) {
         const { craneId, hours, days } = craneRental;
         
-        // Get crane details for pricing
-        const crane = await cranesCollection.findOne({ _id: new ObjectId(craneId) });
+        // Get crane details for pricing using Mongoose
+        const crane = await Crane.findById(craneId);
         if (!crane) {
           return res.status(400).json({ error: `Crane not found: ${craneId}` });
         }
@@ -89,7 +89,7 @@ export default async function handler(req, res) {
       const year = today.getFullYear();
       const month = String(today.getMonth() + 1).padStart(2, '0');
       const day = String(today.getDate()).padStart(2, '0');
-      const invoiceCount = await invoicesCollection.countDocuments({
+      const invoiceCount = await Invoice.countDocuments({
         createdAt: {
           $gte: new Date(year, today.getMonth(), 1),
           $lt: new Date(year, today.getMonth() + 1, 1)
@@ -97,8 +97,8 @@ export default async function handler(req, res) {
       });
       const invoiceNumber = `INV-${year}${month}-${String(invoiceCount + 1).padStart(3, '0')}`;
 
-      // Create invoice
-      const newInvoice = {
+      // Create invoice using Mongoose schema
+      const invoice = new Invoice({
         invoiceNumber,
         customerId,
         customerName,
@@ -109,53 +109,45 @@ export default async function handler(req, res) {
         startDate: start,
         endDate: end,
         billingType,
-        duration: {
-          hours: billingType === 'hourly' ? Math.ceil(durationMs / (1000 * 60 * 60)) : 0,
-          days: billingType === 'daily' ? Math.ceil(durationMs / (1000 * 60 * 60 * 24)) : 0
-        },
         craneDetails,
         subtotal,
-        vatRate,
         vatAmount,
         totalAmount,
-        paymentTerms: paymentTerms || 'Net 30',
-        dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        status: 'Pending',
         notes,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-
-      const result = await invoicesCollection.insertOne(newInvoice);
-
-      // Update customer statistics
-      await customersCollection.updateOne(
-        { _id: new ObjectId(customerId) },
-        {
-          $inc: { 
-            totalRentals: 1,
-            totalSpent: totalAmount
-          },
-          $set: { 
-            lastRental: new Date(),
-            updatedAt: new Date()
-          }
-        }
-      );
-
-      res.status(201).json({
-        message: 'Crane rental invoice created successfully',
-        invoiceId: result.insertedId,
-        invoiceNumber,
-        totalAmount
+        paymentTerms,
+        dueDate: dueDate ? new Date(dueDate) : null,
+        rentalId,
+        status: 'pending',
+        items: craneDetails.map(detail => ({
+          name: detail.craneName,
+          code: detail.craneCode,
+          type: detail.craneType,
+          quantity: detail.days || detail.hours,
+          price: detail.craneCost,
+          medicineId: detail.craneId // Keep for compatibility
+        }))
       });
 
+      await invoice.save();
+      
+      // Update customer statistics using Mongoose
+      await Customer.findByIdAndUpdate(customerId, {
+        $inc: { 
+          totalRentals: 1,
+          totalSpent: totalAmount
+        },
+        $set: { 
+          lastRental: new Date(),
+          updatedAt: new Date()
+        }
+      });
+      
+      res.status(201).json(invoice);
     } catch (error) {
       console.error('Error creating invoice:', error);
       res.status(500).json({ error: 'Failed to create invoice' });
     }
   } else {
-    res.setHeader('Allow', ['GET', 'POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+    res.status(405).json({ error: 'Method not allowed' });
   }
 } 

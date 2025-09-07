@@ -1,4 +1,5 @@
-import { getCollection } from '../../../lib/mongodb';
+import dbConnect from '../../../lib/db';
+import { User } from '../../../models';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -44,11 +45,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const usersCollection = await getCollection('users');
+    await dbConnect();
 
     switch (method) {
       case 'GET':
-        const users = await usersCollection.find({}, { password: 0 }).sort({ createdAt: -1 }).toArray();
+        const users = await User.find({}, { password: 0 }).sort({ createdAt: -1 }).lean();
         res.status(200).json(users);
         break;
 
@@ -72,29 +73,26 @@ export default async function handler(req, res) {
         }
 
         // Check if username already exists
-        const existingUser = await usersCollection.findOne({ username });
+        const existingUser = await User.findOne({ username });
         if (existingUser) {
           return res.status(400).json({ message: 'Username already exists' });
         }
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Create new user
-        const newUser = {
+        // Create new user using Mongoose schema
+        const newUser = new User({
           username,
-          password: hashedPassword,
+          password, // Password will be hashed by the schema pre-save hook
           role,
           createdAt: new Date(),
           updatedAt: new Date(),
           createdBy: user.userId,
-        };
+        });
 
-        const result = await usersCollection.insertOne(newUser);
+        await newUser.save();
         
         // Return user without password
-        const { password: _, ...userWithoutPassword } = newUser;
-        res.status(201).json({ ...userWithoutPassword, _id: result.insertedId });
+        const { password: _, ...userWithoutPassword } = newUser.toObject();
+        res.status(201).json(userWithoutPassword);
         break;
 
       default:

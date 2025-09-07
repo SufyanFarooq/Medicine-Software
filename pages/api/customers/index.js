@@ -1,12 +1,12 @@
-import { connectToDatabase } from '../../../lib/mongodb';
+import dbConnect from '../../../lib/db';
+import { Customer } from '../../../models';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
-      const { db } = await connectToDatabase();
-      const customersCollection = db.collection('customers');
+      await dbConnect();
       
-      const customers = await customersCollection.find({}).toArray();
+      const customers = await Customer.find({}).lean();
       
       res.status(200).json(customers);
     } catch (error) {
@@ -15,30 +15,28 @@ export default async function handler(req, res) {
     }
   } else if (req.method === 'POST') {
     try {
-      const { db } = await connectToDatabase();
-      const customersCollection = db.collection('customers');
+      await dbConnect();
       
-      const customerData = {
+      const customer = new Customer({
         ...req.body,
         createdAt: new Date(),
         updatedAt: new Date(),
         totalRentals: 0,
         totalSpent: 0,
         lastRental: null
-      };
+      });
       
-      const result = await customersCollection.insertOne(customerData);
+      await customer.save();
       
       res.status(201).json({
         message: 'Customer added successfully',
-        customerId: result.insertedId
+        customerId: customer._id
       });
     } catch (error) {
       console.error('Error adding customer:', error);
       res.status(500).json({ error: 'Failed to add customer' });
     }
   } else {
-    res.setHeader('Allow', ['GET', 'POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+    res.status(405).json({ error: 'Method not allowed' });
   }
 }

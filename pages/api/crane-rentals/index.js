@@ -1,13 +1,15 @@
-import { connectToDatabase } from '../../../lib/mongodb';
-import { ObjectId } from 'mongodb';
+import dbConnect from '../../../lib/db';
+import { CraneRental, Crane, Customer } from '../../../models';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
-      const { db } = await connectToDatabase();
-      const rentalsCollection = db.collection('crane_rentals');
+      await dbConnect();
       
-      const rentals = await rentalsCollection.find({}).toArray();
+      const rentals = await CraneRental.find({})
+        .populate('customerId', 'name email phone')
+        .populate('craneId', 'name code type')
+        .lean();
       
       res.status(200).json(rentals);
     } catch (error) {
@@ -16,10 +18,7 @@ export default async function handler(req, res) {
     }
   } else if (req.method === 'POST') {
     try {
-      const { db } = await connectToDatabase();
-      const rentalsCollection = db.collection('crane_rentals');
-      const cranesCollection = db.collection('cranes');
-      const customersCollection = db.collection('customers');
+      await dbConnect();
       
       const {
         customerId,
@@ -43,8 +42,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing required fields: customerId, craneRentals (array), startDate, endDate, billingType' });
       }
 
-      // Get customer details
-      const customer = await customersCollection.findOne({ _id: new ObjectId(customerId) });
+      // Get customer details using Mongoose
+      const customer = await Customer.findById(customerId);
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -60,8 +59,8 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: `Missing crane details for crane rental` });
         }
 
-        // Get crane details
-        const crane = await cranesCollection.findOne({ _id: new ObjectId(craneRental.craneId) });
+        // Get crane details using Mongoose
+        const crane = await Crane.findById(craneRental.craneId);
         if (!crane) {
           return res.status(404).json({ error: `Crane not found: ${craneRental.craneId}` });
         }
@@ -80,7 +79,7 @@ export default async function handler(req, res) {
 
         // Process crane rental data
         processedCraneRentals.push({
-          craneId: new ObjectId(craneRental.craneId),
+          craneId: craneRental.craneId,
           craneName: craneRental.craneName,
           craneCode: craneRental.craneCode,
           craneType: craneRental.craneType,
@@ -106,7 +105,7 @@ export default async function handler(req, res) {
       // Create rental record
       const rentalData = {
         rentalNumber: `RENT-${Date.now()}`,
-        customerId: new ObjectId(customerId),
+        customerId: customerId,
         customerName: customer.companyName || customer.contactPerson,
         customerEmail: customer.email,
         customerPhone: customer.phone,
@@ -132,12 +131,12 @@ export default async function handler(req, res) {
         updatedAt: new Date()
       };
 
-      const result = await rentalsCollection.insertOne(rentalData);
+      const result = await CraneRental.create(rentalData);
 
       // Update status of all cranes to 'In Use'
       for (const craneRental of craneRentals) {
-        await cranesCollection.updateOne(
-          { _id: new ObjectId(craneRental.craneId) },
+        await Crane.findByIdAndUpdate(
+          { _id: craneRental.craneId },
           { 
             $set: { 
               status: 'In Use',
@@ -148,8 +147,8 @@ export default async function handler(req, res) {
       }
 
       // Update customer statistics
-      await customersCollection.updateOne(
-        { _id: new ObjectId(customerId) },
+      await Customer.findByIdAndUpdate(
+        { _id: customerId },
         { 
           $inc: { 
             totalRentals: 1,
@@ -164,7 +163,7 @@ export default async function handler(req, res) {
 
       res.status(201).json({
         message: 'Crane rental created successfully',
-        rentalId: result.insertedId,
+        rentalId: result._id,
         rentalNumber: rentalData.rentalNumber
       });
 

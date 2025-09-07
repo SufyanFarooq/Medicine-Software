@@ -1,12 +1,12 @@
-import { connectToDatabase } from '../../../lib/mongodb';
+import dbConnect from '../../../lib/db';
+import { Crane } from '../../../models';
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
-      const { db } = await connectToDatabase();
-      const cranesCollection = db.collection('cranes');
+      await dbConnect();
       
-      const cranes = await cranesCollection.find({}).toArray();
+      const cranes = await Crane.find({}).lean();
       
       res.status(200).json(cranes);
     } catch (error) {
@@ -15,27 +15,25 @@ export default async function handler(req, res) {
     }
   } else if (req.method === 'POST') {
     try {
-      const { db } = await connectToDatabase();
-      const cranesCollection = db.collection('cranes');
+      await dbConnect();
       
-      const craneData = {
+      const crane = new Crane({
         ...req.body,
         createdAt: new Date(),
         updatedAt: new Date()
-      };
+      });
       
-      const result = await cranesCollection.insertOne(craneData);
+      await crane.save();
       
       res.status(201).json({
         message: 'Crane added successfully',
-        craneId: result.insertedId
+        craneId: crane._id
       });
     } catch (error) {
       console.error('Error adding crane:', error);
       res.status(500).json({ error: 'Failed to add crane' });
     }
   } else {
-    res.setHeader('Allow', ['GET', 'POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+    res.status(405).json({ error: 'Method not allowed' });
   }
 }
