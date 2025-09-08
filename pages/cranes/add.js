@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import Link from 'next/link';
@@ -26,13 +26,32 @@ export default function AddCranePage() {
     nextMaintenance: new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   });
 
-  const craneTypes = [
-    'Mobile Crane',
-    'Tower Crane',
-    'Crawler Crane',
-    'All Terrain Crane',
-    'Truck Mounted Crane'
-  ];
+  const [craneTypes, setCraneTypes] = useState([]);
+  const [locations, setLocations] = useState([]);
+
+  // Fetch settings on component mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/settings', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const settings = await response.json();
+          setCraneTypes(settings.craneTypes || []);
+          setLocations(settings.locations || []);
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+      }
+    };
+
+    fetchSettings();
+  }, []);
 
   const craneStatuses = [
     'Available',
@@ -40,25 +59,6 @@ export default function AddCranePage() {
     'Maintenance'
   ];
 
-  const uaeLocations = [
-    'Dubai Marina',
-    'Dubai Hills Estate',
-    'Dubai Creek Harbour',
-    'Dubai World Central',
-    'Abu Dhabi Downtown',
-    'Abu Dhabi Global Market',
-    'Abu Dhabi Corniche',
-    'Abu Dhabi Airport',
-    'Sharjah Industrial',
-    'Sharjah University City',
-    'Sharjah Al Qasimiya',
-    'Ras Al Khaimah Port',
-    'Fujairah Free Zone',
-    'Fujairah Port',
-    'Ajman Free Zone',
-    'Umm Al Quwain',
-    'Al Ain Industrial City'
-  ];
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -186,7 +186,7 @@ export default function AddCranePage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Crane Code *
+                      Plate No. *
                     </label>
                     <div className="flex space-x-2">
                       <input
@@ -294,7 +294,7 @@ export default function AddCranePage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                     >
                       <option value="">Select Location</option>
-                      {uaeLocations.map(location => (
+                      {locations.map(location => (
                         <option key={location} value={location}>{location}</option>
                       ))}
                     </select>
@@ -358,14 +358,14 @@ export default function AddCranePage() {
                     <input
                       type="number"
                       name="hourlyRate"
-                      value={craneData.hourlyRate || (craneData.dailyRate ? Math.round(craneData.dailyRate / 8) : '')}
+                      value={craneData.hourlyRate || (craneData.dailyRate ? Math.round(craneData.dailyRate / 10) : '')}
                       onChange={handleInputChange}
                       placeholder="Auto-calculated from daily rate"
                       step="100"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Leave empty to auto-calculate (Daily Rate ÷ 8 hours)
+                      Leave empty to auto-calculate (Daily Rate ÷ 10 hours)
                     </p>
                   </div>
 

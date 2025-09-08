@@ -20,6 +20,7 @@ export default function AddCustomerPage() {
     businessType: '',
     vatNumber: '',
     tradeLicense: '',
+    lpoNumber: '',
     notes: ''
   });
 
@@ -286,16 +287,31 @@ export default function AddCustomerPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      VAT Number
+                      VAT Number (14 digits)
                     </label>
                     <input
                       type="text"
                       name="vatNumber"
                       value={customerData.vatNumber}
-                      onChange={handleInputChange}
-                      placeholder="e.g., 123456789012345"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, ''); // Only allow digits
+                        if (value.length <= 14) {
+                          setCustomerData(prev => ({ ...prev, vatNumber: value }));
+                        }
+                      }}
+                      placeholder="e.g., 12345678901234"
+                      maxLength="14"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 ${
+                        customerData.vatNumber && customerData.vatNumber.length !== 14
+                          ? 'border-red-300 bg-red-50'
+                          : 'border-gray-300'
+                      }`}
                     />
+                    {customerData.vatNumber && customerData.vatNumber.length !== 14 && (
+                      <p className="text-red-500 text-sm mt-1">
+                        VAT Number must be exactly 14 digits
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -308,6 +324,20 @@ export default function AddCustomerPage() {
                       value={customerData.tradeLicense}
                       onChange={handleInputChange}
                       placeholder="e.g., TL-123456"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      LPO Number
+                    </label>
+                    <input
+                      type="text"
+                      name="lpoNumber"
+                      value={customerData.lpoNumber}
+                      onChange={handleInputChange}
+                      placeholder="e.g., LPO-2024-001"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                     />
                   </div>

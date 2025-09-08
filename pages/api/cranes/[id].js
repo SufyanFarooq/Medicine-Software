@@ -75,7 +75,7 @@ export default async function handler(req, res) {
 
       // Auto-calculate hourly rate if not provided
       if (!hourlyRate && dailyRate) {
-        updateData.hourlyRate = Math.round(dailyRate / 8);
+        updateData.hourlyRate = Math.round(dailyRate / 10);
       }
 
       const result = await cranesCollection.updateOne(

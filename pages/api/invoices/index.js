@@ -53,27 +53,20 @@ export default async function handler(req, res) {
       
       // Process each crane rental
       for (const craneRental of craneDetails) {
-        const { craneId, hours, days } = craneRental;
+        const { craneId, hours, days, craneCost } = craneRental;
         
-        // Get crane details for pricing using Mongoose
+        // Get crane details for validation using Mongoose
         const crane = await Crane.findById(craneId);
         if (!crane) {
           return res.status(400).json({ error: `Crane not found: ${craneId}` });
         }
 
-        let craneCost = 0;
-        if (billingType === 'hourly') {
-          const hourlyRate = crane.dailyRate / 8; // Assume 8-hour work day
-          craneCost = hourlyRate * hours;
-        } else {
-          craneCost = crane.dailyRate * days;
-        }
-        
+        // Use the crane cost sent from frontend (already calculated)
         craneRental.craneName = crane.name;
         craneRental.craneCode = crane.code;
         craneRental.craneType = crane.type;
-        craneRental.craneCost = craneCost;
-        craneRental.hourlyRate = crane.dailyRate / 8;
+        craneRental.craneCost = craneCost; // Use the calculated cost from frontend
+        craneRental.hourlyRate = crane.dailyRate / 10;
         craneRental.dailyRate = crane.dailyRate;
         
         subtotal += craneCost;
@@ -87,44 +80,36 @@ export default async function handler(req, res) {
       // Generate invoice number
       const today = new Date();
       const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
+      
+      // Count invoices for this year
       const invoiceCount = await Invoice.countDocuments({
         createdAt: {
-          $gte: new Date(year, today.getMonth(), 1),
-          $lt: new Date(year, today.getMonth() + 1, 1)
+          $gte: new Date(year, 0, 1),
+          $lt: new Date(year + 1, 0, 1)
         }
       });
-      const invoiceNumber = `INV-${year}${month}-${String(invoiceCount + 1).padStart(3, '0')}`;
+      const invoiceNumber = `INV-${year}-${String(invoiceCount + 1).padStart(6, '0')}`;
 
       // Create invoice using Mongoose schema
+      const invoiceDate = new Date(startDate); // Use project start date as invoice date
+      const dueDateObj = dueDate ? new Date(dueDate + 'T23:59:59.999Z') : new Date(invoiceDate.getTime() + 30 * 24 * 60 * 60 * 1000); // Ensure due date is end of day
+      
       const invoice = new Invoice({
         invoiceNumber,
         customerId,
-        customerName,
-        customerEmail,
-        customerPhone,
-        projectName,
-        projectLocation,
-        startDate: start,
-        endDate: end,
-        billingType,
-        craneDetails,
+        craneRentalId: rentalId || undefined, // Only set if rentalId exists
         subtotal,
-        vatAmount,
-        totalAmount,
+        discount: 0, // No discount for now
+        total: totalAmount,
+        date: invoiceDate,
+        status: 'Draft',
+        dueDate: dueDateObj,
         notes,
-        paymentTerms,
-        dueDate: dueDate ? new Date(dueDate) : null,
-        rentalId,
-        status: 'pending',
         items: craneDetails.map(detail => ({
-          name: detail.craneName,
-          code: detail.craneCode,
-          type: detail.craneType,
-          quantity: detail.days || detail.hours,
-          price: detail.craneCost,
-          medicineId: detail.craneId // Keep for compatibility
+          description: `${detail.craneName} (${detail.craneCode}) - ${detail.craneType}${detail.additionalNote ? ` - ${detail.additionalNote}` : ''}`,
+          quantity: detail.days || detail.hours || 1,
+          unitPrice: detail.craneCost / (detail.days || detail.hours || 1),
+          total: detail.craneCost
         }))
       });
 
@@ -145,7 +130,9 @@ export default async function handler(req, res) {
       res.status(201).json(invoice);
     } catch (error) {
       console.error('Error creating invoice:', error);
-      res.status(500).json({ error: 'Failed to create invoice' });
+      console.error('Error details:', error.message);
+      console.error('Error stack:', error.stack);
+      res.status(500).json({ error: 'Failed to create invoice', details: error.message });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

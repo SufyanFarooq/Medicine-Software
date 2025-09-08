@@ -15,6 +15,8 @@ export default function GenerateCraneRentalInvoice() {
   const [rental, setRental] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [cranes, setCranes] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [paymentTerms, setPaymentTerms] = useState([]);
   
   const [invoiceData, setInvoiceData] = useState({
     rentalId: '',
@@ -36,6 +38,7 @@ export default function GenerateCraneRentalInvoice() {
   useEffect(() => {
     fetchCustomers();
     fetchCranes();
+    fetchPaymentTerms();
     if (rentalId) {
       fetchRental();
     }
@@ -109,6 +112,19 @@ export default function GenerateCraneRentalInvoice() {
     }
   };
 
+  const fetchPaymentTerms = async () => {
+    try {
+      const response = await apiRequest('/api/settings');
+      if (response.ok) {
+        const settings = await response.json();
+        setPaymentTerms(settings.paymentTerms || ['Net 30', 'Net 15', 'Net 7', 'Cash on Delivery']);
+      }
+    } catch (error) {
+      console.error('Error fetching payment terms:', error);
+      setPaymentTerms(['Net 30', 'Net 15', 'Net 7', 'Cash on Delivery']);
+    }
+  };
+
   const handleCustomerSelect = (customerId) => {
     const customer = customers.find(c => c._id === customerId);
     if (customer) {
@@ -131,7 +147,8 @@ export default function GenerateCraneRentalInvoice() {
       craneName: '',
       craneCode: '',
       craneType: '',
-      craneCost: 0
+      craneCost: 0,
+      additionalNote: ''
     };
 
     setInvoiceData(prev => ({
@@ -179,8 +196,14 @@ export default function GenerateCraneRentalInvoice() {
         const selectedCrane = cranes.find(c => c._id === crane.craneId);
         if (selectedCrane) {
           if (invoiceData.billingType === 'hourly') {
-            const hourlyRate = selectedCrane.dailyRate / 8;
+            const hourlyRate = selectedCrane.dailyRate / 10; // Changed from 8 to 10 hours
             crane.craneCost = hourlyRate * crane.hours;
+          } else if (invoiceData.billingType === 'weekly') {
+            const weeklyRate = selectedCrane.dailyRate * 6; // 6 days per week
+            crane.craneCost = weeklyRate * crane.days;
+          } else if (invoiceData.billingType === 'monthly') {
+            const monthlyRate = selectedCrane.dailyRate * 26; // 26 days per month
+            crane.craneCost = monthlyRate * crane.days;
           } else {
             crane.craneCost = selectedCrane.dailyRate * crane.days;
           }
@@ -459,6 +482,8 @@ export default function GenerateCraneRentalInvoice() {
                     >
                       <option value="daily">Daily Rate</option>
                       <option value="hourly">Hourly Rate</option>
+                      <option value="weekly">Weekly Rate (6 days)</option>
+                      <option value="monthly">Monthly Rate (26 days)</option>
                     </select>
                   </div>
 
@@ -471,10 +496,9 @@ export default function GenerateCraneRentalInvoice() {
                       onChange={(e) => setInvoiceData(prev => ({ ...prev, paymentTerms: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                     >
-                      <option value="Net 30">Net 30</option>
-                      <option value="Net 15">Net 15</option>
-                      <option value="Net 7">Net 7</option>
-                      <option value="Due on Receipt">Due on Receipt</option>
+                      {paymentTerms.map((term, index) => (
+                        <option key={index} value={term}>{term}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -540,7 +564,9 @@ export default function GenerateCraneRentalInvoice() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          {invoiceData.billingType === 'hourly' ? 'Hours' : 'Days'} *
+                          {invoiceData.billingType === 'hourly' ? 'Hours' : 
+                           invoiceData.billingType === 'weekly' ? 'Weeks' :
+                           invoiceData.billingType === 'monthly' ? 'Months' : 'Days'} *
                         </label>
                         <input
                           type="number"
@@ -564,7 +590,11 @@ export default function GenerateCraneRentalInvoice() {
                           type="text"
                           value={craneRental.craneId ? 
                             (invoiceData.billingType === 'hourly' ? 
-                              `${formatCurrency(cranes.find(c => c._id === craneRental.craneId)?.dailyRate / 8 || 0)}/hr` :
+                              `${formatCurrency(cranes.find(c => c._id === craneRental.craneId)?.dailyRate / 10 || 0)}/hr` :
+                              invoiceData.billingType === 'weekly' ?
+                              `${formatCurrency(cranes.find(c => c._id === craneRental.craneId)?.dailyRate * 6 || 0)}/week` :
+                              invoiceData.billingType === 'monthly' ?
+                              `${formatCurrency(cranes.find(c => c._id === craneRental.craneId)?.dailyRate * 26 || 0)}/month` :
                               `${formatCurrency(cranes.find(c => c._id === craneRental.craneId)?.dailyRate || 0)}/day`
                             ) : 'N/A'
                           }
@@ -584,6 +614,19 @@ export default function GenerateCraneRentalInvoice() {
                           readOnly
                         />
                       </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Additional Note
+                      </label>
+                      <textarea
+                        value={craneRental.additionalNote || ''}
+                        onChange={(e) => updateCraneRental(index, 'additionalNote', e.target.value)}
+                        placeholder="Add any specific notes for this crane rental..."
+                        rows="2"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                      />
                     </div>
 
                     {craneRental.craneId && (

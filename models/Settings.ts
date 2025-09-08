@@ -4,6 +4,9 @@ export interface ISettings extends Document {
   currency: string;
   discountPercentage: number;
   shopName: string;
+  craneTypes: string[];
+  locations: string[];
+  paymentTerms: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,8 +31,23 @@ const settingsSchema = new Schema<ISettings>({
     required: [true, 'Shop name is required'],
     trim: true,
     maxlength: [200, 'Shop name cannot exceed 200 characters'],
-    default: 'Medical Shop',
+    default: 'Crane Management System',
   },
+  craneTypes: [{
+    type: String,
+    trim: true,
+    maxlength: [100, 'Crane type cannot exceed 100 characters'],
+  }],
+  locations: [{
+    type: String,
+    trim: true,
+    maxlength: [200, 'Location cannot exceed 200 characters'],
+  }],
+  paymentTerms: [{
+    type: String,
+    trim: true,
+    maxlength: [100, 'Payment term cannot exceed 100 characters'],
+  }],
 }, {
   timestamps: true,
 });

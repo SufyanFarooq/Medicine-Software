@@ -68,7 +68,7 @@ export default async function handler(req, res) {
         // Calculate billing for this crane
         let craneSubtotal = 0;
         if (billingType === 'hourly') {
-          const rate = craneRental.hourlyRate || crane.dailyRate / 8;
+          const rate = craneRental.hourlyRate || crane.dailyRate / 10;
           craneSubtotal = rate * craneRental.totalHours;
         } else {
           const rate = craneRental.dailyRate || crane.dailyRate;

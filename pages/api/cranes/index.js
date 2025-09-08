@@ -1,12 +1,14 @@
-import dbConnect from '../../../lib/db';
-import { Crane } from '../../../models';
+const dbConnect = require('../../../lib/db');
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       await dbConnect();
       
-      const cranes = await Crane.find({}).lean();
+      // Use native MongoDB to get the data
+      const mongoose = require('mongoose');
+      const db = mongoose.connection.db;
+      const cranes = await db.collection('cranes').find({}).toArray();
       
       res.status(200).json(cranes);
     } catch (error) {
@@ -17,17 +19,20 @@ export default async function handler(req, res) {
     try {
       await dbConnect();
       
-      const crane = new Crane({
+      const mongoose = require('mongoose');
+      const db = mongoose.connection.db;
+      
+      const craneData = {
         ...req.body,
         createdAt: new Date(),
         updatedAt: new Date()
-      });
+      };
       
-      await crane.save();
+      const result = await db.collection('cranes').insertOne(craneData);
       
       res.status(201).json({
         message: 'Crane added successfully',
-        craneId: crane._id
+        craneId: result.insertedId
       });
     } catch (error) {
       console.error('Error adding crane:', error);
@@ -37,3 +42,5 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' });
   }
 }
+
+export default handler;

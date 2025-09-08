@@ -10,9 +10,12 @@ export default function Settings() {
   const [settings, setSettings] = useState({
     currency: 'AED',
     discountPercentage: 3,
-    shopName: 'Crain Management UAE',
+    shopName: 'Crane Management UAE',
     contactNumber: '',
-    address: ''
+    address: '',
+    craneTypes: [],
+    locations: [],
+    paymentTerms: []
   });
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -408,6 +411,143 @@ export default function Settings() {
                     className="input-field"
                     placeholder="Enter discount percentage"
                   />
+                </div>
+
+                {/* Crane Types Management */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Crane Types ({settings.craneTypes?.length || 0})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSettings(prev => ({ ...prev, craneTypes: [...prev.craneTypes, ''] }));
+                      }}
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                      ➕ Add Type
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                    {settings.craneTypes?.map((type, index) => (
+                      <div key={index} className="flex items-center space-x-1">
+                        <input
+                          type="text"
+                          value={type}
+                          onChange={(e) => {
+                            const newTypes = [...settings.craneTypes];
+                            newTypes[index] = e.target.value;
+                            setSettings(prev => ({ ...prev, craneTypes: newTypes }));
+                          }}
+                          className="input-field text-sm py-1 flex-1"
+                          placeholder="Type name"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newTypes = settings.craneTypes.filter((_, i) => i !== index);
+                            setSettings(prev => ({ ...prev, craneTypes: newTypes }));
+                          }}
+                          className="text-red-500 hover:text-red-700 text-xs px-1"
+                          title="Delete"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Locations Management */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Locations ({settings.locations?.length || 0})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSettings(prev => ({ ...prev, locations: [...prev.locations, ''] }));
+                      }}
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                      ➕ Add Location
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                    {settings.locations?.map((location, index) => (
+                      <div key={index} className="flex items-center space-x-1">
+                        <input
+                          type="text"
+                          value={location}
+                          onChange={(e) => {
+                            const newLocations = [...settings.locations];
+                            newLocations[index] = e.target.value;
+                            setSettings(prev => ({ ...prev, locations: newLocations }));
+                          }}
+                          className="input-field text-sm py-1 flex-1"
+                          placeholder="Location name"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newLocations = settings.locations.filter((_, i) => i !== index);
+                            setSettings(prev => ({ ...prev, locations: newLocations }));
+                          }}
+                          className="text-red-500 hover:text-red-700 text-xs px-1"
+                          title="Delete"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Payment Terms Management */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Payment Terms ({settings.paymentTerms?.length || 0})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSettings(prev => ({ ...prev, paymentTerms: [...prev.paymentTerms, ''] }));
+                      }}
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                      ➕ Add Term
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                    {settings.paymentTerms?.map((term, index) => (
+                      <div key={index} className="flex items-center space-x-1">
+                        <input
+                          type="text"
+                          value={term}
+                          onChange={(e) => {
+                            const newTerms = [...settings.paymentTerms];
+                            newTerms[index] = e.target.value;
+                            setSettings(prev => ({ ...prev, paymentTerms: newTerms }));
+                          }}
+                          className="input-field text-sm py-1 flex-1"
+                          placeholder="Payment term"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newTerms = settings.paymentTerms.filter((_, i) => i !== index);
+                            setSettings(prev => ({ ...prev, paymentTerms: newTerms }));
+                          }}
+                          className="text-red-600 hover:text-red-800 text-xs px-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="flex justify-end">

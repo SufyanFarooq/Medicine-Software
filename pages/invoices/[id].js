@@ -213,34 +213,30 @@ export default function InvoiceDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {invoice.craneDetails.map((crane, index) => (
+                    {invoice.items && invoice.items.map((item, index) => (
                       <tr key={index} className="border-b border-gray-300">
                         <td className="border border-gray-300 px-4 py-3 text-sm text-gray-900">
                           {index + 1}
                         </td>
                         <td className="border border-gray-300 px-4 py-3 text-sm text-gray-900">
                           <div className="font-medium">
-                            {crane.craneName} ({crane.craneCode})
+                            {item.description}
                           </div>
                           <div className="text-xs text-gray-600 mt-1">
-                            {crane.craneType} - {crane.craneCapacity}
-                          </div>
-                          <div className="text-xs text-gray-600">
-                            {invoice.billingType === 'hourly' ? `${crane.hours} hours` : `${crane.days} days`} at site
+                            Quantity: {item.quantity}
                           </div>
                         </td>
                         <td className="border border-gray-300 px-4 py-3 text-center text-sm text-gray-900">
-                          {invoice.billingType === 'hourly' ? crane.hours : crane.days}
+                          {item.quantity}
                         </td>
                         <td className="border border-gray-300 px-4 py-3 text-right text-sm text-gray-900">
-                          {formatCurrency(invoice.billingType === 'hourly' ? (crane.dailyRate / 8) : crane.dailyRate)}
-                          /{invoice.billingType === 'hourly' ? 'hr' : 'day'}
+                          {formatCurrency(item.unitPrice)}
                         </td>
                         <td className="border border-gray-300 px-4 py-3 text-right text-sm text-gray-900">
-                          {formatCurrency(crane.craneCost * 0.05)}
+                          {formatCurrency(item.total * 0.05)}
                         </td>
                         <td className="border border-gray-300 px-4 py-3 text-right text-sm text-gray-900 font-medium">
-                          {formatCurrency(crane.craneCost)}
+                          {formatCurrency(item.total)}
                         </td>
                       </tr>
                     ))}
@@ -258,11 +254,11 @@ export default function InvoiceDetailPage() {
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-gray-200">
                       <span className="text-gray-600">VAT (5%):</span>
-                      <span className="font-medium">{formatCurrency(invoice.vatAmount)}</span>
+                      <span className="font-medium">{formatCurrency(invoice.total - invoice.subtotal)}</span>
                     </div>
                     <div className="flex justify-between items-center py-3">
                       <span className="text-lg font-bold text-gray-900">Total:</span>
-                      <span className="text-lg font-bold text-gray-900">{formatCurrency(invoice.totalAmount)}</span>
+                      <span className="text-lg font-bold text-gray-900">{formatCurrency(invoice.total)}</span>
                     </div>
                   </div>
                 </div>
