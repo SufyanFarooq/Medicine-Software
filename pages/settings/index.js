@@ -6,6 +6,52 @@ import { getUser } from '../../lib/auth';
 import { hasPermission } from '../../lib/permissions';
 import { logSettingsActivity } from '../../lib/activity-logger';
 import Link from 'next/link';
+import {
+  Card,
+  Tabs,
+  Form,
+  Input,
+  Select,
+  Button,
+  Switch,
+  InputNumber,
+  Typography,
+  Row,
+  Col,
+  Space,
+  Alert,
+  Table,
+  Modal,
+  Spin,
+  Divider,
+  Tag,
+  Tooltip,
+  notification,
+  Popconfirm,
+  Checkbox
+} from 'antd';
+import {
+  SettingOutlined,
+  UserOutlined,
+  BellOutlined,
+  ShopOutlined,
+  RocketOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  SaveOutlined,
+  ExperimentOutlined,
+  InfoCircleOutlined,
+  BankOutlined,
+  PhoneOutlined,
+  MailOutlined,
+  EnvironmentOutlined,
+  GlobalOutlined,
+  DollarOutlined,
+  PercentageOutlined,
+  WarningOutlined,
+  ClockCircleOutlined
+} from '@ant-design/icons';
 
 export default function Settings() {
   const [settings, setSettings] = useState({
@@ -21,11 +67,6 @@ export default function Settings() {
     hasExpiryDates: true,
     hasBatchNumbers: false,
     lowStockThreshold: 10,
-    // Notification settings
-    enableEmailNotifications: false,
-    enableSmsNotifications: false,
-    notificationEmail: '',
-    notificationPhoneNumber: '',
     notificationSettings: {
       lowStockThreshold: 20,
       expiryWarningDays: 30,
@@ -46,10 +87,16 @@ export default function Settings() {
     role: 'sales_man'
   });
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('company');
+  const [activeTab, setActiveTab] = useState('general');
   const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [form] = Form.useForm();
+  const [userForm] = Form.useForm();
+  const [editUserForm] = Form.useForm();
+
+  const { Title, Text, Paragraph } = Typography;
+  const { Option } = Select;
+  const { TextArea } = Input;
 
   const currencies = [
     { symbol: '$', name: 'US Dollar' },
@@ -86,7 +133,6 @@ export default function Settings() {
     fetchSettings();
   }, []);
 
-  // Separate useEffect for user-dependent operations
   useEffect(() => {
     if (currentUser && hasPermission(currentUser.role, 'canManageUsers')) {
       fetchUsers();
@@ -100,7 +146,6 @@ export default function Settings() {
         const data = await response.json();
         setSettings(data);
         setOriginalSettings(data);
-        // Set global currency
         setCurrency(data.currency);
       }
     } catch (error) {
@@ -115,10 +160,13 @@ export default function Settings() {
       const response = await apiRequest('/api/users');
       if (response.ok) {
         const data = await response.json();
-        setUsers(data);
+        // Handle both array response and object with users property
+        const usersArray = data.users || data || [];
+        setUsers(Array.isArray(usersArray) ? usersArray : []);
       }
     } catch (error) {
       console.error('Error fetching users:', error);
+      setUsers([]); // Ensure users is always an array
     }
   };
 
@@ -133,20 +181,32 @@ export default function Settings() {
       });
 
       if (response.ok) {
-        setMessage('Test notification processed successfully! Check the notification bell.');
-        setTimeout(() => setMessage(''), 5000);
+        notification.success({
+          message: 'Test Notification Sent',
+          description: 'Test notification processed successfully! Check the notification bell.',
+          duration: 5,
+        });
       } else {
-        setMessage('Failed to process test notification');
+        notification.error({
+          message: 'Test Failed',
+          description: 'Failed to process test notification',
+        });
       }
     } catch (error) {
       console.error('Error testing notification:', error);
-      setMessage('Failed to test notification');
+      notification.error({
+        message: 'Test Failed',
+        description: 'Failed to test notification',
+      });
     }
   };
 
   const handleSettingsSave = async () => {
     if (!hasPermission(currentUser?.role, 'canModifySettings')) {
-      setMessage('Access denied. You do not have permission to modify settings.');
+      notification.error({
+        message: 'Access Denied',
+        description: 'You do not have permission to modify settings.',
+      });
       return;
     }
 
@@ -154,7 +214,6 @@ export default function Settings() {
     try {
       let response;
       
-      // If we're on the notifications tab, send notification settings
       if (activeTab === 'notifications') {
         response = await apiRequest('/api/settings', {
           method: 'PUT',
@@ -163,7 +222,6 @@ export default function Settings() {
           }),
         });
       } else {
-        // For other tabs, send regular settings
         response = await apiRequest('/api/settings', {
           method: 'PUT',
           body: JSON.stringify(settings),
@@ -171,7 +229,6 @@ export default function Settings() {
       }
 
       if (response.ok) {
-        // Log settings changes for regular settings
         if (activeTab !== 'notifications') {
           if (originalSettings.businessName !== settings.businessName) {
             logSettingsActivity.updated('businessName', originalSettings.businessName, settings.businessName);
@@ -190,28 +247,37 @@ export default function Settings() {
           }
         }
         
-        setMessage(activeTab === 'notifications' ? 'Notification settings saved successfully!' : 'Settings saved successfully!');
-        // Update global currency immediately for regular settings
+        notification.success({
+          message: 'Settings Saved',
+          description: activeTab === 'notifications' ? 'Notification settings saved successfully!' : 'Settings saved successfully!',
+        });
+        
         if (activeTab !== 'notifications') {
           setCurrency(settings.currency);
         }
-        // Update original settings
         setOriginalSettings(settings);
-        setTimeout(() => setMessage(''), 3000);
       } else {
-        setMessage('Failed to save settings');
+        notification.error({
+          message: 'Save Failed',
+          description: 'Failed to save settings',
+        });
       }
     } catch (error) {
-      setMessage('Error saving settings');
+      notification.error({
+        message: 'Error',
+        description: 'Error saving settings',
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddUser = async (e) => {
-    e.preventDefault();
+  const handleAddUser = async (values) => {
     if (!hasPermission(currentUser?.role, 'canCreateUsers')) {
-      setMessage('Access denied. You do not have permission to create users.');
+      notification.error({
+        message: 'Access Denied',
+        description: 'You do not have permission to create users.',
+      });
       return;
     }
 
@@ -219,21 +285,29 @@ export default function Settings() {
     try {
       const response = await apiRequest('/api/users', {
         method: 'POST',
-        body: JSON.stringify(newUser),
+        body: JSON.stringify(values),
       });
 
       if (response.ok) {
-        setMessage('User added successfully!');
-        setNewUser({ username: '', password: '', role: 'sales_man' });
+        notification.success({
+          message: 'User Added',
+          description: 'User added successfully!',
+        });
+        userForm.resetFields();
         setShowAddUser(false);
         fetchUsers();
-        setTimeout(() => setMessage(''), 3000);
       } else {
         const errorData = await response.json();
-        setMessage(errorData.message || 'Failed to add user');
+        notification.error({
+          message: 'Add User Failed',
+          description: errorData.message || 'Failed to add user',
+        });
       }
     } catch (error) {
-      setMessage('Error adding user');
+      notification.error({
+        message: 'Error',
+        description: 'Error adding user',
+      });
     } finally {
       setLoading(false);
     }
@@ -241,11 +315,10 @@ export default function Settings() {
 
   const handleDeleteUser = async (userId) => {
     if (!hasPermission(currentUser?.role, 'canDeleteUsers')) {
-      setMessage('Access denied. You do not have permission to delete users.');
-      return;
-    }
-
-    if (!confirm('Are you sure you want to delete this user?')) {
+      notification.error({
+        message: 'Access Denied',
+        description: 'You do not have permission to delete users.',
+      });
       return;
     }
 
@@ -255,14 +328,22 @@ export default function Settings() {
       });
 
       if (response.ok) {
-        setMessage('User deleted successfully!');
+        notification.success({
+          message: 'User Deleted',
+          description: 'User deleted successfully!',
+        });
         fetchUsers();
-        setTimeout(() => setMessage(''), 3000);
       } else {
-        setMessage('Failed to delete user');
+        notification.error({
+          message: 'Delete Failed',
+          description: 'Failed to delete user',
+        });
       }
     } catch (error) {
-      setMessage('Error deleting user');
+      notification.error({
+        message: 'Error',
+        description: 'Error deleting user',
+      });
     }
   };
 
@@ -273,25 +354,32 @@ export default function Settings() {
       password: '',
       role: user.role
     });
+    editUserForm.setFieldsValue({
+      username: user.username,
+      role: user.role,
+      password: ''
+    });
   };
 
-  const handleUpdateUser = async (e) => {
-    e.preventDefault();
+  const handleUpdateUser = async (values) => {
     if (!hasPermission(currentUser?.role, 'canUpdateUsers')) {
-      setMessage('Access denied. You do not have permission to update users.');
+      notification.error({
+        message: 'Access Denied',
+        description: 'You do not have permission to update users.',
+      });
       return;
     }
 
     setLoading(true);
     try {
       const updateData = {
-        username: editingUser.username,
-        role: editingUser.role
+        username: values.username,
+        role: values.role
       };
       
       // Only include password if it's not empty
-      if (editingUser.password.trim() !== '') {
-        updateData.password = editingUser.password;
+      if (values.password && values.password.trim() !== '') {
+        updateData.password = values.password;
       }
 
       const response = await apiRequest(`/api/users/${editingUser._id}`, {
@@ -300,16 +388,25 @@ export default function Settings() {
       });
 
       if (response.ok) {
-        setMessage('User updated successfully!');
+        notification.success({
+          message: 'User Updated',
+          description: 'User updated successfully!',
+        });
         setEditingUser(null);
+        editUserForm.resetFields();
         fetchUsers();
-        setTimeout(() => setMessage(''), 3000);
       } else {
         const errorData = await response.json();
-        setMessage(errorData.message || 'Failed to update user');
+        notification.error({
+          message: 'Update Failed',
+          description: errorData.message || 'Failed to update user',
+        });
       }
     } catch (error) {
-      setMessage('Error updating user');
+      notification.error({
+        message: 'Error',
+        description: 'Error updating user',
+      });
     } finally {
       setLoading(false);
     }
@@ -318,8 +415,13 @@ export default function Settings() {
   if (isLoadingUser) {
     return (
       <Layout>
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '400px' 
+        }}>
+          <Spin size="large" />
         </div>
       </Layout>
     );
@@ -328,1080 +430,771 @@ export default function Settings() {
   if (!currentUser) {
     return (
       <Layout>
-        <div className="text-center py-8">
-          <p className="text-gray-600">Please log in to access settings.</p>
+        <div style={{ textAlign: 'center', padding: '64px 0' }}>
+          <Text type="secondary">Please log in to access settings.</Text>
         </div>
       </Layout>
     );
   }
 
+  // Define tab items
+  const tabItems = [
+    {
+      key: 'company',
+      label: (
+        <span>
+          <ShopOutlined />
+          Company Information
+        </span>
+      ),
+    },
+    {
+      key: 'system',
+      label: (
+        <span>
+          <SettingOutlined />
+          System Settings
+        </span>
+      ),
+    },
+    {
+      key: 'notifications',
+      label: (
+        <span>
+          <BellOutlined />
+          Notifications
+        </span>
+      ),
+    },
+    ...(hasPermission(currentUser?.role, 'canManageBusinessSetup') ? [{
+      key: 'business-setup',
+      label: (
+        <span>
+          <RocketOutlined />
+          Business Setup
+        </span>
+      ),
+    }] : []),
+    {
+      key: 'users',
+      label: (
+        <span>
+          <UserOutlined />
+          User Management
+        </span>
+      ),
+    },
+  ];
+
+  // Define sidebar menu items
+  const sidebarMenuItems = [
+    {
+      key: 'general',
+      icon: <SettingOutlined />,
+      label: 'General Settings',
+    },
+    {
+      key: 'company',
+      icon: <ShopOutlined />,
+      label: 'Company Settings',
+    },
+    {
+      key: 'logo',
+      icon: <BankOutlined />,
+      label: 'Company Logo',
+    },
+    {
+      key: 'currency',
+      icon: <DollarOutlined />,
+      label: 'Currency Settings',
+    },
+    {
+      key: 'pdf',
+      icon: <InfoCircleOutlined />,
+      label: 'PDF Settings',
+    },
+    {
+      key: 'finance',
+      icon: <BankOutlined />,
+      label: 'Finance Settings',
+    },
+    ...(hasPermission(currentUser?.role, 'canManageUsers') ? [{
+      key: 'users',
+      icon: <UserOutlined />,
+      label: 'User Management',
+    }] : []),
+    ...(hasPermission(currentUser?.role, 'canModifySettings') ? [{
+      key: 'notifications',
+      icon: <BellOutlined />,
+      label: 'Notifications',
+    }] : []),
+  ];
+
   return (
     <Layout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Manage company information, system settings, and users
-              </p>
-            </div>
-            
-            {/* Business Setup Button */}
-            {hasPermission(currentUser?.role, 'canManageBusinessSetup') && (
-              <div className="flex flex-col items-end space-y-2">
-                <Link
-                  href="/setup/business-config"
-                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white text-sm font-medium rounded-lg hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-                >
-                  🚀 Business Setup Wizard
-                </Link>
-                <p className="text-xs text-gray-500 text-right">
-                  Configure your business type, categories, and features
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {message && (
-          <div className={`p-4 rounded-lg ${
-            message.includes('successfully') 
-              ? 'bg-green-50 border border-green-200 text-green-600' 
-              : 'bg-red-50 border border-red-200 text-red-600'
-          }`}>
-            {message}
-          </div>
-        )}
-
-        {/* Tab Navigation */}
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab('company')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'company'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+      <div style={{ padding: '24px' }}>
+        <Row gutter={24} style={{ minHeight: '600px' }}>
+          {/* Sidebar */}
+          <Col xs={24} md={6}>
+            <Card 
+              title={
+                <Space>
+                  <SettingOutlined />
+                  <span>Settings</span>
+                </Space>
+              }
+              style={{ height: 'fit-content' }}
             >
-              🏪 Company Information
-            </button>
-            <button
-              onClick={() => setActiveTab('system')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'system'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              ⚙️ System Settings
-            </button>
-            <button
-              onClick={() => setActiveTab('notifications')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'notifications'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              🔔 Notification Settings
-            </button>
-            {hasPermission(currentUser?.role, 'canManageBusinessSetup') && (
-              <button
-                onClick={() => setActiveTab('business-setup')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'business-setup'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                🚀 Business Setup
-              </button>
-            )}
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'users'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              👥 User Management
-            </button>
-          </nav>
-        </div>
-
-        {/* Company Information Tab */}
-        {activeTab === 'company' && (
-          hasPermission(currentUser?.role, 'canModifySettings') ? (
-            <div className="space-y-6">
-              {/* Basic Business Information */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">🏪 Basic Business Information</h3>
-                <p className="text-sm text-gray-600 mb-4">Core business details that appear on invoices and receipts</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="businessName" className="block text-sm font-medium text-gray-700 mb-2">
-                      Business Name *
-                    </label>
-                    <input
-                      type="text"
-                      id="businessName"
-                      value={settings.businessName}
-                      onChange={(e) => setSettings(prev => ({ ...prev, businessName: e.target.value }))}
-                      className="input-field"
-                      placeholder="Enter business name"
-                      required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      This will appear on all invoices and reports
-                    </p>
+              <div style={{ marginBottom: '16px' }}>
+                {sidebarMenuItems.map((item) => (
+                  <div
+                    key={item.key}
+                    onClick={() => setActiveTab(item.key)}
+                    style={{
+                      padding: '12px 16px',
+                      cursor: 'pointer',
+                      borderRadius: '6px',
+                      marginBottom: '4px',
+                      backgroundColor: activeTab === item.key ? '#e6f7ff' : 'transparent',
+                      borderLeft: activeTab === item.key ? '3px solid #1890ff' : '3px solid transparent',
+                      transition: 'all 0.3s ease',
+                      color: activeTab === item.key ? '#1890ff' : '#666',
+                      fontWeight: activeTab === item.key ? 500 : 400,
+                    }}
+                  >
+                    <Space>
+                      {item.icon}
+                      <span>{item.label}</span>
+                    </Space>
                   </div>
-
-                  <div>
-                    <label htmlFor="businessType" className="block text-sm font-medium text-gray-700 mb-2">
-                      Business Type
-                    </label>
-                    <select
-                      id="businessType"
-                      value={settings.businessType}
-                      onChange={(e) => setSettings(prev => ({ ...prev, businessType: e.target.value }))}
-                      className="input-field"
-                    >
-                      {businessTypes.map((type) => (
-                        <option key={type.value} value={type.value}>
-                          {type.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Determines default categories and features
-                    </p>
-                  </div>
-                </div>
+                ))}
               </div>
+            </Card>
+          </Col>
 
-              {/* Contact Information */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">📞 Contact Information</h3>
-                <p className="text-sm text-gray-600 mb-4">Business contact details for customer communication</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="contactNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                      Contact Number
-                    </label>
-                    <input
-                      type="tel"
-                      id="contactNumber"
-                      value={settings.contactNumber}
-                      onChange={(e) => setSettings(prev => ({ ...prev, contactNumber: e.target.value }))}
-                      className="input-field"
-                      placeholder="+92 XXX XXXXXXX"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Customer service contact number
-                    </p>
-                  </div>
-
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      id="email"
-                      value={settings.email}
-                      onChange={(e) => setSettings(prev => ({ ...prev, email: e.target.value }))}
-                      className="input-field"
-                      placeholder="business@example.com"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Business email for customer inquiries
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Location & Online Presence */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">📍 Location & Online Presence</h3>
-                <p className="text-sm text-gray-600 mb-4">Business address and online information</p>
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
-                      Business Address
-                    </label>
-                    <textarea
-                      id="address"
-                      rows="3"
-                      value={settings.address}
-                      onChange={(e) => setSettings(prev => ({ ...prev, address: e.target.value }))}
-                      className="input-field"
-                      placeholder="Enter complete business address"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Full address for invoices and customer reference
-                    </p>
-                  </div>
-
-                  <div>
-                    <label htmlFor="website" className="block text-sm font-medium text-gray-700 mb-2">
-                      Website URL
-                    </label>
-                    <input
-                      type="url"
-                      id="website"
-                      value={settings.website}
-                      onChange={(e) => setSettings(prev => ({ ...prev, website: e.target.value }))}
-                      className="input-field"
-                      placeholder="https://www.example.com"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Optional: Your business website
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSettingsSave}
-                  disabled={loading}
-                  className="btn-primary"
-                >
-                  {loading ? '⏳ Saving...' : '💾 Save Company Information'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="card">
-              <div className="text-center py-8">
-                <p className="text-gray-500">Company Information</p>
-                <p className="text-sm text-gray-400 mt-2">
-                  You do not have permission to modify company information. Contact your Super Admin.
-                </p>
-              </div>
-            </div>
-          )
-        )}
-
-        {/* System Settings Tab */}
-        {activeTab === 'system' && (
-          hasPermission(currentUser?.role, 'canModifySettings') ? (
-            <div className="space-y-6">
-              {/* Currency & Financial Settings */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">💰 Currency & Financial Settings</h3>
-                <p className="text-sm text-gray-600 mb-4">Configure currency, discounts, and tax settings</p>
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-2">
-                      Currency Symbol
-                    </label>
-                    <select
-                      id="currency"
-                      value={settings.currency}
-                      onChange={(e) => setSettings(prev => ({ ...prev, currency: e.target.value }))}
-                      className="input-field"
-                    >
-                      {currencies.map((currency) => (
-                        <option key={currency.symbol} value={currency.symbol}>
-                          {currency.symbol} - {currency.name}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      This will be used on all invoices and reports
-                    </p>
-                  </div>
-
-                  <div>
-                    <label htmlFor="discountPercentage" className="block text-sm font-medium text-gray-700 mb-2">
-                      Default Discount Percentage
-                    </label>
-                    <input
-                      type="number"
-                      id="discountPercentage"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={settings.discountPercentage}
-                      onChange={(e) => setSettings(prev => ({ ...prev, discountPercentage: parseFloat(e.target.value) }))}
-                      className="input-field"
-                      placeholder="Enter discount percentage"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Applied to all new invoices by default
-                    </p>
-                  </div>
-
-                  <div>
-                    <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700 mb-2">
-                      Tax Rate (%)
-                    </label>
-                    <input
-                      type="number"
-                      id="taxRate"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={settings.taxRate}
-                      onChange={(e) => setSettings(prev => ({ ...prev, taxRate: parseFloat(e.target.value) }))}
-                      className="input-field"
-                      placeholder="Enter tax rate"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Tax rate applied to all sales transactions
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Inventory Management Settings */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">📦 Inventory Management Settings</h3>
-                <p className="text-sm text-gray-600 mb-4">Configure inventory tracking and alert settings</p>
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="lowStockThreshold" className="block text-sm font-medium text-gray-700 mb-2">
-                      Low Stock Threshold
-                    </label>
-                    <input
-                      type="number"
-                      id="lowStockThreshold"
-                      min="1"
-                      value={settings.lowStockThreshold}
-                      onChange={(e) => setSettings(prev => ({ ...prev, lowStockThreshold: parseInt(e.target.value) }))}
-                      className="input-field"
-                      placeholder="Enter low stock threshold"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Products below this quantity will show low stock warnings
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-gray-700">Feature Toggles</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                        <input
-                          type="checkbox"
-                          id="hasExpiryDates"
-                          checked={settings.hasExpiryDates}
-                          onChange={(e) => setSettings(prev => ({ ...prev, hasExpiryDates: e.target.checked }))}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="hasExpiryDates" className="ml-3 block text-sm text-gray-700">
-                          <span className="font-medium">Expiry Date Tracking</span>
-                          <p className="text-xs text-gray-500">Track product expiration dates</p>
-                        </label>
-                      </div>
-
-                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                        <input
-                          type="checkbox"
-                          id="hasBatchNumbers"
-                          checked={settings.hasBatchNumbers}
-                          onChange={(e) => setSettings(prev => ({ ...prev, hasBatchNumbers: e.target.checked }))}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="hasBatchNumbers" className="ml-3 block text-sm text-gray-700">
-                          <span className="font-medium">Batch Number Tracking</span>
-                          <p className="text-xs text-gray-500">Track product batch numbers</p>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSettingsSave}
-                  disabled={loading}
-                  className="btn-primary"
-                >
-                  {loading ? '⏳ Saving...' : '⚙️ Save System Settings'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="card">
-              <div className="text-center py-8">
-                <p className="text-gray-500">System Settings</p>
-                <p className="text-sm text-gray-400 mt-2">
-                  You do not have permission to modify system settings. Contact your Super Admin.
-                </p>
-              </div>
-            </div>
-          )
-        )}
-
-        {/* Notification Settings Tab */}
-        {activeTab === 'notifications' && (
-          hasPermission(currentUser?.role, 'canModifySettings') ? (
-            <div className="space-y-6">
-              {/* Stock Alerts */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">📦 Stock Alerts</h3>
-                <p className="text-sm text-gray-600 mb-4">Configure low-stock alerts and stockout warnings</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Low Stock Threshold (%)
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={settings.notificationSettings?.lowStockThreshold || 20}
-                        onChange={(e) => setSettings(prev => ({
-                          ...prev,
-                          notificationSettings: {
-                            ...prev.notificationSettings,
-                            lowStockThreshold: parseInt(e.target.value)
-                          }
-                        }))}
-                        className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-gray-500">% of min stock level</span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Alert when stock falls below this percentage of minimum stock level
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Stockout Alert
-                    </label>
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={settings.notificationSettings?.stockoutAlert !== false}
-                        onChange={(e) => setSettings(prev => ({
-                          ...prev,
-                          notificationSettings: {
-                            ...prev.notificationSettings,
-                            stockoutAlert: e.target.checked
-                          }
-                        }))}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">
-                        Alert when product is completely out of stock
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Expiry Warnings */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">⏰ Expiry Warnings</h3>
-                <p className="text-sm text-gray-600 mb-4">Configure expiry warning notifications</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Warning Days (Medium Priority)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="365"
-                      value={settings.notificationSettings?.expiryWarningDays || 30}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        notificationSettings: {
-                          ...prev.notificationSettings,
-                          expiryWarningDays: parseInt(e.target.value)
-                        }
-                      }))}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Days before expiry to show medium priority warning
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Critical Days (High Priority)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="30"
-                      value={settings.notificationSettings?.criticalExpiryDays || 7}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        notificationSettings: {
-                          ...prev.notificationSettings,
-                          criticalExpiryDays: parseInt(e.target.value)
-                        }
-                      }))}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Days before expiry to show critical priority warning
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notification Channels */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">📱 Notification Channels</h3>
-                <p className="text-sm text-gray-600 mb-4">Choose how you want to receive notifications</p>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      In-app notifications (recommended)
-                    </label>
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={settings.notificationSettings?.inAppNotifications !== false}
-                        onChange={(e) => setSettings(prev => ({
-                          ...prev,
-                          notificationSettings: {
-                            ...prev.notificationSettings,
-                            inAppNotifications: e.target.checked
-                          }
-                        }))}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">
-                        Show notifications in the app interface
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email notifications
-                    </label>
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={settings.notificationSettings?.emailNotifications === true}
-                        onChange={(e) => setSettings(prev => ({
-                          ...prev,
-                          notificationSettings: {
-                            ...prev.notificationSettings,
-                            emailNotifications: e.target.checked
-                          }
-                        }))}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">
-                        Send notifications via email
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notification Frequency */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">⏱️ Notification Frequency</h3>
-                <p className="text-sm text-gray-600 mb-4">How often should the system check for alerts</p>
-                
+          {/* Main Content */}
+          <Col xs={24} md={18}>
+            <Card style={{ minHeight: '500px' }}>
+              
+              {/* General Settings Tab */}
+              {activeTab === 'general' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Check Frequency
-                  </label>
-                  <select
-                    value={settings.notificationSettings?.notificationFrequency || 'realtime'}
-                    onChange={(e) => setSettings(prev => ({
-                      ...prev,
-                      notificationSettings: {
-                        ...prev.notificationSettings,
-                        notificationFrequency: e.target.value
-                      }
-                    }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="realtime">Real-time (immediate)</option>
-                    <option value="hourly">Hourly</option>
-                    <option value="daily">Daily</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Real-time provides instant alerts, while hourly/daily reduces system load
-                  </p>
-                </div>
-              </div>
-
-              {/* Cleanup Settings */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">🧹 Cleanup Settings</h3>
-                <p className="text-sm text-gray-600 mb-4">Automatically clean up old notifications</p>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Auto-cleanup Old Notifications
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      max="365"
-                      value={settings.notificationSettings?.autoCleanupDays || 30}
-                      onChange={(e) => setSettings(prev => ({
-                        ...prev,
-                        notificationSettings: {
-                          ...prev.notificationSettings,
-                          autoCleanupDays: parseInt(e.target.value)
+                  <Title level={3} style={{ marginBottom: '8px' }}>General Settings</Title>
+                  
+                  <Divider />
+                  
+                  <Title level={4} style={{ marginTop: '32px', marginBottom: '16px' }}>App Settings</Title>
+                  <Text type="secondary" style={{ display: 'block', marginBottom: '24px' }}>
+                    Update Your App Configuration
+                  </Text>
+                  
+                  <Row gutter={[24, 24]}>
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        label={
+                          <span>
+                            <span style={{ color: '#ff4d4f' }}>* </span>
+                            Language:
+                          </span>
                         }
-                      }))}
-                      className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-500">days old</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Notifications older than this will be automatically removed
-                  </p>
-                </div>
-              </div>
-
-              {/* Test Notifications */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">🧪 Test Notifications</h3>
-                <p className="text-sm text-gray-600 mb-4">Test the notification system to ensure it's working properly</p>
-                
-                <button
-                  type="button"
-                  onClick={testNotification}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                >
-                  🧪 Test Notifications
-                </button>
-                
-                <p className="text-xs text-gray-500 mt-2">
-                  This will create sample notifications to test the system
-                </p>
-              </div>
-
-              {/* Save Button */}
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSettingsSave}
-                  disabled={loading}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {loading ? '⏳ Saving...' : '💾 Save Notification Settings'}
-                </button>
-              </div>
-
-              {/* How It Works */}
-              <div className="card bg-blue-50 border-blue-200">
-                <h3 className="text-lg font-medium text-blue-900 mb-4">💡 How It Works</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-blue-800">
-                  <div>
-                    <h4 className="font-medium mb-2">Low Stock Alerts</h4>
-                    <p>System monitors product quantities and alerts when stock falls below thresholds</p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium mb-2">Expiry Warnings</h4>
-                    <p>Automatically detects products nearing expiry and sends timely reminders</p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium mb-2">Priority Levels</h4>
-                    <p>Critical (red), High (orange), Medium (yellow), Low (blue) based on urgency</p>
-                  </div>
-                  <div>
-                    <h4 className="font-medium mb-2">Real-time Updates</h4>
-                    <p>Notifications appear instantly in the app and can be sent via email</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="card">
-              <div className="text-center py-8">
-                <p className="text-gray-500">Notification Settings</p>
-                <p className="text-sm text-gray-400 mt-2">
-                  You do not have permission to modify notification settings. Contact your Super Admin.
-                </p>
-              </div>
-            </div>
-          )
-        )}
-
-        {/* Business Setup Tab */}
-        {activeTab === 'business-setup' && (
-          hasPermission(currentUser?.role, 'canManageBusinessSetup') ? (
-            <div className="space-y-6">
-              {/* Business Setup Wizard Card */}
-              <div className="card bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
-                <div className="text-center py-8">
-                  <div className="text-6xl mb-4">🚀</div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Business Setup Wizard</h3>
-                  <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-                    Use our comprehensive wizard to configure your business type, categories, and features. 
-                    This will set up your system according to your business requirements.
-                  </p>
-                  <Link
-                    href="/setup/business-config"
-                    className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white text-lg font-medium rounded-lg hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
-                  >
-                    🚀 Launch Business Setup Wizard
-                  </Link>
-                </div>
-              </div>
-
-              {/* Business Features Status */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">⚙️ Business Features Status</h3>
-                <p className="text-sm text-gray-600 mb-4">Current features enabled for your business</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-2xl mr-3">📅</span>
-                    <div>
-                      <p className="font-medium text-gray-900">Expiry Dates</p>
-                      <p className="text-sm text-gray-600">
-                        {settings.hasExpiryDates ? '✅ Enabled' : '❌ Disabled'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-2xl mr-3">🏷️</span>
-                    <div>
-                      <p className="font-medium text-gray-900">Batch Numbers</p>
-                      <p className="text-sm text-gray-600">
-                        {settings.hasBatchNumbers ? '✅ Enabled' : '❌ Disabled'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-2xl mr-3">💰</span>
-                    <div>
-                      <p className="font-medium text-gray-900">Default Discount</p>
-                      <p className="text-sm text-gray-600">{settings.discountPercentage}%</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Business Configuration */}
-              <div className="card">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">⚡ Quick Business Configuration</h3>
-                <p className="text-sm text-gray-600 mb-4">Essential business settings that can be quickly modified</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Business Type
-                    </label>
-                    <select
-                      value={settings.businessType}
-                      onChange={(e) => setSettings(prev => ({ ...prev, businessType: e.target.value }))}
-                      className="input-field"
-                    >
-                      {businessTypes.map((type) => (
-                        <option key={type.value} value={type.value}>
-                          {type.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      This affects default categories and features
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Default Discount (%)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={settings.discountPercentage}
-                      onChange={(e) => setSettings(prev => ({ ...prev, discountPercentage: parseFloat(e.target.value) }))}
-                      className="input-field"
-                      placeholder="Enter discount percentage"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Applied to all new invoices by default
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex justify-end mt-6">
-                  <button
-                    onClick={handleSettingsSave}
-                    disabled={loading}
-                    className="btn-primary"
-                  >
-                    {loading ? '⏳ Saving...' : '💾 Save Quick Settings'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Business Setup Tips */}
-              <div className="card bg-blue-50 border-blue-200">
-                <h3 className="text-lg font-medium text-blue-900 mb-4">💡 Business Setup Tips</h3>
-                <div className="space-y-3 text-sm text-blue-800">
-                  <div className="flex items-start">
-                    <span className="text-blue-600 mr-2">•</span>
-                    <p>Use the Business Setup Wizard for complete configuration</p>
-                  </div>
-                  <div className="flex items-start">
-                    <span className="text-blue-600 mr-2">•</span>
-                    <p>Business type determines default categories and features</p>
-                  </div>
-                  <div className="flex items-start">
-                    <span className="text-blue-600 mr-2">•</span>
-                    <p>Default discount applies to all new invoices</p>
-                  </div>
-                  <div className="flex items-start">
-                    <span className="text-blue-600 mr-2">•</span>
-                    <p>Contact support for advanced business configuration</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="card">
-              <div className="text-center py-8">
-                <p className="text-gray-500">Business Setup Wizard</p>
-                <p className="text-sm text-gray-400 mt-2">
-                  You do not have permission to manage business setup. Contact your Super Admin.
-                </p>
-              </div>
-            </div>
-          )
-        )}
-
-        {/* User Management Tab */}
-        {activeTab === 'users' && (
-          hasPermission(currentUser?.role, 'canManageUsers') ? (
-          <div className="card">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">User Management</h3>
-              <button
-                onClick={() => setShowAddUser(!showAddUser)}
-                className="btn-primary"
-              >
-                {showAddUser ? '❌ Cancel' : '👤 Add User'}
-              </button>
-            </div>
-
-            {/* Add User Form */}
-            {showAddUser && (
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <h4 className="text-md font-medium text-gray-900 mb-3">Add New User</h4>
-                <form onSubmit={handleAddUser} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                        Username
-                      </label>
-                      <input
-                        type="text"
-                        id="username"
-                        required
-                        value={newUser.username}
-                        onChange={(e) => setNewUser(prev => ({ ...prev, username: e.target.value }))}
-                        className="input-field"
-                        placeholder="Enter username"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                        Password
-                      </label>
-                      <input
-                        type="password"
-                        id="password"
-                        required
-                        value={newUser.password}
-                        onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
-                        className="input-field"
-                        placeholder="Enter password"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
-                        Role
-                      </label>
-                      <select
-                        id="role"
-                        value={newUser.role}
-                        onChange={(e) => setNewUser(prev => ({ ...prev, role: e.target.value }))}
-                        className="input-field"
                       >
-                        {roles.map((role) => (
-                          <option key={role.value} value={role.value}>
-                            {role.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="btn-primary"
-                    >
-                      {loading ? '⏳ Adding...' : '👤 Add User'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {/* Edit User Form */}
-            {editingUser && (
-              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex justify-between items-center mb-3">
-                  <h4 className="text-md font-medium text-gray-900">Edit User: {editingUser.username}</h4>
-                  <button
-                    onClick={() => setEditingUser(null)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    ❌ Cancel
-                  </button>
-                </div>
-                <form onSubmit={handleUpdateUser} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label htmlFor="edit-username" className="block text-sm font-medium text-gray-700 mb-2">
-                        Username
-                      </label>
-                      <input
-                        type="text"
-                        id="edit-username"
-                        required
-                        value={editingUser.username}
-                        onChange={(e) => setEditingUser(prev => ({ ...prev, username: e.target.value }))}
-                        className="input-field"
-                        placeholder="Enter username"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="edit-password" className="block text-sm font-medium text-gray-700 mb-2">
-                        Password (leave blank to keep current)
-                      </label>
-                      <input
-                        type="password"
-                        id="edit-password"
-                        value={editingUser.password}
-                        onChange={(e) => setEditingUser(prev => ({ ...prev, password: e.target.value }))}
-                        className="input-field"
-                        placeholder="Enter new password (optional)"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="edit-role" className="block text-sm font-medium text-gray-700 mb-2">
-                        Role
-                      </label>
-                      <select
-                        id="edit-role"
-                        value={editingUser.role}
-                        onChange={(e) => setEditingUser(prev => ({ ...prev, role: e.target.value }))}
-                        className="input-field"
+                        <Select
+                          defaultValue="english"
+                          size="large"
+                          style={{ width: '100%' }}
+                          suffixIcon={<span>🇺🇸</span>}
+                        >
+                          <Option value="english">🇺🇸 English</Option>
+                          <Option value="urdu">🇵🇰 Urdu</Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        label={
+                          <span>
+                            <span style={{ color: '#ff4d4f' }}>* </span>
+                            Country:
+                          </span>
+                        }
                       >
-                        {roles.map((role) => (
-                          <option key={role.value} value={role.value}>
-                            {role.label}
-                          </option>
-                        ))}
-                      </select>
+                        <Select
+                          defaultValue="pakistan"
+                          size="large"
+                          style={{ width: '100%' }}
+                          suffixIcon={<span>🇵🇰</span>}
+                        >
+                          <Option value="pakistan">🇵🇰 Pakistan</Option>
+                          <Option value="usa">🇺🇸 United States</Option>
+                          <Option value="uk">🇬🇧 United Kingdom</Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        label={
+                          <span>
+                            <span style={{ color: '#ff4d4f' }}>* </span>
+                            Date Format:
+                          </span>
+                        }
+                      >
+                        <Select
+                          defaultValue="MM/DD/YYYY"
+                          size="large"
+                          style={{ width: '100%' }}
+                        >
+                          <Option value="MM/DD/YYYY">MM/DD/YYYY</Option>
+                          <Option value="DD/MM/YYYY">DD/MM/YYYY</Option>
+                          <Option value="YYYY-MM-DD">YYYY-MM-DD</Option>
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    
+                    <Col xs={24} md={12}>
+                      <Form.Item
+                        label={
+                          <span>
+                            <span style={{ color: '#ff4d4f' }}>* </span>
+                            Email:
+                          </span>
+                        }
+                      >
+                        <Input
+                          size="large"
+                          placeholder="sufyanmaviya400@gmail.com"
+                          defaultValue="sufyanmaviya400@gmail.com"
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  
+                  <div style={{ marginTop: '32px' }}>
+                    <Button 
+                      type="primary" 
+                      size="large"
+                      style={{
+                        backgroundColor: '#1890ff',
+                        borderRadius: '6px',
+                        fontWeight: 500,
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Company Settings Tab */}
+              {activeTab === 'company' && (
+                hasPermission(currentUser?.role, 'canModifySettings') ? (
+                  <div>
+                    <Title level={3} style={{ marginBottom: '8px' }}>Company Settings</Title>
+                    <Text type="secondary" style={{ display: 'block', marginBottom: '24px' }}>
+                      Core business details that appear on invoices and receipts
+                    </Text>
+                    
+                    <Row gutter={[24, 24]}>
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          label={
+                            <span>
+                              <span style={{ color: '#ff4d4f' }}>* </span>
+                              Business Name:
+                            </span>
+                          }
+                          help="This will appear on all invoices and reports"
+                        >
+                          <Input
+                            prefix={<BankOutlined />}
+                            value={settings.businessName}
+                            onChange={(e) => setSettings(prev => ({ ...prev, businessName: e.target.value }))}
+                            placeholder="Enter business name"
+                            size="large"
+                          />
+                        </Form.Item>
+                      </Col>
+                      
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          label="Business Type:"
+                          help="Determines default categories and features"
+                        >
+                          <Select
+                            value={settings.businessType}
+                            onChange={(value) => setSettings(prev => ({ ...prev, businessType: value }))}
+                            size="large"
+                            style={{ width: '100%' }}
+                          >
+                            {businessTypes.map((type) => (
+                              <Option key={type.value} value={type.value}>
+                                {type.label}
+                              </Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                      
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          label="Contact Number:"
+                          help="Customer service contact number"
+                        >
+                          <Input
+                            prefix={<PhoneOutlined />}
+                            value={settings.contactNumber}
+                            onChange={(e) => setSettings(prev => ({ ...prev, contactNumber: e.target.value }))}
+                            placeholder="+92 XXX XXXXXXX"
+                            size="large"
+                          />
+                        </Form.Item>
+                      </Col>
+                      
+                      <Col xs={24} md={12}>
+                        <Form.Item
+                          label="Email Address:"
+                          help="Business email for customer inquiries"
+                        >
+                          <Input
+                            prefix={<MailOutlined />}
+                            type="email"
+                            value={settings.email}
+                            onChange={(e) => setSettings(prev => ({ ...prev, email: e.target.value }))}
+                            placeholder="business@example.com"
+                            size="large"
+                          />
+                        </Form.Item>
+                      </Col>
+                      
+                      <Col xs={24}>
+                        <Form.Item
+                          label="Business Address:"
+                          help="Full address for invoices and customer reference"
+                        >
+                          <TextArea
+                            rows={3}
+                            value={settings.address}
+                            onChange={(e) => setSettings(prev => ({ ...prev, address: e.target.value }))}
+                            placeholder="Enter complete business address"
+                          />
+                        </Form.Item>
+                      </Col>
+                      
+                      <Col xs={24}>
+                        <Form.Item
+                          label="Website URL:"
+                          help="Optional: Your business website"
+                        >
+                          <Input
+                            prefix={<GlobalOutlined />}
+                            type="url"
+                            value={settings.website}
+                            onChange={(e) => setSettings(prev => ({ ...prev, website: e.target.value }))}
+                            placeholder="https://www.example.com"
+                            size="large"
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                    
+                    <div style={{ marginTop: '32px' }}>
+                      <Button
+                        type="primary"
+                        size="large"
+                        icon={<SaveOutlined />}
+                        onClick={handleSettingsSave}
+                        loading={loading}
+                        style={{
+                          backgroundColor: '#1890ff',
+                          borderRadius: '6px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        Save Company Settings
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="btn-primary"
-                    >
-                      {loading ? '⏳ Updating...' : '💾 Update User'}
-                    </button>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '64px 0' }}>
+                    <Title level={4} type="secondary">Company Settings</Title>
+                    <Text type="secondary">
+                      You do not have permission to modify company information. Contact your Super Admin.
+                    </Text>
                   </div>
-                </form>
-              </div>
-            )}
+                )
+              )}
 
-            {/* Users List */}
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="table-header">Username</th>
-                    <th className="table-header">Role</th>
-                    <th className="table-header">Created At</th>
-                    <th className="table-header">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {users.map((user) => (
-                    <tr key={user._id} className="hover:bg-gray-50">
-                      <td className="table-cell font-medium">{user.username}</td>
-                      <td className="table-cell">
-                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                          user.role === 'super_admin' 
-                            ? 'bg-red-100 text-red-800' 
-                            : user.role === 'manager'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-green-100 text-green-800'
-                        }`}>
-                          {user.role.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td className="table-cell">
-                        {new Date(user.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="table-cell">
-                        <div className="flex space-x-3">
-                          <button
-                            onClick={() => handleEditUser(user)}
-                            disabled={!hasPermission(currentUser?.role, 'canUpdateUsers')}
-                            className="text-blue-600 hover:text-blue-900 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center cursor-pointer"
-                            title="Edit User"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(user._id)}
-                            disabled={user.role === 'super_admin' || user._id === currentUser?._id}
-                            className="text-red-600 hover:text-red-900 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center cursor-pointer"
-                            title="Delete User"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          <div className="card">
-            <div className="text-center py-8">
-              <p className="text-gray-500">User Management</p>
-              <p className="text-sm text-gray-400 mt-2">
-                You do not have permission to manage users. Contact your Super Admin.
-              </p>
-            </div>
-          </div>
-        )
-        )}
+              {/* Currency Settings Tab */}
+              {activeTab === 'currency' && (
+                <div>
+                  <Title level={3} style={{ marginBottom: '8px' }}>Currency Settings</Title>
+                  <Text type="secondary" style={{ display: 'block', marginBottom: '24px' }}>
+                    Configure currency and financial settings
+                  </Text>
+                  <Text type="secondary">Currency settings will be implemented in the next update.</Text>
+                </div>
+              )}
+
+              {/* Company Logo Tab */}
+              {activeTab === 'logo' && (
+                <div>
+                  <Title level={3} style={{ marginBottom: '8px' }}>Company Logo</Title>
+                  <Text type="secondary" style={{ display: 'block', marginBottom: '24px' }}>
+                    Upload and manage your company logo
+                  </Text>
+                  <Text type="secondary">Logo upload functionality will be implemented in the next update.</Text>
+                </div>
+              )}
+
+              {/* PDF Settings Tab */}
+              {activeTab === 'pdf' && (
+                <div>
+                  <Title level={3} style={{ marginBottom: '8px' }}>PDF Settings</Title>
+                  <Text type="secondary" style={{ display: 'block', marginBottom: '24px' }}>
+                    Configure PDF generation settings
+                  </Text>
+                  <Text type="secondary">PDF settings will be implemented in the next update.</Text>
+                </div>
+              )}
+
+              {/* Finance Settings Tab */}
+              {activeTab === 'finance' && (
+                <div>
+                  <Title level={3} style={{ marginBottom: '8px' }}>Finance Settings</Title>
+                  <Text type="secondary" style={{ display: 'block', marginBottom: '24px' }}>
+                    Configure financial and accounting settings
+                  </Text>
+                  <Text type="secondary">Finance settings will be implemented in the next update.</Text>
+                </div>
+              )}
+
+              {/* Notifications Tab */}
+              {activeTab === 'notifications' && (
+                hasPermission(currentUser?.role, 'canModifySettings') ? (
+                  <div>
+                    <Title level={3} style={{ marginBottom: '8px' }}>Notification Settings</Title>
+                    <Text type="secondary" style={{ display: 'block', marginBottom: '24px' }}>
+                      Configure notification preferences
+                    </Text>
+                    <Text type="secondary">Notification settings will be implemented in the next update.</Text>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '64px 0' }}>
+                    <Title level={4} type="secondary">Notification Settings</Title>
+                    <Text type="secondary">
+                      You do not have permission to modify notification settings. Contact your Super Admin.
+                    </Text>
+                  </div>
+                )
+              )}
+
+              {/* User Management Tab */}
+              {activeTab === 'users' && (
+                hasPermission(currentUser?.role, 'canManageUsers') ? (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                      <div>
+                        <Title level={3} style={{ marginBottom: '8px' }}>User Management</Title>
+                        <Text type="secondary">
+                          Manage system users and permissions
+                        </Text>
+                      </div>
+                      <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => {
+                          setShowAddUser(true);
+                          userForm.resetFields();
+                        }}
+                        size="large"
+                      >
+                        Add User
+                      </Button>
+                    </div>
+
+                    {/* Users Table */}
+                    <Card>
+                      <Table
+                        dataSource={users}
+                        rowKey="_id"
+                        loading={loading}
+                        pagination={{
+                          pageSize: 10,
+                          showSizeChanger: true,
+                          showQuickJumper: true,
+                          showTotal: (total, range) =>
+                            `${range[0]}-${range[1]} of ${total} users`,
+                        }}
+                        columns={[
+                          {
+                            title: 'Username',
+                            dataIndex: 'username',
+                            key: 'username',
+                            render: (username) => (
+                              <Space>
+                                <UserOutlined />
+                                <span style={{ fontWeight: 500 }}>{username}</span>
+                              </Space>
+                            ),
+                          },
+                          {
+                            title: 'Role',
+                            dataIndex: 'role',
+                            key: 'role',
+                            render: (role) => {
+                              let color = 'default';
+                              if (role === 'super_admin') color = 'red';
+                              else if (role === 'manager') color = 'blue';
+                              else if (role === 'sales_man') color = 'green';
+                              
+                              return (
+                                <Tag color={color}>
+                                  {role.replace('_', ' ').toUpperCase()}
+                                </Tag>
+                              );
+                            },
+                          },
+                          {
+                            title: 'Created Date',
+                            dataIndex: 'createdAt',
+                            key: 'createdAt',
+                            render: (date) => (
+                              <div>
+                                <div>{new Date(date).toLocaleDateString()}</div>
+                                <Text type="secondary" style={{ fontSize: '12px' }}>
+                                  {new Date(date).toLocaleTimeString()}
+                                </Text>
+                              </div>
+                            ),
+                          },
+                          {
+                            title: 'Actions',
+                            key: 'actions',
+                            width: 120,
+                            render: (_, user) => (
+                              <Space>
+                                <Tooltip title="Edit User">
+                                  <Button
+                                    type="text"
+                                    icon={<EditOutlined />}
+                                    onClick={() => handleEditUser(user)}
+                                    disabled={!hasPermission(currentUser?.role, 'canUpdateUsers')}
+                                  />
+                                </Tooltip>
+                                <Tooltip title="Delete User">
+                                  <Popconfirm
+                                    title="Delete User"
+                                    description="Are you sure you want to delete this user?"
+                                    onConfirm={() => handleDeleteUser(user._id)}
+                                    okText="Yes"
+                                    cancelText="No"
+                                    disabled={user.role === 'super_admin' || user._id === currentUser?._id}
+                                  >
+                                    <Button
+                                      type="text"
+                                      danger
+                                      icon={<DeleteOutlined />}
+                                      disabled={
+                                        user.role === 'super_admin' || 
+                                        user._id === currentUser?._id ||
+                                        !hasPermission(currentUser?.role, 'canDeleteUsers')
+                                      }
+                                    />
+                                  </Popconfirm>
+                                </Tooltip>
+                              </Space>
+                            ),
+                          },
+                        ]}
+                      />
+                    </Card>
+
+                    {/* Add User Modal */}
+                    <Modal
+                      title="Add New User"
+                      open={showAddUser}
+                      onCancel={() => {
+                        setShowAddUser(false);
+                        userForm.resetFields();
+                      }}
+                      footer={null}
+                      width={600}
+                    >
+                      <Form
+                        form={userForm}
+                        layout="vertical"
+                        onFinish={handleAddUser}
+                        style={{ marginTop: '24px' }}
+                      >
+                        <Row gutter={16}>
+                          <Col xs={24} md={12}>
+                            <Form.Item
+                              name="username"
+                              label="Username"
+                              rules={[
+                                { required: true, message: 'Please enter username' },
+                                { min: 3, message: 'Username must be at least 3 characters' }
+                              ]}
+                            >
+                              <Input
+                                prefix={<UserOutlined />}
+                                placeholder="Enter username"
+                                size="large"
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} md={12}>
+                            <Form.Item
+                              name="password"
+                              label="Password"
+                              rules={[
+                                { required: true, message: 'Please enter password' },
+                                { min: 6, message: 'Password must be at least 6 characters' }
+                              ]}
+                            >
+                              <Input.Password
+                                placeholder="Enter password"
+                                size="large"
+                              />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                        <Form.Item
+                          name="role"
+                          label="Role"
+                          rules={[{ required: true, message: 'Please select a role' }]}
+                          initialValue="sales_man"
+                        >
+                          <Select size="large" placeholder="Select role">
+                            {roles.map((role) => (
+                              <Option key={role.value} value={role.value}>
+                                {role.label}
+                              </Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                        <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+                          <Space>
+                            <Button
+                              onClick={() => {
+                                setShowAddUser(false);
+                                userForm.resetFields();
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="primary"
+                              htmlType="submit"
+                              loading={loading}
+                              icon={<SaveOutlined />}
+                            >
+                              Add User
+                            </Button>
+                          </Space>
+                        </Form.Item>
+                      </Form>
+                    </Modal>
+
+                    {/* Edit User Modal */}
+                    <Modal
+                      title={`Edit User: ${editingUser?.username}`}
+                      open={!!editingUser}
+                      onCancel={() => {
+                        setEditingUser(null);
+                        editUserForm.resetFields();
+                      }}
+                      footer={null}
+                      width={600}
+                    >
+                      <Form
+                        form={editUserForm}
+                        layout="vertical"
+                        onFinish={handleUpdateUser}
+                        initialValues={editingUser}
+                        style={{ marginTop: '24px' }}
+                      >
+                        <Row gutter={16}>
+                          <Col xs={24} md={12}>
+                            <Form.Item
+                              name="username"
+                              label="Username"
+                              rules={[
+                                { required: true, message: 'Please enter username' },
+                                { min: 3, message: 'Username must be at least 3 characters' }
+                              ]}
+                            >
+                              <Input
+                                prefix={<UserOutlined />}
+                                placeholder="Enter username"
+                                size="large"
+                              />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={24} md={12}>
+                            <Form.Item
+                              name="password"
+                              label="Password (leave blank to keep current)"
+                            >
+                              <Input.Password
+                                placeholder="Enter new password (optional)"
+                                size="large"
+                              />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                        <Form.Item
+                          name="role"
+                          label="Role"
+                          rules={[{ required: true, message: 'Please select a role' }]}
+                        >
+                          <Select size="large" placeholder="Select role">
+                            {roles.map((role) => (
+                              <Option key={role.value} value={role.value}>
+                                {role.label}
+                              </Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                        <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+                          <Space>
+                            <Button
+                              onClick={() => {
+                                setEditingUser(null);
+                                editUserForm.resetFields();
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="primary"
+                              htmlType="submit"
+                              loading={loading}
+                              icon={<SaveOutlined />}
+                            >
+                              Update User
+                            </Button>
+                          </Space>
+                        </Form.Item>
+                      </Form>
+                    </Modal>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '64px 0' }}>
+                    <Title level={4} type="secondary">User Management</Title>
+                    <Text type="secondary">
+                      You do not have permission to manage users. Contact your Super Admin.
+                    </Text>
+                  </div>
+                )
+              )}
+
+            </Card>
+          </Col>
+        </Row>
       </div>
     </Layout>
   );
-} 
+}

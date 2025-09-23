@@ -36,6 +36,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "analyze": "ANALYZE=true npm run build",
+    "optimize-db": "node scripts/optimize-database-indexes.js",
+    "perf-test": "node scripts/performance-test.js",
     "db:clean": "node scripts/clean-database.js",
     "db:create-products": "node scripts/create-sample-products.js",
     "db:seed": "node scripts/seed-products-with-inflow.js",
@@ -54,8 +57,11 @@
     "docker:compose:down": "docker-compose down"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.0.2",
+    "antd": "^5.27.3",
     "bcryptjs": "^2.4.3",
     "date-fns": "^4.1.0",
+    "dayjs": "^1.11.18",
     "html2pdf.js": "^0.10.3",
     "jsbarcode": "^3.12.1",
     "jsonwebtoken": "^9.0.2",
@@ -71,6 +77,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.11",
     "autoprefixer": "^10.4.21",
+    "critters": "^0.0.25",
     "eslint": "^9.32.0",
     "eslint-config-next": "^15.4.5",
     "postcss": "^8.5.6",

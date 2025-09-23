@@ -3,6 +3,29 @@ import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import ProductForm from '../../../components/ProductForm';
 import { apiRequest } from '../../../lib/auth';
+import { 
+  Card, 
+  Row, 
+  Col, 
+  Typography, 
+  Button, 
+  Space, 
+  Modal, 
+  Form, 
+  Input, 
+  InputNumber, 
+  message,
+  Alert,
+  Divider
+} from 'antd';
+import { 
+  ArrowLeftOutlined, 
+  PlusOutlined,
+  SaveOutlined,
+  CloseOutlined
+} from '@ant-design/icons';
+
+const { Title, Text } = Typography;
 
 export default function EditProduct() {
   const router = useRouter();
@@ -45,7 +68,7 @@ export default function EditProduct() {
   const handleStockUpdate = async () => {
     try {
       if (!stockUpdateData.additionalQuantity || !stockUpdateData.newTotalBuyingPrice) {
-        setError('Please fill in all required fields');
+        message.error('Please fill in all required fields');
         return;
       }
 
@@ -53,7 +76,7 @@ export default function EditProduct() {
       const newTotalBuyingPrice = parseFloat(stockUpdateData.newTotalBuyingPrice);
 
       if (additionalQuantity <= 0 || newTotalBuyingPrice <= 0) {
-        setError('Quantity and price must be greater than 0');
+        message.error('Quantity and price must be greater than 0');
         return;
       }
 
@@ -130,7 +153,7 @@ export default function EditProduct() {
 
     } catch (error) {
       console.error('Error updating stock:', error);
-      setError(error.message || 'Failed to update stock');
+      message.error(error.message || 'Failed to update stock');
     }
   };
 
@@ -162,8 +185,8 @@ export default function EditProduct() {
   if (loading) {
     return (
       <Layout>
-        <div className="flex justify-center items-center h-64">
-          <div className="text-xl text-gray-600">Loading product...</div>
+        <div style={{ textAlign: 'center', padding: '50px' }}>
+          <div>Loading product...</div>
         </div>
       </Layout>
     );
@@ -172,17 +195,18 @@ export default function EditProduct() {
   if (error) {
     return (
       <Layout>
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-red-600 mb-4">Error</h1>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button
-              onClick={() => router.push('/products')}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-            >
-              Back to Products
-            </button>
-          </div>
+        <div style={{ padding: '24px' }}>
+          <Alert
+            message="Error"
+            description={error}
+            type="error"
+            showIcon
+            action={
+              <Button size="small" onClick={() => router.push('/products')}>
+                Back to Products
+              </Button>
+            }
+          />
         </div>
       </Layout>
     );
@@ -190,149 +214,155 @@ export default function EditProduct() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Edit Product</h1>
-          <p className="mt-2 text-gray-600">
-            Update product information and inventory details.
-          </p>
-        </div>
+      <div style={{ padding: '24px' }}>
+        {/* Header */}
+        <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
+          <Col>
+            <Space>
+              <Button 
+                icon={<ArrowLeftOutlined />} 
+                onClick={() => router.back()}
+              >
+                Back
+              </Button>
+              <Title level={2} style={{ margin: 0 }}>Edit Product</Title>
+            </Space>
+            <div>
+              <Text type="secondary">Update product information and inventory details.</Text>
+            </div>
+          </Col>
+        </Row>
 
         {/* Stock Update Section */}
-        <div className="card mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-800">📦 Update Stock</h2>
-            <button
-              onClick={() => setShowStockUpdate(!showStockUpdate)}
-              className="btn-primary"
-            >
-              {showStockUpdate ? '❌ Cancel' : '➕ Add Stock'}
-            </button>
-          </div>
+        <Card title="📦 Update Stock" style={{ marginBottom: '24px' }}>
+          <Row justify="space-between" align="middle" style={{ marginBottom: '16px' }}>
+            <Col>
+              <Text>Add new stock to this product</Text>
+            </Col>
+            <Col>
+              <Button 
+                type={showStockUpdate ? 'default' : 'primary'}
+                icon={<PlusOutlined />}
+                onClick={() => setShowStockUpdate(!showStockUpdate)}
+              >
+                {showStockUpdate ? 'Cancel' : 'Add Stock'}
+              </Button>
+            </Col>
+          </Row>
 
           {showStockUpdate && (
-            <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Additional Quantity
-                  </label>
-                  <input
-                    type="number"
-                    name="additionalQuantity"
-                    value={stockUpdateData.additionalQuantity}
-                    onChange={(e) => setStockUpdateData(prev => ({
-                      ...prev,
-                      additionalQuantity: e.target.value
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter quantity"
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    New Total Buying Price
-                  </label>
-                  <input
-                    type="number"
-                    name="newTotalBuyingPrice"
-                    value={stockUpdateData.newTotalBuyingPrice}
-                    onChange={(e) => setStockUpdateData(prev => ({
-                      ...prev,
-                      newTotalBuyingPrice: e.target.value
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter total price"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    New Batch Number
-                  </label>
-                  <input
-                    type="text"
-                    name="newBatchNo"
-                    value={stockUpdateData.newBatchNo}
-                    onChange={(e) => setStockUpdateData(prev => ({
-                      ...prev,
-                      newBatchNo: e.target.value
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter batch number"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Supplier
-                  </label>
-                  <input
-                    type="text"
-                    name="supplier"
-                    value={stockUpdateData.supplier}
-                    onChange={(e) => setStockUpdateData(prev => ({
-                      ...prev,
-                      supplier: e.target.value
-                    }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter supplier name"
-                  />
-                </div>
-              </div>
-              <div className="flex space-x-3">
-                <button
-                  onClick={handleStockUpdate}
-                  className="btn-primary"
-                  disabled={!stockUpdateData.additionalQuantity || !stockUpdateData.newTotalBuyingPrice}
-                >
-                  💾 Update Stock
-                </button>
-                <button
-                  onClick={handleStockUpdateCancel}
-                  className="btn-secondary"
-                >
-                  ❌ Cancel
-                </button>
-              </div>
+            <div style={{ backgroundColor: '#fafafa', padding: '16px', borderRadius: '8px' }}>
+              <Row gutter={16}>
+                <Col xs={24} sm={12} md={6}>
+                  <Form.Item label="Additional Quantity" required>
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      placeholder="Enter quantity"
+                      value={stockUpdateData.additionalQuantity}
+                      onChange={(value) => setStockUpdateData(prev => ({
+                        ...prev,
+                        additionalQuantity: value
+                      }))}
+                      min={1}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                  <Form.Item label="New Total Buying Price" required>
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      placeholder="Enter total price"
+                      value={stockUpdateData.newTotalBuyingPrice}
+                      onChange={(value) => setStockUpdateData(prev => ({
+                        ...prev,
+                        newTotalBuyingPrice: value
+                      }))}
+                      min={0}
+                      step={0.01}
+                      formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                  <Form.Item label="New Batch Number">
+                    <Input
+                      placeholder="Enter batch number"
+                      value={stockUpdateData.newBatchNo}
+                      onChange={(e) => setStockUpdateData(prev => ({
+                        ...prev,
+                        newBatchNo: e.target.value
+                      }))}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} sm={12} md={6}>
+                  <Form.Item label="Supplier">
+                    <Input
+                      placeholder="Enter supplier name"
+                      value={stockUpdateData.supplier}
+                      onChange={(e) => setStockUpdateData(prev => ({
+                        ...prev,
+                        supplier: e.target.value
+                      }))}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row>
+                <Col>
+                  <Space>
+                    <Button 
+                      type="primary"
+                      icon={<SaveOutlined />}
+                      onClick={handleStockUpdate}
+                      disabled={!stockUpdateData.additionalQuantity || !stockUpdateData.newTotalBuyingPrice}
+                    >
+                      Update Stock
+                    </Button>
+                    <Button 
+                      icon={<CloseOutlined />}
+                      onClick={handleStockUpdateCancel}
+                    >
+                      Cancel
+                    </Button>
+                  </Space>
+                </Col>
+              </Row>
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Price Change Alert */}
         {priceChangeAlert && (
-          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg mb-6">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <span className="text-yellow-400">⚠️</span>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium">{priceChangeAlert}</p>
-              </div>
-            </div>
-          </div>
+          <Alert
+            message="Price Change Alert"
+            description={priceChangeAlert}
+            type="warning"
+            showIcon
+            style={{ marginBottom: '24px' }}
+          />
         )}
 
         {/* Success Message */}
         {successMessage && (
-          <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg mb-6">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <span className="text-green-400">✅</span>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium">{successMessage}</p>
-              </div>
-            </div>
-          </div>
+          <Alert
+            message="Success"
+            description={successMessage}
+            type="success"
+            showIcon
+            style={{ marginBottom: '24px' }}
+          />
         )}
 
-        <ProductForm
-          product={product}
-          onSubmit={handleSubmit}
-          onCancel={handleCancel}
-        />
+        {/* Product Form */}
+        <Card>
+          <ProductForm
+            product={product}
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+          />
+        </Card>
       </div>
     </Layout>
   );

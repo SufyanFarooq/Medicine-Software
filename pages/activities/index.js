@@ -2,6 +2,31 @@ import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import { apiRequest } from '../../lib/auth';
 import { formatCurrency } from '../../lib/currency';
+import {
+  Card,
+  Table,
+  Select,
+  Input,
+  DatePicker,
+  Button,
+  Space,
+  Typography,
+  Tag,
+  Row,
+  Col,
+  Spin,
+  Empty,
+  Tooltip,
+  Divider
+} from 'antd';
+import {
+  ClearOutlined,
+  UserOutlined,
+  CalendarOutlined,
+  FilterOutlined,
+  ReloadOutlined
+} from '@ant-design/icons';
+import dayjs from 'dayjs';
 
 export default function Activities() {
   const [activities, setActivities] = useState([]);
@@ -30,17 +55,19 @@ export default function Activities() {
       if (response.ok) {
         const data = await response.json();
         console.log('Activities data received:', data);
-        setActivities(data);
+        // Handle both array response and object with activities property
+        const activitiesArray = data.activities || data || [];
+        setActivities(Array.isArray(activitiesArray) ? activitiesArray : []);
       }
     } catch (error) {
       console.error('Error fetching activities:', error);
+      setActivities([]); // Ensure activities is always an array
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
+  const handleFilterChange = (name, value) => {
     setFilters(prev => ({
       ...prev,
       [name]: value
@@ -196,11 +223,153 @@ export default function Activities() {
     return String(details);
   };
 
+  const { Title, Text } = Typography;
+  const { Option, OptGroup } = Select;
+  const { RangePicker } = DatePicker;
+
+  // Define table columns
+  const columns = [
+    {
+      title: 'Action',
+      dataIndex: 'action',
+      key: 'action',
+      width: 200,
+      render: (action) => (
+        <Space>
+          <span style={{ fontSize: '16px' }}>{getActionIcon(action)}</span>
+          <Tag color={getTagColor(action)}>
+            {action ? action.replace(/_/g, ' ') : 'Unknown Action'}
+          </Tag>
+        </Space>
+      ),
+    },
+    {
+      title: 'User',
+      dataIndex: 'username',
+      key: 'user',
+      width: 150,
+      render: (username, record) => (
+        <div>
+          <div style={{ fontWeight: 500 }}>{username || 'Unknown User'}</div>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            ID: {record.userId || 'N/A'}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Details',
+      dataIndex: 'details',
+      key: 'details',
+      ellipsis: {
+        showTitle: false,
+      },
+      render: (details) => (
+        <Tooltip title={formatDetails(details)}>
+          <Text>{formatDetails(details)}</Text>
+        </Tooltip>
+      ),
+    },
+    {
+      title: 'Entity',
+      dataIndex: 'entityType',
+      key: 'entity',
+      width: 120,
+      render: (entityType, record) => (
+        <div>
+          {entityType ? (
+            <Text type="secondary" style={{ textTransform: 'capitalize' }}>
+              {entityType}
+            </Text>
+          ) : (
+            <Text type="secondary" disabled>No entity</Text>
+          )}
+          {record.entityId && (
+            <div>
+              <Text type="secondary" style={{ fontSize: '11px' }}>
+                ({String(record.entityId)})
+              </Text>
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'Date & Time',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 150,
+      render: (createdAt) => (
+        <div>
+          <div>{createdAt ? dayjs(createdAt).format('MMM DD, YYYY') : 'N/A'}</div>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            {createdAt ? dayjs(createdAt).format('HH:mm:ss') : 'N/A'}
+          </Text>
+        </div>
+      ),
+    },
+  ];
+
+  // Helper function to get tag color based on action type
+  const getTagColor = (actionType) => {
+    if (!actionType) return 'default';
+    
+    switch (actionType) {
+      case 'PRODUCT_ADDED':
+      case 'INVENTORY_INFLOW':
+      case 'INVOICE_CREATED':
+      case 'BUSINESS_SETUP_COMPLETED':
+      case 'SUPPLIER_ADDED':
+      case 'PURCHASE_ORDER_CREATED':
+      case 'PURCHASE_ORDER_RECEIVED':
+      case 'USER_LOGIN':
+      case 'USER_CREATED':
+      case 'MEDICINE_ADDED':
+        return 'green';
+      
+      case 'PRODUCT_UPDATED':
+      case 'INVOICE_UPDATED':
+      case 'RETURN_UPDATED':
+      case 'BUSINESS_SETUP_UPDATED':
+      case 'SUPPLIER_UPDATED':
+      case 'PURCHASE_ORDER_UPDATED':
+      case 'USER_UPDATED':
+      case 'MEDICINE_UPDATED':
+        return 'blue';
+      
+      case 'PRODUCT_DELETED':
+      case 'INVOICE_DELETED':
+      case 'RETURN_DELETED':
+      case 'SUPPLIER_DELETED':
+      case 'PURCHASE_ORDER_CANCELLED':
+      case 'USER_DELETED':
+      case 'MEDICINE_DELETED':
+        return 'red';
+      
+      case 'INVENTORY_OUTFLOW':
+        return 'orange';
+      
+      case 'RETURN_PROCESSED':
+        return 'purple';
+      
+      case 'USER_LOGOUT':
+        return 'default';
+      
+      default:
+        return 'default';
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '400px' 
+        }}>
+          <Spin size="large" />
         </div>
       </Layout>
     );
@@ -208,237 +377,190 @@ export default function Activities() {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div style={{ padding: '24px' }}>
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">User Activities</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Track activity across products, sales, returns, inventory, and settings
-            </p>
-          </div>
+        <div style={{ marginBottom: '24px' }}>
+          <Title level={2} style={{ margin: 0 }}>
+            👥 User Activities
+          </Title>
+          <Text type="secondary">
+            Track activity across products, sales, returns, inventory, and settings
+          </Text>
         </div>
 
         {/* Filters */}
-        <div className="card">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Action Type
-              </label>
-              <select
-                value={filters.action}
-                onChange={handleFilterChange}
-                className="input-field"
-              >
-                <option value="">All Action Types</option>
-                
-                {/* Product Activities */}
-                <optgroup label="📦 Product Management">
-                  <option value="PRODUCT_ADDED">Product Added</option>
-                  <option value="PRODUCT_UPDATED">Product Updated</option>
-                  <option value="PRODUCT_DELETED">Product Deleted</option>
-                </optgroup>
-                
-                {/* Inventory Activities */}
-                <optgroup label="📊 Inventory Management">
-                  <option value="INVENTORY_INFLOW">Stock Inflow</option>
-                  <option value="INVENTORY_OUTFLOW">Stock Outflow</option>
-                </optgroup>
-                
-                {/* Invoice Activities */}
-                <optgroup label="🧾 Sales & Invoicing">
-                  <option value="INVOICE_CREATED">Invoice Created</option>
-                  <option value="INVOICE_UPDATED">Invoice Updated</option>
-                  <option value="INVOICE_DELETED">Invoice Deleted</option>
-                </optgroup>
-                
-                {/* Return Activities */}
-                <optgroup label="↩️ Returns & Refunds">
-                  <option value="RETURN_PROCESSED">Return Processed</option>
-                  <option value="RETURN_UPDATED">Return Updated</option>
-                  <option value="RETURN_DELETED">Return Deleted</option>
-                </optgroup>
-                
-                {/* Purchase Order Activities */}
-                <optgroup label="📋 Purchase Orders">
-                  <option value="PURCHASE_ORDER_CREATED">PO Created</option>
-                  <option value="PURCHASE_ORDER_UPDATED">PO Updated</option>
-                  <option value="PURCHASE_ORDER_RECEIVED">PO Received</option>
-                  <option value="PURCHASE_ORDER_CANCELLED">PO Cancelled</option>
-                </optgroup>
-                
-                {/* Supplier Activities */}
-                <optgroup label="🏢 Supplier Management">
-                  <option value="SUPPLIER_ADDED">Supplier Added</option>
-                  <option value="SUPPLIER_UPDATED">Supplier Updated</option>
-                  <option value="SUPPLIER_DELETED">Supplier Deleted</option>
-                </optgroup>
-                
-                {/* Business Setup Activities */}
-                <optgroup label="⚙️ System Configuration">
-                  <option value="BUSINESS_SETUP_COMPLETED">Business Setup Completed</option>
-                  <option value="BUSINESS_SETUP_UPDATED">Business Setup Updated</option>
-                </optgroup>
-                
-                {/* User Activities */}
-                <optgroup label="👤 User Management">
-                  <option value="USER_LOGIN">User Login</option>
-                  <option value="USER_LOGOUT">User Logout</option>
-                  <option value="USER_CREATED">User Created</option>
-                  <option value="USER_UPDATED">User Updated</option>
-                  <option value="USER_DELETED">User Deleted</option>
-                </optgroup>
-                
-                {/* Legacy Medicine Activities (for backward compatibility) */}
-                <optgroup label="💊 Legacy Medicine Activities">
-                  <option value="MEDICINE_ADDED">Medicine Added</option>
-                  <option value="MEDICINE_UPDATED">Medicine Updated</option>
-                  <option value="MEDICINE_DELETED">Medicine Deleted</option>
-                </optgroup>
-              </select>
-            </div>
+        <Card 
+          title={
+            <Space>
+              <FilterOutlined />
+              <span>Filters</span>
+            </Space>
+          }
+          style={{ marginBottom: '24px' }}
+        >
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12} md={6}>
+              <div>
+                <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+                  Action Type
+                </Text>
+                <Select
+                  value={filters.action || undefined}
+                  onChange={(value) => handleFilterChange('action', value || '')}
+                  placeholder="All Action Types"
+                  style={{ width: '100%' }}
+                  allowClear
+                >
+                  <OptGroup label="📦 Product Management">
+                    <Option value="PRODUCT_ADDED">Product Added</Option>
+                    <Option value="PRODUCT_UPDATED">Product Updated</Option>
+                    <Option value="PRODUCT_DELETED">Product Deleted</Option>
+                  </OptGroup>
+                  
+                  <OptGroup label="📊 Inventory Management">
+                    <Option value="INVENTORY_INFLOW">Stock Inflow</Option>
+                    <Option value="INVENTORY_OUTFLOW">Stock Outflow</Option>
+                  </OptGroup>
+                  
+                  <OptGroup label="🧾 Sales & Invoicing">
+                    <Option value="INVOICE_CREATED">Invoice Created</Option>
+                    <Option value="INVOICE_UPDATED">Invoice Updated</Option>
+                    <Option value="INVOICE_DELETED">Invoice Deleted</Option>
+                  </OptGroup>
+                  
+                  <OptGroup label="↩️ Returns & Refunds">
+                    <Option value="RETURN_PROCESSED">Return Processed</Option>
+                    <Option value="RETURN_UPDATED">Return Updated</Option>
+                    <Option value="RETURN_DELETED">Return Deleted</Option>
+                  </OptGroup>
+                  
+                  <OptGroup label="📋 Purchase Orders">
+                    <Option value="PURCHASE_ORDER_CREATED">PO Created</Option>
+                    <Option value="PURCHASE_ORDER_UPDATED">PO Updated</Option>
+                    <Option value="PURCHASE_ORDER_RECEIVED">PO Received</Option>
+                    <Option value="PURCHASE_ORDER_CANCELLED">PO Cancelled</Option>
+                  </OptGroup>
+                  
+                  <OptGroup label="🏢 Supplier Management">
+                    <Option value="SUPPLIER_ADDED">Supplier Added</Option>
+                    <Option value="SUPPLIER_UPDATED">Supplier Updated</Option>
+                    <Option value="SUPPLIER_DELETED">Supplier Deleted</Option>
+                  </OptGroup>
+                  
+                  <OptGroup label="⚙️ System Configuration">
+                    <Option value="BUSINESS_SETUP_COMPLETED">Business Setup Completed</Option>
+                    <Option value="BUSINESS_SETUP_UPDATED">Business Setup Updated</Option>
+                  </OptGroup>
+                  
+                  <OptGroup label="👤 User Management">
+                    <Option value="USER_LOGIN">User Login</Option>
+                    <Option value="USER_LOGOUT">User Logout</Option>
+                    <Option value="USER_CREATED">User Created</Option>
+                    <Option value="USER_UPDATED">User Updated</Option>
+                    <Option value="USER_DELETED">User Deleted</Option>
+                  </OptGroup>
+                  
+                  <OptGroup label="💊 Legacy Medicine Activities">
+                    <Option value="MEDICINE_ADDED">Medicine Added</Option>
+                    <Option value="MEDICINE_UPDATED">Medicine Updated</Option>
+                    <Option value="MEDICINE_DELETED">Medicine Deleted</Option>
+                  </OptGroup>
+                </Select>
+              </div>
+            </Col>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                User ID
-              </label>
-              <input
-                type="text"
-                name="userId"
-                value={filters.userId}
-                onChange={handleFilterChange}
-                className="input-field"
-                placeholder="Filter by user ID"
-              />
-            </div>
+            <Col xs={24} sm={12} md={6}>
+              <div>
+                <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+                  <UserOutlined /> User ID
+                </Text>
+                <Input
+                  value={filters.userId}
+                  onChange={(e) => handleFilterChange('userId', e.target.value)}
+                  placeholder="Filter by user ID"
+                  allowClear
+                />
+              </div>
+            </Col>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date
-              </label>
-              <input
-                type="date"
-                name="startDate"
-                value={filters.startDate}
-                onChange={handleFilterChange}
-                className="input-field"
-              />
-            </div>
+            <Col xs={24} sm={12} md={6}>
+              <div>
+                <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+                  <CalendarOutlined /> Start Date
+                </Text>
+                <DatePicker
+                  value={filters.startDate ? dayjs(filters.startDate) : null}
+                  onChange={(date) => handleFilterChange('startDate', date ? date.format('YYYY-MM-DD') : '')}
+                  style={{ width: '100%' }}
+                  placeholder="Start date"
+                />
+              </div>
+            </Col>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Date
-              </label>
-              <input
-                type="date"
-                name="endDate"
-                value={filters.endDate}
-                onChange={handleFilterChange}
-                className="input-field"
-              />
-            </div>
-          </div>
+            <Col xs={24} sm={12} md={6}>
+              <div>
+                <Text strong style={{ display: 'block', marginBottom: '8px' }}>
+                  <CalendarOutlined /> End Date
+                </Text>
+                <DatePicker
+                  value={filters.endDate ? dayjs(filters.endDate) : null}
+                  onChange={(date) => handleFilterChange('endDate', date ? date.format('YYYY-MM-DD') : '')}
+                  style={{ width: '100%' }}
+                  placeholder="End date"
+                />
+              </div>
+            </Col>
+          </Row>
           
-          <div className="mt-4 flex justify-end">
-            <button
-              onClick={clearFilters}
-              className="btn-secondary"
-            >
-              🔄 Clear Filters
-            </button>
+          <Divider />
+          
+          <div style={{ textAlign: 'right' }}>
+            <Space>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => fetchActivities()}
+                loading={loading}
+              >
+                Refresh
+              </Button>
+              <Button
+                icon={<ClearOutlined />}
+                onClick={clearFilters}
+                type="default"
+              >
+                Clear Filters
+              </Button>
+            </Space>
           </div>
-        </div>
+        </Card>
 
-        {/* Activities List */}
-        <div className="card">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="table-header">Action</th>
-                  <th className="table-header">User</th>
-                  <th className="table-header">Details</th>
-                  <th className="table-header">Entity</th>
-                  <th className="table-header">Date & Time</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {(!activities || activities.length === 0) ? (
-                  <tr>
-                    <td colSpan="5" className="text-center py-8 text-gray-500">
-                      No activities found
-                    </td>
-                  </tr>
-                ) : (
-                  activities.filter(activity => activity && typeof activity === 'object').map((activity) => {
-                    // Debug logging for problematic activities
-                    if (activity.details && typeof activity.details === 'object') {
-                      console.log('Activity with object details:', {
-                        id: activity._id,
-                        action: activity.action,
-                        details: activity.details
-                      });
-                    }
-                    
-                    try {
-                      return (
-                        <tr key={activity._id ? String(activity._id) : Math.random()} className="hover:bg-gray-50">
-                          <td className="table-cell">
-                            <div className="flex items-center">
-                              <span className="mr-2">{getActionIcon(activity.action)}</span>
-                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getActionColor(activity.action)}`}>
-                                {activity.action ? activity.action.replace(/_/g, ' ') : 'Unknown Action'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="table-cell">
-                            <div>
-                              <div className="font-medium text-gray-900">{activity.username || 'Unknown User'}</div>
-                              <div className="text-sm text-gray-500">ID: {activity.userId || 'N/A'}</div>
-                            </div>
-                          </td>
-                          <td className="table-cell">
-                            <div className="text-sm text-gray-900">{formatDetails(activity.details)}</div>
-                          </td>
-                          <td className="table-cell">
-                            <div className="text-sm text-gray-500">
-                              {activity.entityType ? (
-                                <span className="capitalize">{activity.entityType}</span>
-                              ) : (
-                                <span className="text-gray-400">No entity</span>
-                              )}
-                              {activity.entityId && (
-                                <span className="ml-1 text-xs">({String(activity.entityId)})</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="table-cell">
-                            <div className="text-sm text-gray-900">
-                              {activity.createdAt ? new Date(activity.createdAt).toLocaleDateString() : 'N/A'}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {activity.createdAt ? new Date(activity.createdAt).toLocaleTimeString() : 'N/A'}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    } catch (error) {
-                      console.error('Error rendering activity row:', error, activity);
-                      return (
-                        <tr key={Math.random()} className="hover:bg-gray-50">
-                          <td colSpan="5" className="table-cell text-center text-red-500">
-                            Error displaying activity data
-                          </td>
-                        </tr>
-                      );
-                    }
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Activities Table */}
+        <Card title="Activities Log">
+          <Table
+            columns={columns}
+            dataSource={activities.filter(activity => activity && typeof activity === 'object')}
+            rowKey={(record) => record._id ? String(record._id) : Math.random()}
+            loading={loading}
+            pagination={{
+              total: activities.length,
+              pageSize: 50,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) =>
+                `${range[0]}-${range[1]} of ${total} activities`,
+            }}
+            locale={{
+              emptyText: (
+                <Empty 
+                  description="No activities found"
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                />
+              ),
+            }}
+            scroll={{ x: 1000 }}
+            size="middle"
+          />
+        </Card>
       </div>
     </Layout>
   );

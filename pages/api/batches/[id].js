@@ -1,198 +1,181 @@
-import { connectToDatabase } from '../../../../lib/mongodb';
+import { getCollection } from '../../../lib/mongodb';
+import { getUserPermissions } from '../../../lib/permissions';
 import { ObjectId } from 'mongodb';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+const verifyToken = (req) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return null;
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
+};
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET' && req.method !== 'PUT' && req.method !== 'DELETE') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  const { method, query: { id } } = req;
+
+  // Verify authentication for all methods
+  const user = verifyToken(req);
+  if (!user) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  const permissions = getUserPermissions(user.role);
+
+  // Validate ObjectId
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ message: 'Invalid batch ID' });
   }
 
   try {
-    const { db } = await connectToDatabase();
-    const batchesCol = db.collection('batches');
-    const productsCol = db.collection('products');
-    const { id } = req.query;
+    const batchesCollection = await getCollection('batches');
 
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'Invalid batch ID' });
-    }
-
-    if (req.method === 'GET') {
-      const batch = await batchesCol.aggregate([
-        { $match: { _id: new ObjectId(id) } },
-        {
-          $lookup: {
-            from: 'products',
-            localField: 'productId',
-            foreignField: '_id',
-            as: 'product'
-          }
-        },
-        { $unwind: '$product' },
-        {
-          $project: {
-            _id: 1,
-            batchNumber: 1,
-            productId: 1,
-            product: {
-              _id: '$product._id',
-              name: '$product.name',
-              code: '$product.code',
-              category: '$product.category'
-            },
-            quantity: 1,
-            remainingQuantity: 1,
-            purchasePrice: 1,
-            expiryDate: 1,
-            manufacturingDate: 1,
-            supplier: 1,
-            status: 1,
-            notes: 1,
-            createdAt: 1,
-            updatedAt: 1
-          }
+    switch (method) {
+      case 'GET':
+        if (!permissions.canManageBatches && !permissions.canManageInventory) {
+          return res.status(403).json({ message: 'Access denied' });
         }
-      ]).toArray();
 
-      if (batch.length === 0) {
-        return res.status(404).json({ error: 'Batch not found' });
-      }
-
-      return res.status(200).json(batch[0]);
-    }
-
-    if (req.method === 'PUT') {
-      const {
-        batchNumber,
-        quantity,
-        purchasePrice,
-        expiryDate,
-        manufacturingDate,
-        supplier,
-        notes,
-        status
-      } = req.body;
-
-      // Get current batch
-      const currentBatch = await batchesCol.findOne({ _id: new ObjectId(id) });
-      if (!currentBatch) {
-        return res.status(404).json({ error: 'Batch not found' });
-      }
-
-      // Check if batch number already exists for this product (if changed)
-      if (batchNumber && batchNumber !== currentBatch.batchNumber) {
-        const existingBatch = await batchesCol.findOne({
-          productId: currentBatch.productId,
-          batchNumber: batchNumber,
-          _id: { $ne: new ObjectId(id) }
+        const batch = await batchesCollection.findOne({ 
+          _id: new ObjectId(id),
+          isActive: true 
         });
-        if (existingBatch) {
-          return res.status(409).json({ error: 'Batch number already exists for this product' });
+
+        if (!batch) {
+          return res.status(404).json({ message: 'Batch not found' });
         }
-      }
 
-      // Calculate quantity difference for product update
-      const quantityDiff = quantity ? parseFloat(quantity) - currentBatch.quantity : 0;
+        res.status(200).json(batch);
+        break;
 
-      // Update batch
-      const updateFields = {};
-      if (batchNumber !== undefined) updateFields.batchNumber = batchNumber;
-      if (quantity !== undefined) updateFields.quantity = parseFloat(quantity);
-      if (remainingQuantity !== undefined) updateFields.remainingQuantity = parseFloat(remainingQuantity);
-      if (purchasePrice !== undefined) updateFields.purchasePrice = parseFloat(purchasePrice);
-      if (expiryDate !== undefined) updateFields.expiryDate = new Date(expiryDate);
-      if (manufacturingDate !== undefined) updateFields.manufacturingDate = manufacturingDate ? new Date(manufacturingDate) : null;
-      if (supplier !== undefined) updateFields.supplier = supplier;
-      if (notes !== undefined) updateFields.notes = notes;
-      if (status !== undefined) updateFields.status = status;
-      
-      updateFields.updatedAt = new Date();
+      case 'PUT':
+        if (!permissions.canManageBatches) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
 
-      await batchesCol.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updateFields }
-      );
-
-      // Update product quantity and average purchase price if quantity changed
-      if (quantityDiff !== 0) {
-        const currentProduct = await productsCol.findOne({ _id: currentBatch.productId });
-        const newQuantity = currentProduct.quantity + quantityDiff;
-        
-        // Recalculate average purchase price based on all batches
-        const allBatches = await batchesCol.find({ 
-          productId: currentBatch.productId,
-          status: 'active'
-        }).toArray();
-        
-        let totalValue = 0;
-        let totalQuantity = 0;
-        
-        allBatches.forEach(batch => {
-          totalValue += batch.quantity * batch.purchasePrice;
-          totalQuantity += batch.quantity;
+        const existingBatch = await batchesCollection.findOne({ 
+          _id: new ObjectId(id),
+          isActive: true 
         });
-        
-        const newAveragePrice = totalQuantity > 0 ? totalValue / totalQuantity : 0;
 
-        await productsCol.updateOne(
-          { _id: currentBatch.productId },
-          {
-            $set: {
-              quantity: newQuantity,
-              purchasePrice: newAveragePrice,
-              updatedAt: new Date()
+        if (!existingBatch) {
+          return res.status(404).json({ message: 'Batch not found' });
+        }
+
+        const {
+          currentQuantity,
+          qualityStatus,
+          qualityNotes,
+          warehouse,
+          location,
+          storageRequirements,
+          notes
+        } = req.body;
+
+        const updateData = {
+          ...(currentQuantity !== undefined && { currentQuantity: parseInt(currentQuantity) }),
+          ...(qualityStatus && { qualityStatus }),
+          ...(qualityNotes !== undefined && { qualityNotes: qualityNotes.trim() }),
+          ...(warehouse !== undefined && { warehouse }),
+          ...(location && { location }),
+          ...(storageRequirements && { storageRequirements }),
+          ...(notes !== undefined && { notes: notes.trim() }),
+          updatedAt: new Date(),
+          updatedBy: user.userId
+        };
+
+        // Update quality test date if quality status is being changed
+        if (qualityStatus && qualityStatus !== existingBatch.qualityStatus) {
+          updateData.qualityTestDate = new Date();
+        }
+
+        const result = await batchesCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updateData }
+        );
+
+        if (result.modifiedCount === 0) {
+          return res.status(400).json({ message: 'No changes made to batch' });
+        }
+
+        // Log activity
+        const activitiesCollection = await getCollection('activities');
+        await activitiesCollection.insertOne({
+          userId: user.userId,
+          username: user.username,
+          action: 'update_batch',
+          details: `Updated batch: ${existingBatch.batchNumber}`,
+          entityType: 'Batch',
+          entityId: id,
+          createdAt: new Date(),
+          ipAddress: req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown',
+          userAgent: req.headers['user-agent'] || 'unknown'
+        });
+
+        const updatedBatch = await batchesCollection.findOne({ _id: new ObjectId(id) });
+        res.status(200).json(updatedBatch);
+        break;
+
+      case 'DELETE':
+        if (!permissions.canManageBatches) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+
+        const batchToDelete = await batchesCollection.findOne({ 
+          _id: new ObjectId(id),
+          isActive: true 
+        });
+
+        if (!batchToDelete) {
+          return res.status(404).json({ message: 'Batch not found' });
+        }
+
+        // Check if batch has current quantity
+        if (batchToDelete.currentQuantity > 0) {
+          return res.status(400).json({ 
+            message: `Cannot delete batch. It still has ${batchToDelete.currentQuantity} units in stock.` 
+          });
+        }
+
+        // Soft delete - set isActive to false
+        await batchesCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { 
+            $set: { 
+              isActive: false,
+              updatedAt: new Date(),
+              updatedBy: user.userId
             }
           }
         );
-      }
 
-      return res.status(200).json({ message: 'Batch updated successfully' });
-    }
+        // Log activity
+        const activitiesCollection = await getCollection('activities');
+        await activitiesCollection.insertOne({
+          userId: user.userId,
+          username: user.username,
+          action: 'delete_batch',
+          details: `Deleted batch: ${batchToDelete.batchNumber}`,
+          entityType: 'Batch',
+          entityId: id,
+          createdAt: new Date(),
+          ipAddress: req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown',
+          userAgent: req.headers['user-agent'] || 'unknown'
+        });
 
-    if (req.method === 'DELETE') {
-      const batch = await batchesCol.findOne({ _id: new ObjectId(id) });
-      if (!batch) {
-        return res.status(404).json({ error: 'Batch not found' });
-      }
+        res.status(200).json({ message: 'Batch deleted successfully' });
+        break;
 
-      // Check if batch has remaining quantity
-      if (batch.remainingQuantity > 0) {
-        return res.status(400).json({ error: 'Cannot delete batch with remaining quantity' });
-      }
-
-      // Delete batch
-      await batchesCol.deleteOne({ _id: new ObjectId(id) });
-
-      // Recalculate product average purchase price
-      const remainingBatches = await batchesCol.find({ 
-        productId: batch.productId,
-        status: 'active'
-      }).toArray();
-      
-      let totalValue = 0;
-      let totalQuantity = 0;
-      
-      remainingBatches.forEach(b => {
-        totalValue += b.quantity * b.purchasePrice;
-        totalQuantity += b.quantity;
-      });
-      
-      const newAveragePrice = totalQuantity > 0 ? totalValue / totalQuantity : 0;
-
-      await productsCol.updateOne(
-        { _id: batch.productId },
-        {
-          $set: {
-            quantity: totalQuantity,
-            purchasePrice: newAveragePrice,
-            updatedAt: new Date()
-          }
-        }
-      );
-
-      return res.status(200).json({ message: 'Batch deleted successfully' });
+      default:
+        res.setHeader('Allow', ['GET', 'PUT', 'DELETE']);
+        res.status(405).end(`Method ${method} Not Allowed`);
     }
   } catch (error) {
-    console.error('Batch API error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('API Error:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 }

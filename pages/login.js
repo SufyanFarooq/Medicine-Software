@@ -50,7 +50,18 @@ export default function Login() {
         // Log successful login
         logUserActivity.login(data.user.username);
         
-        router.push('/');
+        // Handle branch-based redirection
+        if (data.redirectTo === '/branch-picker') {
+          // User has multiple branches - redirect to branch picker
+          router.push('/branch-picker');
+        } else if (data.branch) {
+          // User has single branch - set branch context and redirect to dashboard
+          localStorage.setItem('currentBranch', JSON.stringify(data.branch));
+          router.push('/');
+        } else {
+          // Fallback to dashboard
+          router.push('/');
+        }
       } else {
         const errorData = await response.json();
         setError(errorData.message || 'Login failed');

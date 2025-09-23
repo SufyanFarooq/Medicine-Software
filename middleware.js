@@ -16,11 +16,12 @@ export function middleware(request) {
   
   // For API routes, check for Authorization header
   if (pathname.startsWith('/api/') && !pathname.startsWith('/api/auth/')) {
-    // Allow products, categories, warehouses, and transfers API without authentication for now
+    // Allow products, categories, warehouses, transfers, and expense-categories API without authentication for now
     if (pathname.startsWith('/api/products') || 
         pathname.startsWith('/api/categories') ||
         pathname.startsWith('/api/warehouses') ||
-        pathname.startsWith('/api/transfers')) {
+        pathname.startsWith('/api/transfers') ||
+        pathname.startsWith('/api/expense-categories')) {
       return NextResponse.next();
     }
     

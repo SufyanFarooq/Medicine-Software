@@ -142,86 +142,70 @@ export default async function handler(req, res) {
         break;
 
       case 'PUT':
-        const updateData = req.body;
-        
-        // If this is a notification settings update, handle it differently
-        if (updateData.notificationSettings) {
-          // Update only notification-related settings
-          const result = await settingsCollection.updateOne(
+        {
+          const updateData = req.body;
+
+          // Build a flexible $set object to allow partial updates in a single call
+          const setFields = {
+            updatedAt: new Date(),
+            updatedBy: user.userId,
+          };
+
+          // Regular fields (only set if provided)
+          if (updateData.currency !== undefined) setFields.currency = updateData.currency;
+          if (updateData.discountPercentage !== undefined) {
+            const dp = parseFloat(updateData.discountPercentage);
+            if (isNaN(dp) || dp < 0 || dp > 100) {
+              return res.status(400).json({ message: 'Discount percentage must be between 0 and 100' });
+            }
+            setFields.discountPercentage = dp;
+          }
+          if (updateData.businessName !== undefined) setFields.businessName = updateData.businessName;
+          if (updateData.businessType !== undefined) setFields.businessType = updateData.businessType;
+          if (updateData.contactNumber !== undefined) setFields.contactNumber = updateData.contactNumber || '';
+          if (updateData.address !== undefined) setFields.address = updateData.address || '';
+          if (updateData.email !== undefined) setFields.email = updateData.email || '';
+          if (updateData.website !== undefined) setFields.website = updateData.website || '';
+          if (updateData.taxRate !== undefined) {
+            const tr = parseFloat(updateData.taxRate);
+            if (isNaN(tr) || tr < 0 || tr > 100) {
+              return res.status(400).json({ message: 'Tax rate must be between 0 and 100' });
+            }
+            setFields.taxRate = tr;
+          }
+          if (updateData.hasExpiryDates !== undefined) setFields.hasExpiryDates = !!updateData.hasExpiryDates;
+          if (updateData.hasBatchNumbers !== undefined) setFields.hasBatchNumbers = !!updateData.hasBatchNumbers;
+          if (updateData.lowStockThreshold !== undefined) {
+            const lst = parseInt(updateData.lowStockThreshold);
+            setFields.lowStockThreshold = isNaN(lst) ? 10 : lst;
+          }
+
+          // Nested notification settings (flatten with dot-notation)
+          if (updateData.notificationSettings && typeof updateData.notificationSettings === 'object') {
+            const ns = updateData.notificationSettings;
+            if (ns.lowStockThreshold !== undefined) setFields['notificationSettings.lowStockThreshold'] = parseInt(ns.lowStockThreshold);
+            if (ns.expiryWarningDays !== undefined) setFields['notificationSettings.expiryWarningDays'] = parseInt(ns.expiryWarningDays);
+            if (ns.criticalExpiryDays !== undefined) setFields['notificationSettings.criticalExpiryDays'] = parseInt(ns.criticalExpiryDays);
+            if (ns.emailNotifications !== undefined) setFields['notificationSettings.emailNotifications'] = !!ns.emailNotifications;
+            if (ns.inAppNotifications !== undefined) setFields['notificationSettings.inAppNotifications'] = !!ns.inAppNotifications;
+            if (ns.notificationFrequency !== undefined) setFields['notificationSettings.notificationFrequency'] = ns.notificationFrequency;
+            if (ns.autoCleanupDays !== undefined) setFields['notificationSettings.autoCleanupDays'] = parseInt(ns.autoCleanupDays);
+            if (ns.stockoutAlert !== undefined) setFields['notificationSettings.stockoutAlert'] = !!ns.stockoutAlert;
+          }
+
+          if (Object.keys(setFields).length === 2) { // only updatedAt/updatedBy present
+            return res.status(400).json({ message: 'No valid fields provided to update' });
+          }
+
+          await settingsCollection.updateOne(
             {},
-            { 
-              $set: { 
-                ...updateData.notificationSettings,
-                updatedAt: new Date(),
-                updatedBy: user.userId,
-              }
-            },
+            { $set: setFields },
             { upsert: true }
           );
-          
-          if (result.modifiedCount > 0 || result.matchedCount > 0 || result.upsertedCount > 0) {
-            res.status(200).json({ message: 'Notification settings updated successfully' });
-          } else {
-            res.status(500).json({ message: 'Failed to update notification settings' });
-          }
+
+          res.status(200).json({ message: 'Settings updated successfully' });
           break;
         }
-        
-        // Regular settings update - extract fields
-        const { 
-          currency, 
-          discountPercentage, 
-          businessName, 
-          businessType,
-          contactNumber, 
-          address,
-          email,
-          website,
-          taxRate,
-          hasExpiryDates,
-          hasBatchNumbers,
-          lowStockThreshold
-        } = updateData;
-        
-        // Validate input for regular settings update
-        if (!currency || discountPercentage === undefined || !businessName || !businessType) {
-          return res.status(400).json({ message: 'Currency, discount percentage, business name, and business type are required' });
-        }
-
-        if (discountPercentage < 0 || discountPercentage > 100) {
-          return res.status(400).json({ message: 'Discount percentage must be between 0 and 100' });
-        }
-
-        if (taxRate < 0 || taxRate > 100) {
-          return res.status(400).json({ message: 'Tax rate must be between 0 and 100' });
-        }
-
-        // Update settings
-        const result = await settingsCollection.updateOne(
-          {},
-          { 
-            $set: { 
-              currency,
-              discountPercentage: parseFloat(discountPercentage),
-              businessName,
-              businessType,
-              contactNumber: contactNumber || '',
-              address: address || '',
-              email: email || '',
-              website: website || '',
-              taxRate: parseFloat(taxRate) || 0,
-              hasExpiryDates: hasExpiryDates !== undefined ? hasExpiryDates : true,
-              hasBatchNumbers: hasBatchNumbers !== undefined ? hasBatchNumbers : false,
-              lowStockThreshold: parseInt(lowStockThreshold) || 10,
-              updatedAt: new Date(),
-              updatedBy: user.userId,
-            }
-          },
-          { upsert: true }
-        );
-
-        res.status(200).json({ message: 'Settings updated successfully' });
-        break;
 
       default:
         res.setHeader('Allow', ['GET', 'POST', 'PUT']);

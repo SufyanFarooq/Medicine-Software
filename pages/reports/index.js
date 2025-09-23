@@ -4,21 +4,58 @@ import { apiRequest } from '../../lib/auth';
 import { getUser } from '../../lib/auth';
 import { hasPermission } from '../../lib/permissions';
 import { formatCurrency as formatAppCurrency } from '../../lib/currency';
+import { 
+  Tabs,
+  Card, 
+  Row, 
+  Col, 
+  Space, 
+  Typography, 
+  Select,
+  DatePicker,
+  Statistic,
+  Table,
+  Progress,
+  Tag,
+  Alert,
+  Divider,
+  Spin,
+  Empty
+} from 'antd';
+import { 
+  BarChartOutlined,
+  DollarOutlined,
+  ShoppingOutlined,
+  TrophyOutlined,
+  RiseOutlined,
+  FallOutlined,
+  CalendarOutlined,
+  FileTextOutlined,
+  ShoppingCartOutlined,
+  UserOutlined,
+  BankOutlined,
+  WarningOutlined,
+  ExclamationCircleOutlined
+} from '@ant-design/icons';
+import dayjs from 'dayjs';
+
+const { Title, Text } = Typography;
+const { Option } = Select;
+const { RangePicker } = DatePicker;
 
 export default function Reports() {
   const [currentUser, setCurrentUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('business');
   const [loading, setLoading] = useState(false);
-  const [dateRange, setDateRange] = useState('month'); // week, month, quarter, year, custom, all
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
+  const [dateRange, setDateRange] = useState('month');
+  const [customDateRange, setCustomDateRange] = useState(null);
   const [reportsData, setReportsData] = useState({});
 
   useEffect(() => {
     const user = getUser();
     setCurrentUser(user);
     fetchReportsData();
-  }, [dateRange, customStartDate, customEndDate]);
+  }, [dateRange, customDateRange]);
 
   const fetchReportsData = async () => {
     setLoading(true);
@@ -31,10 +68,22 @@ export default function Reports() {
       const response = await apiRequest(url);
       if (response.ok) {
         const data = await response.json();
-        setReportsData(data);
+        // Ensure array properties are always arrays
+        const safeData = {
+          ...data,
+          topProducts: Array.isArray(data.topProducts) ? data.topProducts : [],
+          inventoryStatus: Array.isArray(data.inventoryStatus) ? data.inventoryStatus : [],
+          categoryPerformance: Array.isArray(data.categoryPerformance) ? data.categoryPerformance : []
+        };
+        setReportsData(safeData);
       }
     } catch (error) {
       console.error('Error fetching reports data:', error);
+      setReportsData({
+        topProducts: [],
+        inventoryStatus: [],
+        categoryPerformance: []
+      });
     } finally {
       setLoading(false);
     }
@@ -75,11 +124,9 @@ export default function Reports() {
         return { start: toISO(start), end: toISO(end) };
       }
       case 'custom': {
-        if (!customStartDate || !customEndDate) return { start: null, end: null };
-        const start = new Date(customStartDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(customEndDate);
-        end.setHours(23, 59, 59, 999);
+        if (!customDateRange || customDateRange.length !== 2) return { start: null, end: null };
+        const start = customDateRange[0].startOf('day').toDate();
+        const end = customDateRange[1].endOf('day').toDate();
         return { start: toISO(start), end: toISO(end) };
       }
       case 'all':
@@ -104,426 +151,426 @@ export default function Reports() {
     }
   };
 
+  // Business Report Tab Content
+  const BusinessReportTab = () => (
+    <div>
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '48px' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: '16px' }}>
+            <Text>Loading business report...</Text>
+          </div>
+        </div>
+      ) : (
+        <Row gutter={16}>
+          {/* Key Metrics */}
+          <Col span={24} style={{ marginBottom: '24px' }}>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={6}>
+                <Card>
+                  <Statistic
+                    title="Total Revenue"
+                    value={reportsData.totalRevenue || 0}
+                    prefix={<DollarOutlined />}
+                    valueStyle={{ color: '#3f8600' }}
+                    formatter={(value) => `Rs ${formatNumber(value)}`}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Card>
+                  <Statistic
+                    title="Total Orders"
+                    value={reportsData.totalOrders || 0}
+                    prefix={<ShoppingCartOutlined />}
+                    valueStyle={{ color: '#1890ff' }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Card>
+                  <Statistic
+                    title="Total Products"
+                    value={reportsData.totalProducts || 0}
+                    prefix={<ShoppingOutlined />}
+                    valueStyle={{ color: '#722ed1' }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Card>
+                  <Statistic
+                    title="Total Customers"
+                    value={reportsData.totalCustomers || 0}
+                    prefix={<UserOutlined />}
+                    valueStyle={{ color: '#eb2f96' }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </Col>
+
+          {/* Revenue Chart Placeholder */}
+          <Col span={24}>
+            <Card title="Revenue Overview" style={{ marginBottom: '16px' }}>
+              <div style={{ textAlign: 'center', padding: '48px' }}>
+                <BarChartOutlined style={{ fontSize: '48px', color: '#d9d9d9' }} />
+                <div style={{ marginTop: '16px' }}>
+                  <Text type="secondary">Revenue chart will be displayed here</Text>
+                </div>
+              </div>
+            </Card>
+          </Col>
+        </Row>
+      )}
+    </div>
+  );
+
+  // Sales Report Tab Content
+  const SalesReportTab = () => (
+    <div>
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '48px' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: '16px' }}>
+            <Text>Loading sales report...</Text>
+          </div>
+        </div>
+      ) : (
+        <Row gutter={16}>
+          {/* Sales Metrics */}
+          <Col span={24} style={{ marginBottom: '24px' }}>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={8}>
+                <Card>
+                  <Statistic
+                    title="Total Sales"
+                    value={reportsData.totalSales || 0}
+                    prefix={<DollarOutlined />}
+                    valueStyle={{ color: '#3f8600' }}
+                    formatter={(value) => `Rs ${formatNumber(value)}`}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8}>
+                <Card>
+                  <Statistic
+                    title="Average Order Value"
+                    value={reportsData.averageOrderValue || 0}
+                    prefix={<ShoppingCartOutlined />}
+                    valueStyle={{ color: '#1890ff' }}
+                    formatter={(value) => `Rs ${formatNumber(value)}`}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8}>
+                <Card>
+                  <Statistic
+                    title="Conversion Rate"
+                    value={reportsData.conversionRate || 0}
+                    suffix="%"
+                    prefix={<TrophyOutlined />}
+                    valueStyle={{ color: '#722ed1' }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </Col>
+
+          {/* Top Products Table */}
+          <Col span={24}>
+            <Card title="Top Selling Products">
+              <Table
+                dataSource={reportsData.topProducts || []}
+                rowKey="_id"
+                pagination={{ pageSize: 10 }}
+                columns={[
+                  {
+                    title: 'Product',
+                    dataIndex: 'name',
+                    key: 'name',
+                    render: (text) => <Text strong>{text}</Text>
+                  },
+                  {
+                    title: 'Sales',
+                    dataIndex: 'totalSales',
+                    key: 'totalSales',
+                    render: (value) => `Rs ${formatNumber(value || 0)}`
+                  },
+                  {
+                    title: 'Quantity Sold',
+                    dataIndex: 'quantitySold',
+                    key: 'quantitySold',
+                    render: (value) => formatNumber(value || 0)
+                  },
+                  {
+                    title: 'Performance',
+                    key: 'performance',
+                    render: (_, record) => {
+                      const percentage = ((record.totalSales || 0) / (reportsData.totalSales || 1)) * 100;
+                      return (
+                        <Progress 
+                          percent={percentage} 
+                          size="small" 
+                          status={percentage > 20 ? 'success' : percentage > 10 ? 'active' : 'exception'}
+                        />
+                      );
+                    }
+                  }
+                ]}
+                locale={{
+                  emptyText: (
+                    <Empty 
+                      description="No sales data available" 
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
+                  )
+                }}
+              />
+            </Card>
+          </Col>
+        </Row>
+      )}
+    </div>
+  );
+
+  // Inventory Report Tab Content
+  const InventoryReportTab = () => (
+    <div>
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '48px' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: '16px' }}>
+            <Text>Loading inventory report...</Text>
+          </div>
+        </div>
+      ) : (
+        <Row gutter={16}>
+          {/* Inventory Metrics */}
+          <Col span={24} style={{ marginBottom: '24px' }}>
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={6}>
+                <Card>
+                  <Statistic
+                    title="Total Products"
+                    value={reportsData.totalProducts || 0}
+                    prefix={<ShoppingOutlined />}
+                    valueStyle={{ color: '#1890ff' }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Card>
+                  <Statistic
+                    title="Low Stock Items"
+                    value={reportsData.lowStockItems || 0}
+                    prefix={<WarningOutlined />}
+                    valueStyle={{ color: '#faad14' }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Card>
+                  <Statistic
+                    title="Out of Stock"
+                    value={reportsData.outOfStockItems || 0}
+                    prefix={<ExclamationCircleOutlined />}
+                    valueStyle={{ color: '#ff4d4f' }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Card>
+                  <Statistic
+                    title="Total Stock Value"
+                    value={reportsData.totalStockValue || 0}
+                    prefix={<BankOutlined />}
+                    valueStyle={{ color: '#52c41a' }}
+                    formatter={(value) => `Rs ${formatNumber(value)}`}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </Col>
+
+          {/* Inventory Status Table */}
+          <Col span={24}>
+            <Card title="Inventory Status">
+              <Table
+                dataSource={reportsData.inventoryStatus || []}
+                rowKey="_id"
+                pagination={{ pageSize: 10 }}
+                columns={[
+                  {
+                    title: 'Product',
+                    dataIndex: 'name',
+                    key: 'name',
+                    render: (text) => <Text strong>{text}</Text>
+                  },
+                  {
+                    title: 'Current Stock',
+                    dataIndex: 'quantity',
+                    key: 'quantity',
+                    render: (value) => formatNumber(value || 0)
+                  },
+                  {
+                    title: 'Status',
+                    key: 'status',
+                    render: (_, record) => {
+                      const quantity = record.quantity || 0;
+                      if (quantity === 0) {
+                        return <Tag color="error">Out of Stock</Tag>;
+                      } else if (quantity <= 10) {
+                        return <Tag color="warning">Low Stock</Tag>;
+                      }
+                      return <Tag color="success">In Stock</Tag>;
+                    }
+                  },
+                  {
+                    title: 'Stock Level',
+                    key: 'stockLevel',
+                    render: (_, record) => {
+                      const quantity = record.quantity || 0;
+                      const maxStock = record.maxStock || 100;
+                      const percentage = (quantity / maxStock) * 100;
+                      return (
+                        <Progress 
+                          percent={percentage} 
+                          size="small" 
+                          status={percentage < 20 ? 'exception' : percentage < 50 ? 'active' : 'success'}
+                        />
+                      );
+                    }
+                  }
+                ]}
+                locale={{
+                  emptyText: (
+                    <Empty 
+                      description="No inventory data available" 
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
+                  )
+                }}
+              />
+            </Card>
+          </Col>
+        </Row>
+      )}
+    </div>
+  );
+
+  // Check permissions
+  if (!hasPermission(currentUser?.role, 'canViewReports')) {
+    return (
+      <Layout>
+        <div style={{ padding: '24px' }}>
+          <Alert
+            message="Access Denied"
+            description="You do not have permission to view reports."
+            type="error"
+            showIcon
+          />
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
-      <div className="space-y-6">
+      <div style={{ padding: '24px' }}>
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">📊 Business Reports</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Comprehensive business insights and performance analytics
-          </p>
-        </div>
+        <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
+          <Col>
+            <Title level={2} style={{ margin: 0 }}>
+              <Space>
+                📊 Business Reports
+              </Space>
+            </Title>
+            <Text type="secondary">Comprehensive business insights and performance analytics</Text>
+          </Col>
+        </Row>
 
         {/* Date Range Selector */}
-        <div className="bg-white rounded-lg shadow-sm border p-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
-              <select
+        <Card style={{ marginBottom: '24px' }}>
+          <Row gutter={16} align="middle">
+            <Col xs={24} sm={8} md={6}>
+              <Text strong>Date Range</Text>
+              <Select
                 value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(value) => setDateRange(value)}
+                style={{ width: '100%', marginTop: '8px' }}
               >
-                <option value="week">Last 7 Days</option>
-                <option value="month">This Month</option>
-                <option value="quarter">This Quarter</option>
-                <option value="year">This Year</option>
-                <option value="all">All Time</option>
-                <option value="custom">Custom Range</option>
-              </select>
-            </div>
+                <Option value="week">Last 7 Days</Option>
+                <Option value="month">This Month</Option>
+                <Option value="quarter">This Quarter</Option>
+                <Option value="year">This Year</Option>
+                <Option value="all">All Time</Option>
+                <Option value="custom">Custom Range</Option>
+              </Select>
+            </Col>
 
             {dateRange === 'custom' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={customStartDate}
-                    onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={customEndDate}
-                    onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </>
+              <Col xs={24} sm={12} md={8}>
+                <Text strong>Custom Date Range</Text>
+                <RangePicker
+                  style={{ width: '100%', marginTop: '8px' }}
+                  value={customDateRange}
+                  onChange={(dates) => setCustomDateRange(dates)}
+                  format="DD/MM/YYYY"
+                />
+              </Col>
             )}
 
-            <div className="ml-auto">
-              <span className="text-sm text-gray-500">
-                {getDateRangeLabel()}
-              </span>
-            </div>
-          </div>
-        </div>
+            <Col xs={24} sm={8} md={6} offset={dateRange === 'custom' ? 0 : 4}>
+              <div style={{ textAlign: 'right', marginTop: '24px' }}>
+                <Tag color="blue" icon={<CalendarOutlined />}>
+                  {getDateRangeLabel()}
+                </Tag>
+              </div>
+            </Col>
+          </Row>
+        </Card>
 
-        {/* Tab Navigation */}
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'overview'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              📈 Overview Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab('profit-loss')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'profit-loss'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              💰 Profit & Loss
-            </button>
-            <button
-              onClick={() => setActiveTab('products')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'products'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              📦 Top Products
-            </button>
-            <button
-              onClick={() => setActiveTab('categories')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'categories'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              🏷️ Category Performance
-            </button>
-            <button
-              onClick={() => setActiveTab('taxes')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'taxes'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              🧾 Tax Analysis
-            </button>
-          </nav>
-        </div>
-
-        {/* Loading State */}
-        {loading && (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        )}
-
-        {/* Overview Dashboard Tab */}
-        {activeTab === 'overview' && !loading && (
-          <div className="space-y-6">
-            {/* Key Metrics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-green-100 rounded-md flex items-center justify-center">
-                      <span className="text-green-600 text-lg">💰</span>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Total Revenue</p>
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {formatAppCurrency(reportsData.totalRevenue)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-blue-100 rounded-md flex items-center justify-center">
-                      <span className="text-blue-600 text-lg">📊</span>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Total Sales</p>
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {formatNumber(reportsData.totalSales)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-yellow-100 rounded-md flex items-center justify-center">
-                      <span className="text-yellow-600 text-lg">📈</span>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Gross Profit</p>
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {formatAppCurrency(reportsData.grossProfit)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-purple-100 rounded-md flex items-center justify-center">
-                      <span className="text-purple-600 text-lg">🎯</span>
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">Profit Margin</p>
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {reportsData.profitMargin ? `${reportsData.profitMargin.toFixed(1)}%` : '0%'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Activity */}
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">📊 Recent Activity Summary</h3>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-3">Top Selling Products</h4>
-                    {reportsData.topProducts && reportsData.topProducts.length > 0 ? (
-                      <div className="space-y-2">
-                        {reportsData.topProducts.slice(0, 5).map((product, index) => (
-                          <div key={index} className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">{product.name}</span>
-                            <span className="font-medium">{formatNumber(product.quantity)} sold</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-gray-500 text-sm">No data available</p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-3">Category Performance</h4>
-                    {reportsData.categoryPerformance && reportsData.categoryPerformance.length > 0 ? (
-                      <div className="space-y-2">
-                        {reportsData.categoryPerformance.slice(0, 5).map((category, index) => (
-                          <div key={index} className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">{category.name}</span>
-                            <span className="font-medium">{formatAppCurrency(category.revenue)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-gray-500 text-sm">No data available</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Profit & Loss Tab */}
-        {activeTab === 'profit-loss' && !loading && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">💰 Profit & Loss Statement</h3>
-                <p className="text-sm text-gray-500">Detailed financial performance for the selected period</p>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="font-medium text-gray-700">Revenue</span>
-                    <span className="font-semibold text-green-600">{formatAppCurrency(reportsData.totalRevenue)}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Cost of Goods Sold</span>
-                    <span className="text-red-600">{formatAppCurrency(reportsData.costOfGoodsSold)}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                    <span className="font-medium text-gray-700">Gross Profit</span>
-                    <span className="font-semibold text-blue-600">{formatAppCurrency(reportsData.grossProfit)}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Operating Expenses</span>
-                    <span className="text-red-600">{formatAppCurrency(reportsData.operatingExpenses)}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Taxes</span>
-                    <span className="text-red-600">{formatAppCurrency(reportsData.totalTaxes)}</span>
-                  </div>
-                  
-                  <div className="flex justify-between items-center py-3 border-t-2 border-gray-300">
-                    <span className="text-lg font-bold text-gray-900">Net Profit</span>
-                    <span className="text-lg font-bold text-green-600">{formatAppCurrency(reportsData.netProfit)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Top Products Tab */}
-        {activeTab === 'products' && !loading && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">📦 Top Performing Products</h3>
-                <p className="text-sm text-gray-500">Best-selling products by revenue and quantity</p>
-              </div>
-              <div className="p-6">
-                {reportsData.topProducts && reportsData.topProducts.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity Sold</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {reportsData.topProducts.map((product, index) => (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                              <div className="text-sm text-gray-500">{product.code}</div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.category}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatNumber(product.quantity)}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">{formatAppCurrency(product.revenue)}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{formatAppCurrency(product.profit)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center py-8">No product data available for the selected period</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Category Performance Tab */}
-        {activeTab === 'categories' && !loading && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">🏷️ Category Performance Analysis</h3>
-                <p className="text-sm text-gray-500">Revenue and performance by product category</p>
-              </div>
-              <div className="p-6">
-                {reportsData.categoryPerformance && reportsData.categoryPerformance.length > 0 ? (
-                  <div className="space-y-4">
-                    {reportsData.categoryPerformance.map((category, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex justify-between items-center mb-3">
-                          <h4 className="font-medium text-gray-900">{category.name}</h4>
-                          <span className="text-sm text-gray-500">{category.productCount} products</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-500">Revenue:</span>
-                            <span className="ml-2 font-medium text-green-600">{formatAppCurrency(category.revenue)}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Profit:</span>
-                            <span className="ml-2 font-medium text-blue-600">{formatAppCurrency(category.profit)}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Margin:</span>
-                            <span className="ml-2 font-medium text-purple-600">{category.profitMargin?.toFixed(1)}%</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center py-8">No category data available for the selected period</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tax Analysis Tab */}
-        {activeTab === 'taxes' && !loading && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">🧾 Tax Analysis</h3>
-                <p className="text-sm text-gray-500">Tax collection and breakdown for the selected period</p>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-3">Tax Summary</h4>
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Total Tax Collected:</span>
-                          <span className="font-medium text-green-600">{formatAppCurrency(reportsData.totalTaxes)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Tax Rate:</span>
-                          <span className="font-medium">{reportsData.averageTaxRate?.toFixed(2)}%</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Taxable Sales:</span>
-                          <span className="font-medium">{formatAppCurrency(reportsData.taxableSales)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-3">Tax by Category</h4>
-                      {reportsData.taxByCategory && reportsData.taxByCategory.length > 0 ? (
-                        <div className="space-y-2">
-                          {reportsData.taxByCategory.map((taxItem, index) => (
-                            <div key={index} className="flex justify-between text-sm">
-                              <span className="text-gray-600">{taxItem.category}</span>
-                              <span className="font-medium">{formatAppCurrency(taxItem.taxAmount)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 text-sm">No tax category data available</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Reports Tabs */}
+        <Card>
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            size="large"
+            items={[
+              {
+                key: 'business',
+                label: (
+                  <Space>
+                    <BarChartOutlined />
+                    Business Report
+                  </Space>
+                ),
+                children: <BusinessReportTab />
+              },
+              {
+                key: 'sales',
+                label: (
+                  <Space>
+                    <DollarOutlined />
+                    Sales Report
+                  </Space>
+                ),
+                children: <SalesReportTab />
+              },
+              {
+                key: 'inventory',
+                label: (
+                  <Space>
+                    <ShoppingOutlined />
+                    Inventory Report
+                  </Space>
+                ),
+                children: <InventoryReportTab />
+              }
+            ]}
+          />
+        </Card>
       </div>
     </Layout>
   );

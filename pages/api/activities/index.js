@@ -67,15 +67,21 @@ export default async function handler(req, res) {
       case 'POST':
         const { action, details, entityType, entityId } = req.body;
 
-        // Validate required fields
-        if (!action) {
-          return res.status(400).json({ message: 'Action is required' });
+        // Derive a sensible default action if not provided
+        let finalAction = action;
+        if (!finalAction) {
+          const txt = (details || '').toLowerCase();
+          if (entityType === 'settings') finalAction = 'update_settings';
+          else if (txt.includes('created')) finalAction = 'create';
+          else if (txt.includes('updated')) finalAction = 'update';
+          else if (txt.includes('deleted') || txt.includes('removed')) finalAction = 'delete';
+          else finalAction = 'log';
         }
 
         const activity = {
           userId: user.userId,
           username: user.username,
-          action,
+          action: finalAction,
           details: details || '',
           entityType: entityType || '',
           entityId: entityId || '',

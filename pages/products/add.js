@@ -2,6 +2,9 @@ import { useState } from 'react';
 import Layout from '../../components/Layout';
 import ProductForm from '../../components/ProductForm';
 import { useRouter } from 'next/router';
+import { Typography, Card } from 'antd';
+
+const { Title, Text } = Typography;
 
 export default function AddProduct() {
   const router = useRouter();
@@ -26,18 +29,20 @@ export default function AddProduct() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Add New Product</h1>
-          <p className="mt-2 text-gray-600">
-            Add a new product to your inventory with complete details.
-          </p>
-        </div>
+      <div style={{ padding: '24px' }}>
+        <Card>
+          <div style={{ marginBottom: '24px' }}>
+            <Title level={2} style={{ margin: 0 }}>Add New Product</Title>
+            <Text type="secondary" style={{ fontSize: '16px' }}>
+              Add a new product to your inventory with complete details.
+            </Text>
+          </div>
 
-        <ProductForm
-          onSubmit={handleSubmit}
-          onCancel={handleCancel}
-        />
+          <ProductForm
+            onSubmit={handleSubmit}
+            onCancel={handleCancel}
+          />
+        </Card>
       </div>
     </Layout>
   );

@@ -3,6 +3,47 @@ import Layout from '../components/Layout';
 import Link from 'next/link';
 import { apiRequest } from '../lib/auth';
 import { formatCurrency } from '../lib/currency';
+import {
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Typography,
+  Space,
+  Button,
+  Modal,
+  Select,
+  DatePicker,
+  Radio,
+  Switch,
+  Alert,
+  Timeline,
+  Tag,
+  Divider,
+  Progress,
+  Empty,
+  Tooltip,
+  notification
+} from 'antd';
+import {
+  DashboardOutlined,
+  ShoppingOutlined,
+  DollarOutlined,
+  TrophyOutlined,
+  WarningOutlined,
+  CalendarOutlined,
+  BarChartOutlined,
+  LineChartOutlined,
+  DownloadOutlined,
+  PlusOutlined,
+  FileTextOutlined,
+  ShoppingCartOutlined,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
+  SettingOutlined,
+  RocketOutlined
+} from '@ant-design/icons';
+import dayjs from 'dayjs';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -30,14 +71,18 @@ export default function Dashboard() {
     dailyData: [],
     weeklyData: []
   });
-  const [timePeriod, setTimePeriod] = useState('monthly'); // 'daily', 'weekly', 'monthly'
-  const [exportFilter, setExportFilter] = useState('monthly'); // Filter for export data
+  const [timePeriod, setTimePeriod] = useState('monthly');
+  const [exportFilter, setExportFilter] = useState('monthly');
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportDateRange, setExportDateRange] = useState({
-    fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days ago
-    toDate: new Date().toISOString().split('T')[0] // today
+    fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    toDate: new Date().toISOString().split('T')[0]
   });
   const [customDateEnabled, setCustomDateEnabled] = useState(false);
+
+  const { Title, Text, Paragraph } = Typography;
+  const { Option } = Select;
+  const { RangePicker } = DatePicker;
 
   useEffect(() => {
     fetchSettings();
@@ -68,7 +113,8 @@ export default function Dashboard() {
 
       let products = [];
       if (productsRes.ok) {
-        products = await productsRes.json();
+        const productsData = await productsRes.json();
+        products = productsData.products || productsData;
         const lowStock = products.filter(p => p.quantity <= 10).length;
         const expiringSoon = products.filter(p => {
           if (!p.expiryDate) return false;
@@ -78,12 +124,10 @@ export default function Dashboard() {
           return expiryDate <= thirtyDaysFromNow;
         }).length;
 
-        // Calculate inventory value (current stock × purchase price)
         const inventoryValue = products.reduce((sum, product) => {
           return sum + (product.quantity * product.purchasePrice);
         }, 0);
 
-        // Calculate total cost of inventory
         const totalCost = products.reduce((sum, product) => {
           return sum + (product.quantity * product.purchasePrice);
         }, 0);
@@ -100,17 +144,13 @@ export default function Dashboard() {
 
       if (invoicesRes.ok) {
         const invoices = await invoicesRes.json();
-        
-        // Calculate total sales from invoices (these are already updated after returns)
         const totalSales = invoices.reduce((sum, invoice) => sum + invoice.total, 0);
         
-        // Calculate actual profit based on purchase and selling prices
         let totalPurchasePrice = 0;
         let totalSellingPrice = 0;
         
         invoices.forEach(invoice => {
           invoice.items.forEach(item => {
-            // Find the product to get purchase price
             const product = products.find(p => p._id === item.productId);
             if (product) {
               totalPurchasePrice += item.quantity * product.purchasePrice;
@@ -119,7 +159,6 @@ export default function Dashboard() {
           });
         });
         
-        // Calculate actual gross profit: Gross Sales - Total Purchase Price
         const grossProfit = totalSales - totalPurchasePrice;
         
         setStats(prev => ({ 
@@ -138,7 +177,6 @@ export default function Dashboard() {
           return sum + (returnItem.returnValue || 0);
         }, 0);
 
-        // Calculate net profit (gross profit - returns)
         const netProfit = stats.grossProfit - totalReturnsValue;
 
         setStats(prev => ({ 
@@ -155,15 +193,14 @@ export default function Dashboard() {
 
   const fetchRecentActivity = async () => {
     try {
-      const [invoicesRes, returnsRes, medicinesRes] = await Promise.all([
+      const [invoicesRes, returnsRes, productsRes] = await Promise.all([
         apiRequest('/api/invoices'),
         apiRequest('/api/returns'),
-        apiRequest('/api/medicines'),
+        apiRequest('/api/products'),
       ]);
 
       const activities = [];
 
-      // Process invoices
       if (invoicesRes.ok) {
         const invoices = await invoicesRes.json();
         const recentInvoices = invoices
@@ -184,7 +221,6 @@ export default function Dashboard() {
         });
       }
 
-      // Process returns
       if (returnsRes.ok) {
         const returns = await returnsRes.json();
         const recentReturns = returns
@@ -205,9 +241,9 @@ export default function Dashboard() {
         });
       }
 
-      // Process medicine updates (recently added or updated)
-      if (medicinesRes.ok) {
-        const medicines = await medicinesRes.json();
+      if (productsRes.ok) {
+        const productsData = await productsRes.json();
+        const medicines = productsData.products || productsData;
         const recentMedicines = medicines
           .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
           .slice(0, 3);
@@ -226,7 +262,6 @@ export default function Dashboard() {
         });
       }
 
-      // Sort all activities by date and take the most recent 10
       const sortedActivities = activities
         .sort((a, b) => b.date - a.date)
         .slice(0, 10);
@@ -239,23 +274,21 @@ export default function Dashboard() {
 
   const fetchChartData = async () => {
     try {
-      const [invoicesRes, returnsRes, medicinesRes] = await Promise.all([
+      const [invoicesRes, returnsRes, productsRes] = await Promise.all([
         apiRequest('/api/invoices'),
         apiRequest('/api/returns'),
-        apiRequest('/api/medicines'),
+        apiRequest('/api/products'),
       ]);
 
-      const salesData = [];
-      const profitData = [];
       const monthlyData = [];
       const dailyData = [];
       const weeklyData = [];
 
-      if (invoicesRes.ok && medicinesRes.ok) {
+      if (invoicesRes.ok && productsRes.ok) {
         const invoices = await invoicesRes.json();
-        const medicines = await medicinesRes.json();
+        const productsData = await productsRes.json();
+        const medicines = productsData.products || productsData;
         
-        // Group invoices by month with profit calculation
         const monthlySales = {};
         const dailySales = {};
         const weeklySales = {};
@@ -266,43 +299,24 @@ export default function Dashboard() {
           const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
           const weekKey = `${date.getFullYear()}-W${String(Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7)).padStart(2, '0')}`;
           
-          // Monthly data
           if (!monthlySales[monthKey]) {
-            monthlySales[monthKey] = {
-              sales: 0,
-              purchasePrice: 0,
-              count: 0,
-              month: monthKey
-            };
+            monthlySales[monthKey] = { sales: 0, purchasePrice: 0, count: 0, month: monthKey };
           }
           monthlySales[monthKey].sales += invoice.total;
           monthlySales[monthKey].count += 1;
           
-          // Daily data
           if (!dailySales[dayKey]) {
-            dailySales[dayKey] = {
-              sales: 0,
-              purchasePrice: 0,
-              count: 0,
-              day: dayKey
-            };
+            dailySales[dayKey] = { sales: 0, purchasePrice: 0, count: 0, day: dayKey };
           }
           dailySales[dayKey].sales += invoice.total;
           dailySales[dayKey].count += 1;
           
-          // Weekly data
           if (!weeklySales[weekKey]) {
-            weeklySales[weekKey] = {
-              sales: 0,
-              purchasePrice: 0,
-              count: 0,
-              week: weekKey
-            };
+            weeklySales[weekKey] = { sales: 0, purchasePrice: 0, count: 0, week: weekKey };
           }
           weeklySales[weekKey].sales += invoice.total;
           weeklySales[weekKey].count += 1;
           
-          // Calculate purchase price for this invoice
           invoice.items.forEach(item => {
             const medicine = medicines.find(m => m._id === item.medicineId);
             if (medicine) {
@@ -314,7 +328,6 @@ export default function Dashboard() {
           });
         });
 
-        // Convert monthly data
         Object.values(monthlySales).forEach(month => {
           const profit = month.sales - month.purchasePrice;
           monthlyData.push({
@@ -325,7 +338,6 @@ export default function Dashboard() {
           });
         });
 
-        // Convert daily data
         Object.values(dailySales).forEach(day => {
           const profit = day.sales - day.purchasePrice;
           dailyData.push({
@@ -336,7 +348,6 @@ export default function Dashboard() {
           });
         });
 
-        // Convert weekly data
         Object.values(weeklySales).forEach(week => {
           const profit = week.sales - week.purchasePrice;
           weeklyData.push({
@@ -347,92 +358,12 @@ export default function Dashboard() {
           });
         });
 
-        // Sort all data in descending order (latest first)
         monthlyData.sort((a, b) => b.period.localeCompare(a.period));
         dailyData.sort((a, b) => b.period.localeCompare(a.period));
         weeklyData.sort((a, b) => b.period.localeCompare(a.period));
       }
 
-      if (returnsRes.ok) {
-        const returns = await returnsRes.json();
-        
-        // Group returns by period
-        const monthlyReturns = {};
-        const dailyReturns = {};
-        const weeklyReturns = {};
-        
-        returns.forEach(returnItem => {
-          const date = new Date(returnItem.date);
-          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-          const weekKey = `${date.getFullYear()}-W${String(Math.ceil((date.getDate() + new Date(date.getFullYear(), date.getMonth(), 1).getDay()) / 7)).padStart(2, '0')}`;
-          
-          // Monthly returns
-          if (!monthlyReturns[monthKey]) {
-            monthlyReturns[monthKey] = { returns: 0, count: 0 };
-          }
-          monthlyReturns[monthKey].returns += returnItem.returnValue || 0;
-          monthlyReturns[monthKey].count += 1;
-          
-          // Daily returns
-          if (!dailyReturns[dayKey]) {
-            dailyReturns[dayKey] = { returns: 0, count: 0 };
-          }
-          dailyReturns[dayKey].returns += returnItem.returnValue || 0;
-          dailyReturns[dayKey].count += 1;
-          
-          // Weekly returns
-          if (!weeklyReturns[weekKey]) {
-            weeklyReturns[weekKey] = { returns: 0, count: 0 };
-          }
-          weeklyReturns[weekKey].returns += returnItem.returnValue || 0;
-          weeklyReturns[weekKey].count += 1;
-        });
-
-        // Merge returns data
-        monthlyData.forEach(month => {
-          const returnData = monthlyReturns[month.period];
-          if (returnData) {
-            month.returns = returnData.returns;
-            month.returnCount = returnData.count;
-            month.netProfit = month.profit - returnData.returns;
-          } else {
-            month.returns = 0;
-            month.returnCount = 0;
-            month.netProfit = month.profit;
-          }
-        });
-
-        dailyData.forEach(day => {
-          const returnData = dailyReturns[day.period];
-          if (returnData) {
-            day.returns = returnData.returns;
-            day.returnCount = returnData.count;
-            day.netProfit = day.profit - returnData.returns;
-          } else {
-            day.returns = 0;
-            day.returnCount = 0;
-            day.netProfit = day.profit;
-          }
-        });
-
-        weeklyData.forEach(week => {
-          const returnData = weeklyReturns[week.period];
-          if (returnData) {
-            week.returns = returnData.returns;
-            week.returnCount = returnData.count;
-            week.netProfit = week.profit - returnData.returns;
-          } else {
-            week.returns = 0;
-            week.returnCount = 0;
-            week.netProfit = week.profit;
-          }
-        });
-      }
-
       setChartData({
-        salesData,
-        profitData,
         monthlyData,
         dailyData,
         weeklyData
@@ -443,12 +374,10 @@ export default function Dashboard() {
   };
 
   const handleExportExcel = async () => {
-    // Show the date range modal instead of direct export
     setShowExportModal(true);
   };
 
   const handleExportWithDateRange = async () => {
-    // Check if custom dates are enabled and provided, otherwise use filter
     const hasCustomDates = customDateEnabled && exportDateRange.fromDate && exportDateRange.toDate;
     
     try {
@@ -457,47 +386,28 @@ export default function Dashboard() {
       let apiUrl;
       
       if (hasCustomDates) {
-        // Use custom date range
         apiUrl = `/api/export/sales-data?fromDate=${exportDateRange.fromDate}&toDate=${exportDateRange.toDate}`;
         filename = `sales-report-${exportDateRange.fromDate}-to-${exportDateRange.toDate}.xlsx`;
       } else {
-        // Use selected filter
         apiUrl = `/api/export/sales-data?filter=${exportFilter}`;
         const filterLabel = exportFilter === 'all' ? 'all-time' : exportFilter;
         const currentDate = new Date().toISOString().split('T')[0];
         filename = `sales-report-${filterLabel}-${currentDate}.xlsx`;
       }
       
-      console.log('Exporting with URL:', apiUrl);
-      console.log('Has Custom Dates:', hasCustomDates);
-      console.log('Export Filter:', exportFilter);
-      console.log('Date Range:', exportDateRange);
-      
       response = await apiRequest(apiUrl);
       
-      console.log('API Response:', response);
-      console.log('Response Status:', response.status);
-      console.log('Response OK:', response.ok);
-      
       if (response.ok) {
-        // Create blob from response
         const blob = await response.blob();
-        
-        // Create download link
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
         link.download = filename;
-        
-        // Trigger download
         document.body.appendChild(link);
         link.click();
-        
-        // Cleanup
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
         
-        // Close modal and reset
         setShowExportModal(false);
         setExportDateRange({
           fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -506,328 +416,301 @@ export default function Dashboard() {
         setExportFilter('monthly');
         setCustomDateEnabled(false);
         
-        // Show success message
         if (hasCustomDates) {
-          alert(`Excel file downloaded successfully! (${exportDateRange.fromDate} to ${exportDateRange.toDate})`);
+          notification.success({
+            message: 'Export Complete',
+            description: `Excel file downloaded successfully! (${exportDateRange.fromDate} to ${exportDateRange.toDate})`,
+          });
         } else {
           const filterText = exportFilter === 'all' ? 'All Time' : 
                            exportFilter === 'daily' ? 'Last 30 Days' : 
                            exportFilter === 'weekly' ? 'Last 12 Weeks' : 'Last 12 Months';
-          alert(`Excel file downloaded successfully! (${filterText})`);
+          notification.success({
+            message: 'Export Complete',
+            description: `Excel file downloaded successfully! (${filterText})`,
+          });
         }
       } else {
         throw new Error('Failed to generate Excel file');
       }
     } catch (error) {
       console.error('Export error:', error);
-      alert('Error downloading Excel file. Please try again.');
+      notification.error({
+        message: 'Export Failed',
+        description: 'Error downloading Excel file. Please try again.',
+      });
     }
   };
 
-  const statCards = [
-    {
-      title: 'Total Products',
-      value: stats.totalProducts,
-      icon: '📦',
-      color: 'bg-blue-500',
-      href: '/products',
-    },
-    {
-      title: 'Inventory Value',
-      value: `${formatCurrency(stats.inventoryValue)}`,
-      icon: '📦',
-      color: 'bg-blue-500',
-      href: '/products'
-    },
-    {
-      title: 'Total Cost',
-      value: `${formatCurrency(stats.totalPurchasePrice || 0)}`,
-      icon: '🛒',
-      color: 'bg-orange-500',
-      href: '/products'
-    },
-    {
-      title: 'Total Sales Value',
-      value: `${formatCurrency(stats.totalSellingPrice || 0)}`,
-      icon: '💵',
-      color: 'bg-green-500',
-      href: '/invoices'
-    },
-    {
-      title: 'Total Sales',
-      value: `${formatCurrency(stats.totalSales)}`,
-      icon: '💰',
-      color: 'bg-green-500',
-      href: '/invoices'
-    },
-    {
-      title: 'Gross Profit',
-      value: `${formatCurrency(stats.grossProfit)}`,
-      icon: '📈',
-      color: 'bg-green-500',
-      href: '/invoices'
-    },
-  ];
-
-  const quickActions = [
-    {
-      title: 'Add New Product',
-      description: 'Add a new product to inventory',
-      icon: '➕',
-      href: '/products/add',
-      color: 'bg-primary-500',
-    },
-    {
-      title: 'Generate Invoice',
-      description: 'Create a new customer invoice',
-      icon: '🧾',
-      href: '/invoices/generate',
-      color: 'bg-success-500',
-    },
-    {
-      title: 'View Products',
-      description: 'Browse and manage products',
-      icon: '📋',
-      href: '/products',
-      color: 'bg-warning-500',
-    },
-  ];
-
   return (
     <Layout>
-      <div className="space-y-6">
+      <div style={{ padding: '24px' }}>
         {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">
+        <div style={{ marginBottom: '24px' }}>
+          <Title level={2} style={{ margin: 0 }}>
+            <DashboardOutlined /> Dashboard
+          </Title>
+          <Text type="secondary">
             Welcome to {settings.businessName} Management System
-          </p>
+          </Text>
         </div>
 
         {/* Business Setup Notification */}
         {settings.businessName === 'My Business' && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <span className="text-2xl">🚀</span>
-              </div>
-              <div className="ml-3 flex-1">
-                <h3 className="text-sm font-medium text-blue-900">
-                  Complete Your Business Setup
-                </h3>
-                <p className="mt-1 text-sm text-blue-700">
+          <Alert
+            message="Complete Your Business Setup"
+            description={
+              <div>
+                <Paragraph style={{ marginBottom: '16px' }}>
                   Welcome! To get started, please complete your business configuration. 
                   This will set up your system according to your business type and requirements.
-                </p>
-                <div className="mt-3">
-                  <Link
-                    href="/setup/business-config"
-                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-                  >
-                    🚀 Launch Business Setup Wizard
+                </Paragraph>
+                <Space>
+                  <Link href="/setup/business-config">
+                    <Button type="primary" icon={<RocketOutlined />}>
+                      Launch Business Setup Wizard
+                    </Button>
                   </Link>
-                  <Link
-                    href="/settings?tab=business-setup"
-                    className="ml-3 inline-flex items-center px-4 py-2 bg-white text-blue-600 text-sm font-medium rounded-md border border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-                  >
-                    ⚙️ Go to Settings
+                  <Link href="/settings?tab=business-setup">
+                    <Button icon={<SettingOutlined />}>
+                      Go to Settings
+                    </Button>
                   </Link>
-                </div>
+                </Space>
               </div>
-            </div>
-          </div>
+            }
+            type="info"
+            showIcon
+            icon={<RocketOutlined />}
+            style={{ marginBottom: '24px' }}
+            closable
+          />
         )}
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {statCards.map((stat) => (
-            <Link key={stat.title} href={stat.href}>
-              <div className="card hover:shadow-lg transition-shadow cursor-pointer">
-                <div className="flex items-center">
-                  <div className={`flex-shrink-0 p-3 rounded-lg ${stat.color}`}>
-                    <span className="text-2xl">{stat.icon}</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-500">{stat.title}</p>
-                    <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
-                  </div>
-                </div>
-              </div>
+        <Row gutter={[16, 16]} style={{ marginBottom: '32px' }}>
+          <Col xs={24} sm={12} lg={8}>
+            <Link href="/products">
+              <Card hoverable>
+                <Statistic
+                  title="Total Products"
+                  value={stats.totalProducts}
+                  prefix={<ShoppingOutlined style={{ color: '#1890ff' }} />}
+                  valueStyle={{ color: '#1890ff' }}
+                />
+              </Card>
             </Link>
-          ))}
-        </div>
+          </Col>
+          
+          <Col xs={24} sm={12} lg={8}>
+            <Link href="/products">
+              <Card hoverable>
+                <Statistic
+                  title="Inventory Value"
+                  value={stats.inventoryValue}
+                  prefix={<DollarOutlined style={{ color: '#52c41a' }} />}
+                  valueStyle={{ color: '#52c41a' }}
+                  formatter={(value) => formatCurrency(value)}
+                />
+              </Card>
+            </Link>
+          </Col>
+          
+          <Col xs={24} sm={12} lg={8}>
+            <Link href="/products">
+              <Card hoverable>
+                <Statistic
+                  title="Total Cost"
+                  value={stats.totalPurchasePrice || 0}
+                  prefix={<ShoppingCartOutlined style={{ color: '#fa8c16' }} />}
+                  valueStyle={{ color: '#fa8c16' }}
+                  formatter={(value) => formatCurrency(value)}
+                />
+              </Card>
+            </Link>
+          </Col>
+          
+          <Col xs={24} sm={12} lg={8}>
+            <Link href="/invoices">
+              <Card hoverable>
+                <Statistic
+                  title="Total Sales Value"
+                  value={stats.totalSellingPrice || 0}
+                  prefix={<TrophyOutlined style={{ color: '#52c41a' }} />}
+                  valueStyle={{ color: '#52c41a' }}
+                  formatter={(value) => formatCurrency(value)}
+                />
+              </Card>
+            </Link>
+          </Col>
+          
+          <Col xs={24} sm={12} lg={8}>
+            <Link href="/invoices">
+              <Card hoverable>
+                <Statistic
+                  title="Total Sales"
+                  value={stats.totalSales}
+                  prefix={<DollarOutlined style={{ color: '#52c41a' }} />}
+                  valueStyle={{ color: '#52c41a' }}
+                  formatter={(value) => formatCurrency(value)}
+                />
+              </Card>
+            </Link>
+          </Col>
+          
+          <Col xs={24} sm={12} lg={8}>
+            <Link href="/invoices">
+              <Card hoverable>
+                <Statistic
+                  title="Gross Profit"
+                  value={stats.grossProfit}
+                  prefix={<ArrowUpOutlined style={{ color: '#52c41a' }} />}
+                  valueStyle={{ color: '#52c41a' }}
+                  formatter={(value) => formatCurrency(value)}
+                />
+              </Card>
+            </Link>
+          </Col>
+        </Row>
 
         {/* Quick Actions */}
-        <div>
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {quickActions.map((action) => (
-              <Link key={action.title} href={action.href}>
-                <div className="card hover:shadow-lg transition-shadow cursor-pointer">
-                  <div className="flex items-center">
-                    <div className={`flex-shrink-0 p-3 rounded-lg ${action.color}`}>
-                      <span className="text-2xl">{action.icon}</span>
+        <Card 
+          title={
+            <Space>
+              <PlusOutlined />
+              <span>Quick Actions</span>
+            </Space>
+          }
+          style={{ marginBottom: '24px' }}
+        >
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12} lg={8}>
+              <Link href="/products/add">
+                <Card hoverable size="small" style={{ textAlign: 'center' }}>
+                  <Space direction="vertical">
+                    <PlusOutlined style={{ fontSize: '32px', color: '#1890ff' }} />
+                    <div>
+                      <Title level={5} style={{ margin: 0 }}>Add New Product</Title>
+                      <Text type="secondary">Add a new product to inventory</Text>
                     </div>
-                    <div className="ml-4">
-                      <h3 className="text-sm font-medium text-gray-900">{action.title}</h3>
-                      <p className="text-sm text-gray-500">{action.description}</p>
-                    </div>
-                  </div>
-                </div>
+                  </Space>
+                </Card>
               </Link>
-            ))}
-          </div>
-        </div>
+            </Col>
+            
+            <Col xs={24} sm={12} lg={8}>
+              <Link href="/invoices/generate">
+                <Card hoverable size="small" style={{ textAlign: 'center' }}>
+                  <Space direction="vertical">
+                    <FileTextOutlined style={{ fontSize: '32px', color: '#52c41a' }} />
+                    <div>
+                      <Title level={5} style={{ margin: 0 }}>Generate Invoice</Title>
+                      <Text type="secondary">Create a new customer invoice</Text>
+                    </div>
+                  </Space>
+                </Card>
+              </Link>
+            </Col>
+            
+            <Col xs={24} sm={12} lg={8}>
+              <Link href="/products">
+                <Card hoverable size="small" style={{ textAlign: 'center' }}>
+                  <Space direction="vertical">
+                    <ShoppingOutlined style={{ fontSize: '32px', color: '#fa8c16' }} />
+                    <div>
+                      <Title level={5} style={{ margin: 0 }}>View Products</Title>
+                      <Text type="secondary">Browse and manage products</Text>
+                    </div>
+                  </Space>
+                </Card>
+              </Link>
+            </Col>
+          </Row>
+        </Card>
 
         {/* Sales & Profit Overview */}
-        <div className="card">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Sales & Profit Overview</h3>
-            <div className="flex items-center space-x-3">
-              <button
+        <Card 
+          title={
+            <Space>
+              <BarChartOutlined />
+              <span>Sales & Profit Overview</span>
+            </Space>
+          }
+          extra={
+            <Space>
+              <Button
+                type="primary"
+                icon={<DownloadOutlined />}
                 onClick={handleExportExcel}
-                className="px-3 py-1 text-sm rounded-lg font-medium bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center space-x-1"
+                style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
               >
-                <span>📊</span>
-                <span>Export Excel</span>
-              </button>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setTimePeriod('daily')}
-                  className={`px-3 py-1 text-sm rounded-lg font-medium ${
-                    timePeriod === 'daily'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  Daily
-                </button>
-                <button
-                  onClick={() => setTimePeriod('weekly')}
-                  className={`px-3 py-1 text-sm rounded-lg font-medium ${
-                    timePeriod === 'weekly'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  Weekly
-                </button>
-                <button
-                  onClick={() => setTimePeriod('monthly')}
-                  className={`px-3 py-1 text-sm rounded-lg font-medium ${
-                    timePeriod === 'monthly'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  Monthly
-                </button>
-              </div>
-            </div>
-          </div>
-                      {(() => {
-              const currentData = timePeriod === 'daily' ? chartData.dailyData : 
-                                 timePeriod === 'weekly' ? chartData.weeklyData : 
-                                 chartData.monthlyData;
-              const periodLabel = timePeriod === 'daily' ? 'Daily' : 
-                                 timePeriod === 'weekly' ? 'Weekly' : 'Monthly';
-              
-              return currentData.length > 0 ? (
-                <div className="space-y-6">
-                  {/* Charts Row */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Bar Chart */}
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">{periodLabel} Sales Bar Chart</h4>
-                      <div className="relative h-48 bg-gray-50 rounded-lg p-4">
-                        <div className="flex items-end justify-between h-full space-x-2">
-                          {currentData.slice(0, 6).reverse().map((period, index) => {
-                            const maxSales = Math.max(...currentData.slice(0, 6).map(m => m.sales));
-                            const height = maxSales > 0 ? (period.sales / maxSales) * 80 : 0;
-                            const periodLabel = timePeriod === 'daily' ? 
-                              new Date(period.period).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) :
-                              timePeriod === 'weekly' ? 
-                              `W${period.period.split('-W')[1]}` :
-                              new Date(period.period + '-01').toLocaleDateString('en-US', { month: 'short' });
-                            
-                            return (
-                              <div key={period.period} className="flex-1 flex flex-col items-center">
-                                <div 
-                                  className="w-full bg-green-500 rounded-t min-h-[4px]"
-                                  style={{ height: `${height}%` }}
-                                ></div>
-                                <div className="text-xs text-gray-500 mt-2 text-center">
-                                  {periodLabel}
-                                </div>
-                                <div className="text-xs font-medium text-green-600">
-                                  {settings.currency}{period.sales.toFixed(0)}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                Export Excel
+              </Button>
+              <Radio.Group
+                value={timePeriod}
+                onChange={(e) => setTimePeriod(e.target.value)}
+                buttonStyle="solid"
+                size="small"
+              >
+                <Radio.Button value="daily">Daily</Radio.Button>
+                <Radio.Button value="weekly">Weekly</Radio.Button>
+                <Radio.Button value="monthly">Monthly</Radio.Button>
+              </Radio.Group>
+            </Space>
+          }
+          style={{ marginBottom: '24px' }}
+        >
+          {(() => {
+            const currentData = timePeriod === 'daily' ? chartData.dailyData : 
+                               timePeriod === 'weekly' ? chartData.weeklyData : 
+                               chartData.monthlyData;
+            const periodLabel = timePeriod === 'daily' ? 'Daily' : 
+                               timePeriod === 'weekly' ? 'Weekly' : 'Monthly';
+            
+            return currentData.length > 0 ? (
+              <Space direction="vertical" size="large" style={{ width: '100%' }}>
+                {/* Charts Row */}
+                <Row gutter={[24, 24]}>
+                  <Col xs={24} lg={12}>
+                    <Card 
+                      title={
+                        <Space>
+                          <BarChartOutlined />
+                          <span>{periodLabel} Sales Chart</span>
+                        </Space>
+                      }
+                      size="small"
+                    >
+                      <div style={{ height: '200px', background: '#fafafa', borderRadius: '6px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text type="secondary">Chart visualization will be enhanced in next update</Text>
                       </div>
-                    </div>
-
-                                    {/* Line Chart */}
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">{periodLabel} Profit Trend Line Chart</h4>
-                      <div className="relative h-48 bg-gray-50 rounded-lg p-4">
-                        <svg className="w-full h-full" viewBox="0 0 400 200">
-                          {currentData.slice(0, 6).reverse().map((period, index) => {
-                            const reversedData = currentData.slice(0, 6).reverse();
-                            const maxProfit = Math.max(...reversedData.map(m => Math.abs(m.profit)));
-                            const x = (index / (reversedData.length - 1)) * 350 + 25;
-                            const y = maxProfit > 0 ? 175 - ((period.profit / maxProfit) * 150) : 175;
-                            
-                            if (index === 0) {
-                              return (
-                                <g key={period.period}>
-                                  <circle cx={x} cy={y} r="4" fill={period.profit >= 0 ? "#10b981" : "#ef4444"} />
-                                </g>
-                              );
-                            }
-                            
-                            const prevPeriod = reversedData[index - 1];
-                            const prevMaxProfit = Math.max(...reversedData.map(m => Math.abs(m.profit)));
-                            const prevX = ((index - 1) / (reversedData.length - 1)) * 350 + 25;
-                            const prevY = prevMaxProfit > 0 ? 175 - ((prevPeriod.profit / prevMaxProfit) * 150) : 175;
-                            
-                            return (
-                              <g key={period.period}>
-                                <line 
-                                  x1={prevX} y1={prevY} x2={x} y2={y} 
-                                  stroke={period.profit >= 0 ? "#10b981" : "#ef4444"} 
-                                  strokeWidth="2" 
-                                />
-                                <circle cx={x} cy={y} r="4" fill={period.profit >= 0 ? "#10b981" : "#ef4444"} />
-                              </g>
-                            );
-                          })}
-                        </svg>
-                        <div className="flex justify-between text-xs text-gray-500 mt-2">
-                          {currentData.slice(0, 6).reverse().map((period, index) => {
-                            const periodLabel = timePeriod === 'daily' ? 
-                              new Date(period.period).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) :
-                              timePeriod === 'weekly' ? 
-                              `W${period.period.split('-W')[1]}` :
-                              new Date(period.period + '-01').toLocaleDateString('en-US', { month: 'short' });
-                            
-                            return (
-                              <span key={period.period}>
-                                {periodLabel}
-                              </span>
-                            );
-                          })}
-                        </div>
+                    </Card>
+                  </Col>
+                  
+                  <Col xs={24} lg={12}>
+                    <Card 
+                      title={
+                        <Space>
+                          <LineChartOutlined />
+                          <span>{periodLabel} Profit Trend</span>
+                        </Space>
+                      }
+                      size="small"
+                    >
+                      <div style={{ height: '200px', background: '#fafafa', borderRadius: '6px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text type="secondary">Trend chart will be enhanced in next update</Text>
                       </div>
-                    </div>
-                  </div>
+                    </Card>
+                  </Col>
+                </Row>
 
-                  {/* Summary Table */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">{periodLabel} Summary</h4>
-                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                {/* Summary Table */}
+                <Card 
+                  title={`${periodLabel} Summary`}
+                  size="small"
+                >
+                  <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                    <Space direction="vertical" style={{ width: '100%' }} size="small">
                       {currentData.slice(0, 6).map((period, index) => {
                         const periodLabel = timePeriod === 'daily' ? 
                           new Date(period.period).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) :
@@ -836,329 +719,273 @@ export default function Dashboard() {
                           new Date(period.period + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
                         
                         return (
-                          <div key={period.period} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                            <div className="flex-1">
-                              <div className="text-sm font-medium text-gray-900">
-                                {periodLabel}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {period.count} invoices, {period.returnCount || 0} returns
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm font-medium text-green-600">
-                                Sales: {settings.currency}{period.sales.toFixed(2)}
-                              </div>
-                              <div className={`text-sm font-medium ${period.profit >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                                Profit: {settings.currency}{period.profit.toFixed(2)}
-                              </div>
-                            </div>
-                          </div>
+                          <Card key={period.period} size="small" style={{ background: '#fafafa' }}>
+                            <Row justify="space-between" align="middle">
+                              <Col>
+                                <div>
+                                  <Text strong>{periodLabel}</Text>
+                                  <div>
+                                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                                      {period.count} invoices, {period.returnCount || 0} returns
+                                    </Text>
+                                  </div>
+                                </div>
+                              </Col>
+                              <Col>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div>
+                                    <Text type="success" strong>
+                                      Sales: {settings.currency}{period.sales.toFixed(2)}
+                                    </Text>
+                                  </div>
+                                  <div>
+                                    <Text type={period.profit >= 0 ? 'success' : 'danger'} strong>
+                                      Profit: {settings.currency}{period.profit.toFixed(2)}
+                                    </Text>
+                                  </div>
+                                </div>
+                              </Col>
+                            </Row>
+                          </Card>
                         );
                       })}
+                    </Space>
+                  </div>
+                </Card>
+              </Space>
+            ) : (
+              <Empty 
+                description={
+                  <div>
+                    <Text type="secondary">No {timePeriod} data available</Text>
+                    <div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        Generate invoices to see {timePeriod} trends
+                      </Text>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No {timePeriod} data available</p>
-                  <p className="text-sm text-gray-400 mt-2">Generate invoices to see {timePeriod} trends</p>
-                </div>
-              );
-            })()}
-        </div>
+                }
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            );
+          })()}
+        </Card>
 
         {/* Recent Activity */}
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Recent Activity</h2>
-            <div className="flex space-x-2">
-              <Link href="/invoices" className="text-sm text-primary-600 hover:text-primary-800">
-                View Invoices
+        <Card 
+          title={
+            <Space>
+              <CalendarOutlined />
+              <span>Recent Activity</span>
+            </Space>
+          }
+          extra={
+            <Space split={<Divider type="vertical" />}>
+              <Link href="/invoices">
+                <Button type="link" size="small">View Invoices</Button>
               </Link>
-              <span className="text-gray-300">|</span>
-              <Link href="/returns" className="text-sm text-primary-600 hover:text-primary-800">
-                View Returns
+              <Link href="/returns">
+                <Button type="link" size="small">View Returns</Button>
               </Link>
-            </div>
-          </div>
-          <div className="card">
-            {recentActivity.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-500">No recent activity</p>
-                <p className="text-sm text-gray-400 mt-2">
-                  Start by adding medicines or generating invoices
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                    <div className={`flex-shrink-0 p-2 rounded-lg ${activity.bgColor}`}>
-                      <span className={`text-lg ${activity.color}`}>{activity.icon}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{activity.title}</p>
-                      <p className="text-sm text-gray-500">{activity.description}</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {activity.date.toLocaleDateString()} at {activity.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
+            </Space>
+          }
+          style={{ marginBottom: '24px' }}
+        >
+          {recentActivity.length === 0 ? (
+            <Empty 
+              description={
+                <div>
+                  <Text type="secondary">No recent activity</Text>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      Start by adding products or generating invoices
+                    </Text>
                   </div>
+                </div>
+              }
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
+          ) : (
+            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              <Timeline>
+                {recentActivity.map((activity) => (
+                  <Timeline.Item
+                    key={activity.id}
+                    dot={<span style={{ fontSize: '16px' }}>{activity.icon}</span>}
+                    color={
+                      activity.type === 'invoice' ? 'green' :
+                      activity.type === 'return' ? 'orange' : 'blue'
+                    }
+                  >
+                    <div>
+                      <Text strong>{activity.title}</Text>
+                      <div>
+                        <Text type="secondary">{activity.description}</Text>
+                      </div>
+                      <div>
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          {activity.date.toLocaleDateString()} at {activity.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </Text>
+                      </div>
+                    </div>
+                  </Timeline.Item>
                 ))}
-              </div>
-            )}
-          </div>
-        </div>
+              </Timeline>
+            </div>
+          )}
+        </Card>
       </div>
 
       {/* Export Date Range Modal */}
-      {showExportModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Export Sales Report</h3>
-              <button
-                                  onClick={() => {
-                    setShowExportModal(false);
-                    // Reset to default dates when closing
-                    setExportDateRange({
-                      fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                      toDate: new Date().toISOString().split('T')[0]
-                    });
-                    setExportFilter('monthly');
-                    setCustomDateEnabled(false);
-                  }}
-                className="text-gray-400 hover:text-gray-600"
+      <Modal
+        title="Export Sales Report"
+        open={showExportModal}
+        onCancel={() => {
+          setShowExportModal(false);
+          setExportDateRange({
+            fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            toDate: new Date().toISOString().split('T')[0]
+          });
+          setExportFilter('monthly');
+          setCustomDateEnabled(false);
+        }}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => {
+              setShowExportModal(false);
+              setExportDateRange({
+                fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                toDate: new Date().toISOString().split('T')[0]
+              });
+              setExportFilter('monthly');
+              setCustomDateEnabled(false);
+            }}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="download"
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={handleExportWithDateRange}
+            style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+          >
+            Download Report
+          </Button>
+        ]}
+        width={600}
+      >
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          {/* Export Mode Selection */}
+          <Card size="small" style={{ background: '#fafafa' }}>
+            <Row justify="space-between" align="middle">
+              <Col>
+                <Text strong>Export Mode Selection</Text>
+              </Col>
+              <Col>
+                <Space>
+                  <Text>Custom Dates</Text>
+                  <Switch
+                    checked={customDateEnabled}
+                    onChange={setCustomDateEnabled}
+                    checkedChildren="ON"
+                    unCheckedChildren="OFF"
+                  />
+                </Space>
+              </Col>
+            </Row>
+          </Card>
+
+          {/* Quick Filter Options */}
+          {!customDateEnabled && (
+            <div>
+              <Text strong style={{ display: 'block', marginBottom: '12px' }}>
+                Quick Filter Options
+              </Text>
+              <Radio.Group
+                value={exportFilter}
+                onChange={(e) => setExportFilter(e.target.value)}
+                style={{ width: '100%' }}
               >
-                <span className="text-2xl">×</span>
-              </button>
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Radio value="daily">
+                    <div>
+                      <Text strong>Last 30 Days</Text>
+                      <div><Text type="secondary" style={{ fontSize: '12px' }}>Daily breakdown</Text></div>
+                    </div>
+                  </Radio>
+                  <Radio value="weekly">
+                    <div>
+                      <Text strong>Last 12 Weeks</Text>
+                      <div><Text type="secondary" style={{ fontSize: '12px' }}>Weekly breakdown</Text></div>
+                    </div>
+                  </Radio>
+                  <Radio value="monthly">
+                    <div>
+                      <Text strong>Last 12 Months</Text>
+                      <div><Text type="secondary" style={{ fontSize: '12px' }}>Monthly breakdown</Text></div>
+                    </div>
+                  </Radio>
+                  <Radio value="all">
+                    <div>
+                      <Text strong>All Time</Text>
+                      <div><Text type="secondary" style={{ fontSize: '12px' }}>Complete history</Text></div>
+                    </div>
+                  </Radio>
+                </Space>
+              </Radio.Group>
             </div>
-            
-            <div className="space-y-6">
-              {/* Export Mode Selection with Toggle Switch */}
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <h4 className="text-sm font-medium text-gray-900">Export Mode Selection</h4>
+          )}
 
-                
-                {/* Toggle Switch */}
-                <div className="flex items-center space-x-4">
-                  <button
-                    type="button"
-                    onClick={() => setCustomDateEnabled(!customDateEnabled)}
-                    className={`relative inline-flex h-7 w-14 items-center rounded-full transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                      customDateEnabled ? 'bg-green-500' : 'bg-blue-500'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-all duration-200 ease-in-out ${
-                        customDateEnabled ? 'translate-x-8' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                  
-                  <span className={`text-sm font-medium ${customDateEnabled ? 'text-green-600' : 'text-gray-500'}`}>
-                    🎯 Custom Dates
-                  </span>
-                </div>
-              </div>
-
-              {/* Quick Filter Options - Disabled when Custom Dates are enabled */}
-              <div className={`transition-all ${customDateEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Quick Filter Options
-                  {customDateEnabled && <span className="text-red-500 ml-2">(Disabled - Custom Dates Active)</span>}
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
-                    exportFilter === 'daily' 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-gray-200 hover:bg-gray-50'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="quickFilter"
-                      value="daily"
-                      checked={exportFilter === 'daily'}
-                      onChange={(e) => setExportFilter(e.target.value)}
-                      className="mr-3 text-blue-600 focus:ring-blue-500"
-                      disabled={customDateEnabled}
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900">Last 30 Days</div>
-                      <div className="text-xs text-gray-500">Daily breakdown</div>
-                    </div>
-                  </label>
-                  
-                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
-                    exportFilter === 'weekly' 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-gray-200 hover:bg-gray-50'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="quickFilter"
-                      value="weekly"
-                      checked={exportFilter === 'weekly'}
-                      onChange={(e) => setExportFilter(e.target.value)}
-                      className="mr-3 text-blue-600 focus:ring-blue-500"
-                      disabled={customDateEnabled}
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900">Last 12 Weeks</div>
-                      <div className="text-xs text-gray-500">Weekly breakdown</div>
-                    </div>
-                  </label>
-                  
-                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
-                    exportFilter === 'monthly' 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-gray-200 hover:bg-gray-50'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="quickFilter"
-                      value="monthly"
-                      checked={exportFilter === 'monthly'}
-                      onChange={(e) => setExportFilter(e.target.value)}
-                      className="mr-3 text-blue-600 focus:ring-blue-500"
-                      disabled={customDateEnabled}
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900">Last 12 Months</div>
-                      <div className="text-xs text-gray-500">Monthly breakdown</div>
-                    </div>
-                  </label>
-                  
-                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
-                    exportFilter === 'all' 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-gray-200 hover:bg-gray-50'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="quickFilter"
-                      value="all"
-                      checked={exportFilter === 'all'}
-                      onChange={(e) => setExportFilter(e.target.value)}
-                      className="mr-3 text-blue-600 focus:ring-blue-500"
-                      disabled={customDateEnabled}
-                    />
-                    <div>
-                      <div className="font-medium text-gray-900">All Time</div>
-                      <div className="text-xs text-gray-500">Complete history</div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-              
-              {/* Custom Date Range */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Custom Date Range
-                  {!customDateEnabled && <span className="text-gray-500 ml-2">(Click "Quick Filter" above to enable)</span>}
-                </label>
-                
-                {customDateEnabled ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label htmlFor="fromDate" className="block text-xs font-medium text-gray-600 mb-1">
-                          From Date *
-                        </label>
-                        <input
-                          type="date"
-                          id="fromDate"
-                          value={exportDateRange.fromDate}
-                          onChange={(e) => setExportDateRange(prev => ({
-                            ...prev,
-                            fromDate: e.target.value
-                          }))}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="toDate" className="block text-xs font-medium text-gray-600 mb-1">
-                          To Date *
-                        </label>
-                        <input
-                          type="date"
-                          id="toDate"
-                          value={exportDateRange.toDate}
-                          onChange={(e) => setExportDateRange(prev => ({
-                            ...prev,
-                            toDate: e.target.value
-                          }))}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <p className="text-xs text-green-600 mt-2">
-                      🎯 <strong>Custom Date Range Active:</strong> Quick Filter options are now disabled
-                    </p>
-                  </>
-                ) : (
-                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="text-sm text-gray-600 text-center">
-                      Custom date range is <strong>disabled</strong>. 
-                      <br />
-                      <span className="text-xs text-gray-500">
-                        Click "Enable" to set specific dates, or use quick filter options above
-                      </span>
-                    </p>
-                  </div>
-                )}
-              </div>
-              
-              {/* Export Status */}
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <span className="text-blue-600">ℹ️</span>
-                  <div className="text-sm">
-                    <span className="font-medium text-blue-800">Export Mode:</span>
-                    <span className="text-blue-600 ml-2">
-                      {customDateEnabled 
-                        ? `Custom Range (${exportDateRange.fromDate} to ${exportDateRange.toDate})`
-                        : `Quick Filter (${exportFilter === 'all' ? 'All Time' : 
-                           exportFilter === 'daily' ? 'Last 30 Days' : 
-                           exportFilter === 'weekly' ? 'Last 12 Weeks' : 'Last 12 Months'})`
-                      }
-                    </span>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="flex space-x-3 pt-4">
-                <button
-                  onClick={() => {
-                    setShowExportModal(false);
-                    // Reset to default dates when canceling
-                    setExportDateRange({
-                      fromDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                      toDate: new Date().toISOString().split('T')[0]
-                    });
-                    setExportFilter('monthly');
-                    setCustomDateEnabled(false);
-                  }}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleExportWithDateRange}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  Download Report
-                </button>
-              </div>
+          {/* Custom Date Range */}
+          {customDateEnabled && (
+            <div>
+              <Text strong style={{ display: 'block', marginBottom: '12px' }}>
+                Custom Date Range
+              </Text>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Text style={{ display: 'block', marginBottom: '8px' }}>From Date</Text>
+                  <DatePicker
+                    value={dayjs(exportDateRange.fromDate)}
+                    onChange={(date) => setExportDateRange(prev => ({
+                      ...prev,
+                      fromDate: date ? date.format('YYYY-MM-DD') : ''
+                    }))}
+                    style={{ width: '100%' }}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Text style={{ display: 'block', marginBottom: '8px' }}>To Date</Text>
+                  <DatePicker
+                    value={dayjs(exportDateRange.toDate)}
+                    onChange={(date) => setExportDateRange(prev => ({
+                      ...prev,
+                      toDate: date ? date.format('YYYY-MM-DD') : ''
+                    }))}
+                    style={{ width: '100%' }}
+                  />
+                </Col>
+              </Row>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+
+          {/* Export Status */}
+          <Alert
+            message="Export Mode"
+            description={
+              customDateEnabled 
+                ? `Custom Range (${exportDateRange.fromDate} to ${exportDateRange.toDate})`
+                : `Quick Filter (${exportFilter === 'all' ? 'All Time' : 
+                   exportFilter === 'daily' ? 'Last 30 Days' : 
+                   exportFilter === 'weekly' ? 'Last 12 Weeks' : 'Last 12 Months'})`
+            }
+            type="info"
+            showIcon
+          />
+        </Space>
+      </Modal>
     </Layout>
   );
-} 
+}

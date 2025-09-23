@@ -3,19 +3,46 @@ import Layout from '../../components/Layout';
 import { apiRequest } from '../../lib/auth';
 import { hasPermission } from '../../lib/permissions';
 import { getUser } from '../../lib/auth';
+import { 
+  Table, 
+  Button, 
+  Card, 
+  Row, 
+  Col, 
+  Space, 
+  Typography, 
+  Modal, 
+  Form, 
+  Input, 
+  message,
+  Popconfirm,
+  Tooltip,
+  Tag,
+  Alert,
+  ColorPicker,
+  Divider,
+  Switch,
+  Drawer
+} from 'antd';
+import { 
+  PlusOutlined, 
+  EditOutlined, 
+  DeleteOutlined, 
+  BgColorsOutlined,
+  TagOutlined,
+  InfoCircleOutlined
+} from '@ant-design/icons';
+
+const { Title, Text } = Typography;
+const { TextArea } = Input;
 
 export default function Categories() {
   const [categories, setCategories] = useState([]);
-  const [showForm, setShowForm] = useState(false);
+  const [formDrawerVisible, setFormDrawerVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    color: '#3B82F6'
-  });
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [form] = Form.useForm();
 
   const predefinedColors = [
     '#3B82F6', '#EF4444', '#10B981', '#8B5CF6', '#F59E0B',
@@ -34,125 +61,142 @@ export default function Categories() {
       const response = await apiRequest('/api/categories');
       if (response.ok) {
         const data = await response.json();
-        setCategories(data);
+        // Handle both array response and object with categories property
+        const categoriesArray = data.categories || data || [];
+        setCategories(Array.isArray(categoriesArray) ? categoriesArray : []);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
+      message.error('Failed to fetch categories');
+      setCategories([]); // Ensure categories is always an array
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const onSubmit = async (values) => {
     setLoading(true);
-    setMessage('');
 
     try {
       if (editingCategory) {
         // Update existing category
         const response = await apiRequest(`/api/categories/${editingCategory._id}`, {
           method: 'PUT',
-          body: JSON.stringify(formData)
+          body: JSON.stringify(values)
         });
 
         if (response.ok) {
-          setMessage('Category updated successfully!');
+          message.success('Category updated successfully!');
           setEditingCategory(null);
-          setShowForm(false);
+          setFormDrawerVisible(false);
+          form.resetFields();
           fetchCategories();
         } else {
           const errorData = await response.json();
-          setMessage(errorData.error || 'Failed to update category');
+          message.error(errorData.error || 'Failed to update category');
         }
       } else {
         // Create new category
         const response = await apiRequest('/api/categories', {
           method: 'POST',
-          body: JSON.stringify(formData)
+          body: JSON.stringify(values)
         });
 
         if (response.ok) {
-          setMessage('Category created successfully!');
-          setShowForm(false);
+          message.success('Category created successfully!');
+          setFormDrawerVisible(false);
+          form.resetFields();
           fetchCategories();
         } else {
           const errorData = await response.json();
-          setMessage(errorData.error || 'Failed to create category');
+          message.error(errorData.error || 'Failed to create category');
         }
       }
-
-      // Reset form
-      setFormData({ name: '', description: '', color: '#3B82F6' });
     } catch (error) {
-      setMessage('An error occurred. Please try again.');
+      message.error('An error occurred. Please try again.');
     } finally {
       setLoading(false);
-      setTimeout(() => setMessage(''), 3000);
     }
   };
 
   const handleEdit = (category) => {
     setEditingCategory(category);
-    setFormData({
+    form.setFieldsValue({
       name: category.name,
       description: category.description,
       color: category.color
     });
-    setShowForm(true);
+    setFormDrawerVisible(true);
   };
 
   const handleDelete = async (categoryId) => {
-    if (!confirm('Are you sure you want to delete this category? Products using this category will be moved to "General" category.')) {
-      return;
-    }
-
     try {
       const response = await apiRequest(`/api/categories/${categoryId}`, {
         method: 'DELETE'
       });
 
       if (response.ok) {
-        setMessage('Category deleted successfully!');
+        message.success('Category deleted successfully!');
         fetchCategories();
       } else {
         const errorData = await response.json();
-        setMessage(errorData.error || 'Failed to delete category');
+        message.error(errorData.error || 'Failed to delete category');
       }
     } catch (error) {
-      setMessage('Error deleting category');
+      message.error('Error deleting category');
     }
-
-    setTimeout(() => setMessage(''), 3000);
   };
 
-  const handleCancel = () => {
-    setShowForm(false);
+  const handleActiveToggle = async (categoryId, currentStatus) => {
+    try {
+      const response = await apiRequest(`/api/categories/${categoryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !currentStatus })
+      });
+
+      if (response.ok) {
+        // Update local state
+        setCategories(prev => prev.map(c => 
+          c._id === categoryId ? { ...c, isActive: !currentStatus } : c
+        ));
+        message.success(`Category ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      } else {
+        message.error('Failed to update category status');
+      }
+    } catch (error) {
+      console.error('Error updating category status:', error);
+      message.error('Failed to update category status');
+    }
+  };
+
+  const resetForm = () => {
+    setFormDrawerVisible(false);
     setEditingCategory(null);
-    setFormData({ name: '', description: '', color: '#3B82F6' });
+    form.resetFields();
   };
 
   if (loading) {
     return (
       <Layout>
-        <div className="flex justify-center items-center h-64">
-          <div className="text-xl text-gray-600">Loading categories...</div>
+        <div style={{ padding: '24px', textAlign: 'center' }}>
+          <Text>Loading categories...</Text>
         </div>
       </Layout>
     );
   }
 
-  // Check if user has permission to manage categories
-  if (!hasPermission(currentUser?.role, 'canManageSettings')) {
+  // Check if user has permission to manage categories (mapped to canManageProducts)
+  if (!hasPermission(currentUser?.role, 'canManageCategories')) {
     return (
       <Layout>
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-red-600 mb-4">Access Denied</h1>
-            <p className="text-gray-600">
-              You do not have permission to manage categories. Only Super Admins and Managers can access this page.
-            </p>
-          </div>
+        <div style={{ padding: '24px' }}>
+          <Alert
+            message="Access Denied"
+            description="You do not have permission to manage categories. Only Super Admins and Managers can access this page."
+            type="error"
+            showIcon
+          />
         </div>
       </Layout>
     );
@@ -160,158 +204,205 @@ export default function Categories() {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Categories Management</h1>
-          <button
-            onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <div style={{ padding: '24px' }}>
+        {/* Header */}
+        <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
+          <Col>
+            <Title level={2} style={{ margin: 0 }}>Categories Management</Title>
+            <Text type="secondary">Organize your products with categories</Text>
+          </Col>
+          <Col>
+            <Button 
+              type="primary" 
+              icon={<PlusOutlined />}
+              size="large"
+              onClick={() => {
+                resetForm();
+                setFormDrawerVisible(true);
+              }}
           >
             Add New Category
-          </button>
-        </div>
+            </Button>
+          </Col>
+        </Row>
 
-        {message && (
-          <div className={`p-4 rounded-lg mb-6 ${
-            message.includes('successfully') 
-              ? 'bg-green-100 border border-green-200 text-green-600' 
-              : 'bg-red-100 border border-red-200 text-red-600'
-          }`}>
-            {message}
-          </div>
-        )}
-
-        {showForm && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">
-              {editingCategory ? 'Edit Category' : 'Add New Category'}
-            </h2>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter category name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Color *
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="color"
-                      value={formData.color}
-                      onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                      className="w-16 h-10 border border-gray-300 rounded-md cursor-pointer"
-                    />
-                    <span className="text-sm text-gray-500">{formData.color}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {predefinedColors.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, color }))}
-                        className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400"
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  rows="3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter category description"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                >
-                  {loading ? 'Saving...' : (editingCategory ? 'Update Category' : 'Add Category')}
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Existing Categories</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Categories Grid */}
+        <Card>
+          <Row gutter={[16, 16]}>
             {categories.map((category) => (
-              <div key={category._id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center space-x-2">
+              <Col xs={24} sm={12} lg={8} key={category._id}>
+                <Card 
+                  hoverable
+                  style={{ height: '100%' }}
+                  bodyStyle={{ padding: '16px' }}
+                >
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <Space>
+                        <div
+                          style={{ 
+                            width: '12px', 
+                            height: '12px', 
+                            borderRadius: '50%',
+                            backgroundColor: category.color 
+                          }}
+                        />
+                        <Title level={4} style={{ margin: 0 }}>
+                          {category.name}
+                        </Title>
+                      </Space>
+                      <Space>
+                        <Tooltip title={`${category.isActive !== false ? 'Deactivate' : 'Activate'} Category`}>
+                          <Switch
+                            checked={category.isActive !== false} // Default to true if undefined
+                            onChange={(checked) => handleActiveToggle(category._id, category.isActive !== false)}
+                            size="small"
+                          />
+                        </Tooltip>
+                        <Tooltip title="Edit Category">
+                          <Button 
+                            type="text" 
+                            icon={<EditOutlined />}
+                            onClick={() => handleEdit(category)}
+                          />
+                        </Tooltip>
+                        <Popconfirm
+                          title="Delete Category"
+                          description="Are you sure you want to delete this category? Products using this category will be moved to 'General' category."
+                          onConfirm={() => handleDelete(category._id)}
+                          okText="Yes"
+                          cancelText="No"
+                          okType="danger"
+                        >
+                          <Tooltip title="Delete Category">
+                            <Button 
+                              type="text" 
+                              danger 
+                              icon={<DeleteOutlined />}
+                            />
+                          </Tooltip>
+                        </Popconfirm>
+                      </Space>
+        </div>
+
+                    {category.description && (
+                      <Text type="secondary" style={{ display: 'block', marginBottom: '12px' }}>
+                        {category.description}
+                      </Text>
+                    )}
+                    
+                    <Divider style={{ margin: '8px 0' }} />
+                    
+                    <Row justify="space-between" align="middle">
+                      <Col>
+                        <Space>
+                          <Tag color={category.color} style={{ margin: 0 }}>
+                            {category.color}
+                          </Tag>
+                        </Space>
+                      </Col>
+                      <Col>
+                        <Text type="secondary" style={{ fontSize: '12px' }}>
+                          ID: {category._id?.slice(-8)}
+                        </Text>
+                      </Col>
+                    </Row>
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+          
+          {categories.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '48px' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🏷️</div>
+              <Title level={4} type="secondary">No categories found</Title>
+              <Text type="secondary">Create your first category to get started!</Text>
+                  </div>
+          )}
+        </Card>
+
+        {/* Category Form Drawer */}
+        <Drawer
+          title={editingCategory ? 'Edit Category' : 'Add New Category'}
+          open={formDrawerVisible}
+          onClose={resetForm}
+          width={500}
+          destroyOnClose
+          placement="right"
+        >
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={onSubmit}
+            initialValues={{
+              name: '',
+              description: '',
+              color: '#3B82F6'
+            }}
+          >
+            <Form.Item
+              label="Category Name"
+              name="name"
+              rules={[{ required: true, message: 'Please enter category name!' }]}
+            >
+              <Input placeholder="Enter category name" />
+            </Form.Item>
+
+            <Form.Item
+              label="Color"
+              name="color"
+              rules={[{ required: true, message: 'Please select a color!' }]}
+            >
+              <div>
+                <ColorPicker 
+                  showText 
+                  style={{ width: '100%' }}
+                  format="hex"
+                />
+                <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {predefinedColors.map((color) => (
                     <div
-                      className="w-4 h-4 rounded-full"
-                      style={{ backgroundColor: category.color }}
+                      key={color}
+                      onClick={() => form.setFieldsValue({ color })}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        backgroundColor: color,
+                        cursor: 'pointer',
+                        border: '2px solid #d9d9d9',
+                        transition: 'border-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.target.style.borderColor = '#40a9ff'}
+                      onMouseLeave={(e) => e.target.style.borderColor = '#d9d9d9'}
+                      title={color}
                     />
-                    <h4 className="font-medium text-gray-900">{category.name}</h4>
-                  </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleEdit(category)}
-                      className="text-blue-600 hover:text-blue-900 text-sm"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(category._id)}
-                      className="text-red-600 hover:text-red-900 text-sm"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                
-                {category.description && (
-                  <p className="text-sm text-gray-600 mb-3">{category.description}</p>
-                )}
-                
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>Color: {category.color}</span>
-                  <span>ID: {category._id?.slice(-8)}</span>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-
-          {categories.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No categories found. Create your first category to get started!
+            </Form.Item>
+            
+            <Form.Item
+              label="Description"
+              name="description"
+            >
+              <TextArea 
+                rows={3} 
+                placeholder="Enter category description"
+              />
+            </Form.Item>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+              <Button onClick={resetForm}>
+                Cancel
+              </Button>
+              <Button type="primary" htmlType="submit" loading={loading}>
+                {editingCategory ? 'Update Category' : 'Add Category'}
+              </Button>
             </div>
-          )}
-        </div>
+          </Form>
+        </Drawer>
       </div>
     </Layout>
   );

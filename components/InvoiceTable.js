@@ -11,7 +11,8 @@ export default function InvoiceTable({
   scannedProduct = null, // Add scanned product prop
   autoAddProduct = null, // Add auto-add product prop
   onProductAdded = null, // Add callback prop
-  externalSearchTerm = '' // External search seed (from scanner)
+  externalSearchTerm = '', // External search seed (from scanner)
+  selectedCustomer = null
 }) {
   const [selectedMedicines, setSelectedMedicines] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -398,6 +399,10 @@ export default function InvoiceTable({
   };
 
   const handleGenerateInvoice = async () => {
+    if (!selectedCustomer) {
+      alert('Please select a customer before generating the invoice.');
+      return;
+    }
     if (selectedMedicines.length === 0) {
       alert('Please select at least one product');
       return;
@@ -456,7 +461,14 @@ export default function InvoiceTable({
         total: calculateTotal(),
         globalDiscountPercentage: settings.discountPercentage || 0, // Save global discount percentage at time of invoice creation
         date: new Date().toISOString(),
-        type: 'product'
+        type: 'product',
+        customerId: selectedCustomer?._id,
+        customerName: selectedCustomer?.companyName || '',
+        customerEmail: selectedCustomer?.email || '',
+        customerPhone: selectedCustomer?.phone || '',
+        customerContactPerson: selectedCustomer?.contactPerson || '',
+        customerVatNumber: selectedCustomer?.vatNumber || '',
+        customerLpoNumber: selectedCustomer?.lpoNumber || ''
       };
 
       const response = await apiRequest('/api/invoices', {
@@ -592,6 +604,10 @@ export default function InvoiceTable({
   };
 
   const handlePrint = async () => {
+    if (!selectedCustomer) {
+      alert('Please select a customer before saving/printing the invoice.');
+      return;
+    }
     if (selectedMedicines.length === 0) {
       alert('Please select medicines before printing');
       return;
@@ -622,6 +638,13 @@ export default function InvoiceTable({
         total: calculateTotal(),
         globalDiscountPercentage: settings.discountPercentage || 0, // Save global discount percentage at time of invoice creation
         date: new Date().toISOString(),
+        customerId: selectedCustomer?._id,
+        customerName: selectedCustomer?.companyName || '',
+        customerEmail: selectedCustomer?.email || '',
+        customerPhone: selectedCustomer?.phone || '',
+        customerContactPerson: selectedCustomer?.contactPerson || '',
+        customerVatNumber: selectedCustomer?.vatNumber || '',
+        customerLpoNumber: selectedCustomer?.lpoNumber || ''
       };
 
       const response = await apiRequest('/api/invoices', {
@@ -1517,7 +1540,7 @@ function generatePlainTextReceipt() {
           {selectedMedicines.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No products selected</p>
           ) : (
-            <>
+            <div>
               {/* Stock Warning */}
               {selectedMedicines.some(item => item.quantity > (medicines.find(m => m._id === item._id)?.quantity || 0)) && (
                 <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -1686,11 +1709,11 @@ function generatePlainTextReceipt() {
                     {loading ? '⏳ Saving & Printing...' : '💾 Save & Print Invoice'}
                   </button>
                 </div>
-              </>
+              </div>
+              </div>
             )}
           </div>
         </div>
       </div>
-    </div>
   );
 } 

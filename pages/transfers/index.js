@@ -1,28 +1,69 @@
 import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import { apiRequest } from '../../lib/auth';
+import { 
+  Table, 
+  Button, 
+  Card, 
+  Row, 
+  Col, 
+  Space, 
+  Typography, 
+  Modal, 
+  Form, 
+  Input, 
+  Select,
+  InputNumber,
+  DatePicker,
+  message,
+  Popconfirm,
+  Tooltip,
+  Tag,
+  Alert,
+  Divider,
+  Badge,
+  Statistic,
+  Spin
+} from 'antd';
+import { 
+  PlusOutlined, 
+  EditOutlined, 
+  DeleteOutlined, 
+  SwapOutlined,
+  BankOutlined,
+  ShoppingCartOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ClockCircleOutlined,
+  TruckOutlined,
+  ExclamationCircleOutlined,
+  FilterOutlined,
+  CalendarOutlined,
+  FileTextOutlined,
+  SendOutlined,
+  StopOutlined
+} from '@ant-design/icons';
+import dayjs from 'dayjs';
+
+const { Title, Text } = Typography;
+const { TextArea } = Input;
+const { Option } = Select;
+const { RangePicker } = DatePicker;
 
 export default function TransfersPage() {
   const [transfers, setTransfers] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({
-    fromWarehouseId: '',
-    toWarehouseId: '',
-    type: 'manual',
-    reason: 'stock_replenishment',
-    notes: '',
-    items: [{ productId: '', quantity: '' }]
-  });
+  const [formModalVisible, setFormModalVisible] = useState(false);
+  const [editingTransfer, setEditingTransfer] = useState(null);
+  const [form] = Form.useForm();
   const [filters, setFilters] = useState({
     fromWarehouse: '',
     toWarehouse: '',
     status: '',
     type: '',
-    startDate: '',
-    endDate: ''
+    dateRange: null
   });
 
   useEffect(() => {
@@ -37,12 +78,15 @@ export default function TransfersPage() {
       const response = await apiRequest('/api/transfers');
       if (response.ok) {
         const data = await response.json();
-        setTransfers(data);
+        // Handle both array response and object with transfers property
+        const transfersArray = data.transfers || data || [];
+        setTransfers(Array.isArray(transfersArray) ? transfersArray : []);
       } else {
-        console.error('Failed to fetch transfers');
+        message.error('Failed to fetch transfers');
       }
     } catch (error) {
       console.error('Error fetching transfers:', error);
+      message.error('Error fetching transfers');
     } finally {
       setLoading(false);
     }
@@ -57,6 +101,7 @@ export default function TransfersPage() {
       }
     } catch (error) {
       console.error('Error fetching warehouses:', error);
+      message.error('Error fetching warehouses');
     }
   };
 
@@ -69,85 +114,45 @@ export default function TransfersPage() {
       }
     } catch (error) {
       console.error('Error fetching products:', error);
+      message.error('Error fetching products');
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+  const onSubmit = async (values) => {
     try {
-      // Validate form data
-      if (!formData.fromWarehouseId || !formData.toWarehouseId || formData.items.length === 0) {
-        alert('Please fill in all required fields');
-        return;
-      }
-
-      // Validate items
-      for (const item of formData.items) {
-        if (!item.productId || !item.quantity || item.quantity <= 0) {
-          alert('Please fill in all item details correctly');
-          return;
-        }
-      }
-
+      setLoading(true);
       const response = await apiRequest('/api/transfers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(values)
       });
 
       if (response.ok) {
         const newTransfer = await response.json();
         setTransfers(prev => [newTransfer, ...prev]);
-        setShowForm(false);
         resetForm();
-        alert('Transfer created successfully!');
+        message.success('Transfer created successfully!');
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        message.error(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error creating transfer:', error);
-      alert('Failed to create transfer');
+      message.error('Failed to create transfer');
+    } finally {
+      setLoading(false);
     }
   };
 
   const resetForm = () => {
-    setFormData({
-      fromWarehouseId: '',
-      toWarehouseId: '',
-      type: 'manual',
-      reason: 'stock_replenishment',
-      notes: '',
-      items: [{ productId: '', quantity: '' }]
-    });
-  };
-
-  const addItem = () => {
-    setFormData(prev => ({
-      ...prev,
-      items: [...prev.items, { productId: '', quantity: '' }]
-    }));
-  };
-
-  const removeItem = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index)
-    }));
-  };
-
-  const updateItem = (index, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map((item, i) => 
-        i === index ? { ...item, [field]: value } : item
-      )
-    }));
+    setFormModalVisible(false);
+    setEditingTransfer(null);
+    form.resetFields();
   };
 
   const handleAction = async (transferId, action) => {
     try {
+      setLoading(true);
       const response = await apiRequest(`/api/transfers/${transferId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,40 +161,42 @@ export default function TransfersPage() {
 
       if (response.ok) {
         const result = await response.json();
-        alert(result.message);
+        message.success(result.message);
         fetchTransfers(); // Refresh the list
       } else {
         const error = await response.json();
-        alert(`Error: ${error.error}`);
+        message.error(`Error: ${error.error}`);
       }
     } catch (error) {
       console.error('Error processing action:', error);
-      alert('Failed to process action');
+      message.error('Failed to process action');
+    } finally {
+      setLoading(false);
     }
   };
 
   const getStatusColor = (status) => {
     const colors = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      approved: 'bg-blue-100 text-blue-800',
-      in_transit: 'bg-purple-100 text-purple-800',
-      completed: 'bg-green-100 text-green-800',
-      cancelled: 'bg-red-100 text-red-800',
-      rejected: 'bg-red-100 text-red-800'
+      pending: 'warning',
+      approved: 'processing',
+      in_transit: 'purple',
+      completed: 'success',
+      cancelled: 'error',
+      rejected: 'error'
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    return colors[status] || 'default';
   };
 
   const getStatusIcon = (status) => {
     const icons = {
-      pending: '⏳',
-      approved: '✅',
-      in_transit: '🚚',
-      completed: '🎉',
-      cancelled: '❌',
-      rejected: '❌'
+      pending: <ClockCircleOutlined />,
+      approved: <CheckCircleOutlined />,
+      in_transit: <TruckOutlined />,
+      completed: <CheckCircleOutlined />,
+      cancelled: <CloseCircleOutlined />,
+      rejected: <ExclamationCircleOutlined />
     };
-    return icons[status] || '❓';
+    return icons[status] || <ClockCircleOutlined />;
   };
 
   const filteredTransfers = transfers.filter(transfer => {
@@ -197,16 +204,145 @@ export default function TransfersPage() {
     if (filters.toWarehouse && transfer.toWarehouseId !== filters.toWarehouse) return false;
     if (filters.status && transfer.status !== filters.status) return false;
     if (filters.type && transfer.type !== filters.type) return false;
-    if (filters.startDate && new Date(transfer.createdAt) < new Date(filters.startDate)) return false;
-    if (filters.endDate && new Date(transfer.createdAt) > new Date(filters.endDate)) return false;
+    if (filters.dateRange && filters.dateRange.length === 2) {
+      const transferDate = dayjs(transfer.createdAt);
+      if (transferDate.isBefore(filters.dateRange[0]) || transferDate.isAfter(filters.dateRange[1])) return false;
+    }
     return true;
   });
+
+  // Define table columns
+  const columns = [
+    {
+      title: 'Transfer',
+      key: 'transfer',
+      render: (_, record) => (
+        <div>
+          <Text strong>{record.transferNumber}</Text>
+          <br />
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            {record.type} • {record.reason}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: 'From → To',
+      key: 'warehouses',
+      render: (_, record) => (
+        <div>
+          <Space>
+            <BankOutlined style={{ color: '#1890ff' }} />
+            <Text>{record.fromWarehouse?.name || 'Unknown'} ({record.fromWarehouse?.code || 'N/A'})</Text>
+          </Space>
+          <br />
+          <Space style={{ marginTop: '4px' }}>
+            <SwapOutlined style={{ color: '#52c41a' }} />
+            <Text>{record.toWarehouse?.name || 'Unknown'} ({record.toWarehouse?.code || 'N/A'})</Text>
+          </Space>
+        </div>
+      ),
+    },
+    {
+      title: 'Items',
+      key: 'items',
+      render: (_, record) => (
+        <div>
+          <Badge count={record.totalItems || record.items?.length || 0} showZero>
+            <ShoppingCartOutlined style={{ fontSize: '16px' }} />
+          </Badge>
+          <br />
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            {record.totalQuantity || 0} units
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status) => (
+        <Tag color={getStatusColor(status)} icon={getStatusIcon(status)}>
+          {status?.toUpperCase()}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Created',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (date) => (
+        <Space>
+          <CalendarOutlined style={{ color: '#722ed1' }} />
+          <Text style={{ fontSize: '12px' }}>
+            {dayjs(date).format('DD/MM/YYYY')}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          {record.status === 'pending' && (
+            <>
+              <Tooltip title="Approve Transfer">
+                <Button 
+                  type="text" 
+                  icon={<CheckCircleOutlined />}
+                  onClick={() => handleAction(record._id, 'approve')}
+                  style={{ color: '#52c41a' }}
+                >
+                  Approve
+                </Button>
+              </Tooltip>
+              <Popconfirm
+                title="Reject Transfer"
+                description="Are you sure you want to reject this transfer?"
+                onConfirm={() => handleAction(record._id, 'reject')}
+                okText="Yes"
+                cancelText="No"
+                okType="danger"
+              >
+                <Tooltip title="Reject Transfer">
+                  <Button 
+                    type="text" 
+                    danger 
+                    icon={<CloseCircleOutlined />}
+                  >
+                    Reject
+                  </Button>
+                </Tooltip>
+              </Popconfirm>
+            </>
+          )}
+          {record.status === 'approved' && (
+            <Tooltip title="Process Transfer">
+              <Button 
+                type="text" 
+                icon={<SendOutlined />}
+                onClick={() => handleAction(record._id, 'process')}
+                style={{ color: '#1890ff' }}
+              >
+                Process
+              </Button>
+            </Tooltip>
+          )}
+        </Space>
+      ),
+    },
+  ];
 
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-lg">Loading transfers...</div>
+        <div style={{ padding: '24px', textAlign: 'center' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: '16px' }}>
+            <Text>Loading transfers...</Text>
+          </div>
         </div>
       </Layout>
     );
@@ -214,362 +350,338 @@ export default function TransfersPage() {
 
   return (
     <Layout>
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Stock Transfers</h1>
-          <p className="text-gray-600">Manage stock movements between warehouses</p>
-        </div>
+      <div style={{ padding: '24px' }}>
+        {/* Header */}
+        <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
+          <Col>
+            <Title level={2} style={{ margin: 0 }}>
+              <Space>
+                🔄 Stock Transfers
+              </Space>
+            </Title>
+            <Text type="secondary">Manage stock movements between warehouses</Text>
+          </Col>
+          <Col>
+            <Button 
+              type="primary" 
+              icon={<PlusOutlined />}
+              size="large"
+              onClick={() => {
+                resetForm();
+                setFormModalVisible(true);
+              }}
+            >
+              Create New Transfer
+            </Button>
+          </Col>
+        </Row>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-sm text-gray-600">Total Transfers</div>
-            <div className="text-2xl font-bold text-gray-900">{transfers.length}</div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-sm text-gray-600">Pending</div>
-            <div className="text-2xl font-bold text-yellow-600">
-              {transfers.filter(t => t.status === 'pending').length}
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-sm text-gray-600">In Progress</div>
-            <div className="text-2xl font-bold text-blue-600">
-              {transfers.filter(t => ['approved', 'in_transit'].includes(t.status)).length}
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <div className="text-sm text-gray-600">Completed</div>
-            <div className="text-2xl font-bold text-green-600">
-              {transfers.filter(t => t.status === 'completed').length}
-            </div>
-          </div>
-        </div>
+        <Row gutter={16} style={{ marginBottom: '24px' }}>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Total Transfers"
+                value={transfers.length}
+                valueStyle={{ color: '#1890ff' }}
+                prefix={<SwapOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Pending"
+                value={transfers.filter(t => t.status === 'pending').length}
+                valueStyle={{ color: '#faad14' }}
+                prefix={<ClockCircleOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="In Progress"
+                value={transfers.filter(t => ['approved', 'in_transit'].includes(t.status)).length}
+                valueStyle={{ color: '#1890ff' }}
+                prefix={<TruckOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Completed"
+                value={transfers.filter(t => t.status === 'completed').length}
+                valueStyle={{ color: '#52c41a' }}
+                prefix={<CheckCircleOutlined />}
+              />
+            </Card>
+          </Col>
+        </Row>
 
         {/* Filters */}
-        <div className="bg-white p-4 rounded-lg shadow mb-6">
-          <h3 className="text-lg font-semibold mb-3">Filters</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <select
-              value={filters.fromWarehouse}
-              onChange={(e) => setFilters(prev => ({ ...prev, fromWarehouse: e.target.value }))}
-              className="border border-gray-300 rounded-md px-3 py-2"
-            >
-              <option value="">All Source Warehouses</option>
-              {warehouses.map(warehouse => (
-                <option key={warehouse._id} value={warehouse._id}>
-                  {warehouse.name} ({warehouse.code})
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filters.toWarehouse}
-              onChange={(e) => setFilters(prev => ({ ...prev, toWarehouse: e.target.value }))}
-              className="border border-gray-300 rounded-md px-3 py-2"
-            >
-              <option value="">All Destination Warehouses</option>
-              {warehouses.map(warehouse => (
-                <option key={warehouse._id} value={warehouse._id}>
-                  {warehouse.name} ({warehouse.code})
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-              className="border border-gray-300 rounded-md px-3 py-2"
-            >
-              <option value="">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="in_transit">In Transit</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-between items-center mb-6">
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            {showForm ? 'Cancel' : 'Create New Transfer'}
-          </button>
-        </div>
-
-        {/* Create Transfer Form */}
-        {showForm && (
-          <div className="bg-white p-6 rounded-lg shadow mb-6">
-            <h3 className="text-lg font-semibold mb-4">Create New Transfer</h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    From Warehouse *
-                  </label>
-                  <select
-                    required
-                    value={formData.fromWarehouseId}
-                    onChange={(e) => setFormData(prev => ({ ...prev, fromWarehouseId: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  >
-                    <option value="">Select Source Warehouse</option>
-                    {warehouses.map(warehouse => (
-                      <option key={warehouse._id} value={warehouse._id}>
-                        {warehouse.name} ({warehouse.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    To Warehouse *
-                  </label>
-                  <select
-                    required
-                    value={formData.toWarehouseId}
-                    onChange={(e) => setFormData(prev => ({ ...prev, toWarehouseId: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  >
-                    <option value="">Select Destination Warehouse</option>
-                    {warehouses.map(warehouse => (
-                      <option key={warehouse._id} value={warehouse._id}>
-                        {warehouse.name} ({warehouse.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Transfer Type
-                  </label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  >
-                    <option value="manual">Manual Transfer</option>
-                    <option value="automatic">Automatic Transfer</option>
-                    <option value="emergency">Emergency Transfer</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Reason
-                  </label>
-                  <select
-                    value={formData.reason}
-                    onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  >
-                    <option value="stock_replenishment">Stock Replenishment</option>
-                    <option value="seasonal_adjustment">Seasonal Adjustment</option>
-                    <option value="damage_replacement">Damage Replacement</option>
-                    <option value="new_branch_setup">New Branch Setup</option>
-                    <option value="inventory_optimization">Inventory Optimization</option>
-                    <option value="emergency_supply">Emergency Supply</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes
-                </label>
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  rows="3"
-                  placeholder="Additional notes about this transfer..."
-                />
-              </div>
-
-              {/* Items */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Transfer Items *
-                </label>
-                {formData.items.map((item, index) => (
-                  <div key={index} className="flex gap-2 mb-2">
-                    <select
-                      required
-                      value={item.productId}
-                      onChange={(e) => updateItem(index, 'productId', e.target.value)}
-                      className="flex-1 border border-gray-300 rounded-md px-3 py-2"
-                    >
-                      <option value="">Select Product</option>
-                      {products.map(product => (
-                        <option key={product._id} value={product._id}>
-                          {product.name} ({product.code})
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      required
-                      type="number"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) => updateItem(index, 'quantity', e.target.value)}
-                      placeholder="Qty"
-                      className="w-24 border border-gray-300 rounded-md px-3 py-2"
-                    />
-                    {formData.items.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeItem(index)}
-                        className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
+        <Card title="Filters" style={{ marginBottom: '24px' }}>
+          <Row gutter={16}>
+            <Col xs={24} sm={12} md={6}>
+              <Text strong>From Warehouse</Text>
+              <Select
+                placeholder="All Source Warehouses"
+                style={{ width: '100%', marginTop: '8px' }}
+                value={filters.fromWarehouse || undefined}
+                onChange={(value) => setFilters(prev => ({ ...prev, fromWarehouse: value || '' }))}
+                allowClear
+              >
+                {warehouses.map(warehouse => (
+                  <Option key={warehouse._id} value={warehouse._id}>
+                    {warehouse.name} ({warehouse.code})
+                  </Option>
                 ))}
-                <button
-                  type="button"
-                  onClick={addItem}
-                  className="mt-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-                >
-                  Add Item
-                </button>
-              </div>
+              </Select>
+            </Col>
+            
+            <Col xs={24} sm={12} md={6}>
+              <Text strong>To Warehouse</Text>
+              <Select
+                placeholder="All Destination Warehouses"
+                style={{ width: '100%', marginTop: '8px' }}
+                value={filters.toWarehouse || undefined}
+                onChange={(value) => setFilters(prev => ({ ...prev, toWarehouse: value || '' }))}
+                allowClear
+              >
+                {warehouses.map(warehouse => (
+                  <Option key={warehouse._id} value={warehouse._id}>
+                    {warehouse.name} ({warehouse.code})
+                  </Option>
+                ))}
+              </Select>
+            </Col>
 
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
-                >
-                  Create Transfer
-                </button>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="bg-gray-600 text-white px-6 py-2 rounded-md hover:bg-gray-700"
-                >
-                  Reset
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+            <Col xs={24} sm={12} md={6}>
+              <Text strong>Status</Text>
+              <Select
+                placeholder="All Statuses"
+                style={{ width: '100%', marginTop: '8px' }}
+                value={filters.status || undefined}
+                onChange={(value) => setFilters(prev => ({ ...prev, status: value || '' }))}
+                allowClear
+              >
+                <Option value="pending">Pending</Option>
+                <Option value="approved">Approved</Option>
+                <Option value="in_transit">In Transit</Option>
+                <Option value="completed">Completed</Option>
+                <Option value="cancelled">Cancelled</Option>
+                <Option value="rejected">Rejected</Option>
+              </Select>
+            </Col>
 
-        {/* Transfers List */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Transfers ({filteredTransfers.length})
-            </h3>
-          </div>
-          
-          {filteredTransfers.length === 0 ? (
-            <div className="p-6 text-center text-gray-500">
-              No transfers found. {transfers.length === 0 ? 'Create your first transfer to get started!' : 'Try adjusting your filters.'}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Transfer
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      From → To
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Items
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Created
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredTransfers.map((transfer) => (
-                    <tr key={transfer._id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {transfer.transferNumber}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {transfer.type} • {transfer.reason}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {transfer.fromWarehouse?.name || 'Unknown'} ({transfer.fromWarehouse?.code || 'N/A'})
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          → {transfer.toWarehouse?.name || 'Unknown'} ({transfer.toWarehouse?.code || 'N/A'})
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {transfer.totalItems} items
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {transfer.totalQuantity} units
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(transfer.status)}`}>
-                          {getStatusIcon(transfer.status)} {transfer.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(transfer.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex gap-2">
-                          {transfer.status === 'pending' && (
-                            <>
-                              <button
-                                onClick={() => handleAction(transfer._id, 'approve')}
-                                className="text-blue-600 hover:text-blue-900"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => handleAction(transfer._id, 'reject')}
-                                className="text-red-600 hover:text-red-900"
-                              >
-                                Reject
-                              </button>
-                            </>
-                          )}
-                          {transfer.status === 'approved' && (
-                            <button
-                              onClick={() => handleAction(transfer._id, 'process')}
-                              className="text-green-600 hover:text-green-900"
-                            >
-                              Process
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+            <Col xs={24} sm={12} md={6}>
+              <Text strong>Date Range</Text>
+              <RangePicker
+                style={{ width: '100%', marginTop: '8px' }}
+                value={filters.dateRange}
+                onChange={(dates) => setFilters(prev => ({ ...prev, dateRange: dates }))}
+                format="DD/MM/YYYY"
+              />
+            </Col>
+          </Row>
+        </Card>
+
+        {/* Transfers Table */}
+        <Card title={`Transfers (${filteredTransfers.length})`}>
+          <Table
+            columns={columns}
+            dataSource={filteredTransfers}
+            rowKey="_id"
+            loading={loading}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) => 
+                `${range[0]}-${range[1]} of ${total} transfers`,
+            }}
+            scroll={{ x: 1200 }}
+            locale={{
+              emptyText: (
+                <div style={{ textAlign: 'center', padding: '48px' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔄</div>
+                  <Title level={4} type="secondary">No transfers found</Title>
+                  <Text type="secondary">
+                    {transfers.length === 0 ? 'Create your first transfer to get started!' : 'Try adjusting your filters.'}
+                  </Text>
+                </div>
+              )
+            }}
+          />
+        </Card>
+
+        {/* Transfer Form Modal */}
+        <Modal
+          title={editingTransfer ? 'Edit Transfer' : 'Create New Transfer'}
+          open={formModalVisible}
+          onCancel={resetForm}
+          footer={null}
+          width={800}
+          destroyOnClose
+        >
+          <Form
+            form={form}
+            layout="vertical"
+            onFinish={onSubmit}
+            initialValues={{
+              type: 'manual',
+              reason: 'stock_replenishment',
+              items: [{ productId: '', quantity: 1 }]
+            }}
+          >
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  label="From Warehouse"
+                  name="fromWarehouseId"
+                  rules={[{ required: true, message: 'Please select source warehouse!' }]}
+                >
+                  <Select placeholder="Select Source Warehouse" showSearch>
+                    {warehouses.map(warehouse => (
+                      <Option key={warehouse._id} value={warehouse._id}>
+                        <Space>
+                          <BankOutlined />
+                          {warehouse.name} ({warehouse.code})
+                        </Space>
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+              
+              <Col span={12}>
+                <Form.Item
+                  label="To Warehouse"
+                  name="toWarehouseId"
+                  rules={[{ required: true, message: 'Please select destination warehouse!' }]}
+                >
+                  <Select placeholder="Select Destination Warehouse" showSearch>
+                    {warehouses.map(warehouse => (
+                      <Option key={warehouse._id} value={warehouse._id}>
+                        <Space>
+                          <BankOutlined />
+                          {warehouse.name} ({warehouse.code})
+                        </Space>
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+            
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item label="Transfer Type" name="type">
+                  <Select>
+                    <Option value="manual">Manual Transfer</Option>
+                    <Option value="automatic">Automatic Transfer</Option>
+                    <Option value="emergency">Emergency Transfer</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+              
+              <Col span={12}>
+                <Form.Item label="Reason" name="reason">
+                  <Select>
+                    <Option value="stock_replenishment">Stock Replenishment</Option>
+                    <Option value="seasonal_adjustment">Seasonal Adjustment</Option>
+                    <Option value="damage_replacement">Damage Replacement</Option>
+                    <Option value="new_branch_setup">New Branch Setup</Option>
+                    <Option value="inventory_optimization">Inventory Optimization</Option>
+                    <Option value="emergency_supply">Emergency Supply</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+            
+            <Form.Item label="Notes" name="notes">
+              <TextArea 
+                rows={3} 
+                placeholder="Additional notes about this transfer..."
+                prefix={<FileTextOutlined />}
+              />
+            </Form.Item>
+
+            <Divider>Transfer Items</Divider>
+            
+            <Form.List name="items">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map(({ key, name, ...restField }) => (
+                    <Row key={key} gutter={8} align="middle" style={{ marginBottom: '8px' }}>
+                      <Col span={16}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'productId']}
+                          rules={[{ required: true, message: 'Please select product!' }]}
+                        >
+                          <Select placeholder="Select Product" showSearch>
+                            {products.map(product => (
+                              <Option key={product._id} value={product._id}>
+                                <Space>
+                                  <ShoppingCartOutlined />
+                                  {product.name} ({product.code})
+                                </Space>
+                              </Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                      <Col span={6}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'quantity']}
+                          rules={[{ required: true, message: 'Enter quantity!' }]}
+                        >
+                          <InputNumber
+                            placeholder="Qty"
+                            min={1}
+                            style={{ width: '100%' }}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={2}>
+                        {fields.length > 1 && (
+                          <Button 
+                            type="text" 
+                            danger 
+                            icon={<DeleteOutlined />}
+                            onClick={() => remove(name)}
+                          />
+                        )}
+                      </Col>
+                    </Row>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                  <Form.Item>
+                    <Button 
+                      type="dashed" 
+                      onClick={() => add({ productId: '', quantity: 1 })} 
+                      block 
+                      icon={<PlusOutlined />}
+                    >
+                      Add Item
+                    </Button>
+                  </Form.Item>
+                </>
+              )}
+            </Form.List>
+            
+            <Row justify="end">
+              <Space>
+                <Button onClick={resetForm}>Cancel</Button>
+                <Button type="primary" htmlType="submit" loading={loading}>
+                  Create Transfer
+                </Button>
+              </Space>
+            </Row>
+          </Form>
+        </Modal>
       </div>
     </Layout>
   );

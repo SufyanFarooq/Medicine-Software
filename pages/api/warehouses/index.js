@@ -1,118 +1,146 @@
-import { MongoClient } from 'mongodb';
-import { connectToDatabase } from '../../../lib/mongodb';
+import { getCollection } from '../../../lib/mongodb';
+import { getUserPermissions } from '../../../lib/permissions';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+const verifyToken = (req) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return null;
+    return jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return null;
+  }
+};
 
 export default async function handler(req, res) {
   const { method } = req;
 
+  const user = verifyToken(req);
+  if (!user) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
+  const permissions = getUserPermissions(user.role);
+
   try {
-    const { db } = await connectToDatabase();
-    const warehousesCol = db.collection('warehouses');
+    const warehousesCollection = await getCollection('warehouses');
 
     switch (method) {
       case 'GET':
-        try {
-          const { search, type, status } = req.query;
-          
-          let filter = { isActive: true };
-          
-          // Add search filter
-          if (search) {
-            filter.$or = [
-              { name: { $regex: search, $options: 'i' } },
-              { code: { $regex: search, $options: 'i' } },
-              { location: { $regex: search, $options: 'i' } }
-            ];
-          }
-          
-          // Add type filter
-          if (type) {
-            filter.type = type;
-          }
-          
-          // Add status filter
-          if (status) {
-            filter.status = status;
-          }
-
-          const warehouses = await warehousesCol.find(filter).sort({ createdAt: -1 }).toArray();
-          res.status(200).json(warehouses);
-        } catch (error) {
-          console.error('Error fetching warehouses:', error);
-          res.status(500).json({ error: 'Failed to fetch warehouses' });
+        if (!permissions.canManageWarehouses) {
+          return res.status(403).json({ message: 'Access denied' });
         }
+
+        const { 
+          warehouseType,
+          city,
+          status,
+          activeOnly = 'true',
+          search,
+          page = 1,
+          limit = 50
+        } = req.query;
+
+        let filter = {};
+        
+        if (activeOnly === 'true') filter.isActive = true;
+        if (warehouseType) filter.warehouseType = warehouseType;
+        if (city) filter['address.city'] = city;
+        if (status) filter.status = status;
+        
+        if (search) {
+          filter.$or = [
+            { name: { $regex: search, $options: 'i' } },
+            { warehouseCode: { $regex: search, $options: 'i' } },
+            { 'address.city': { $regex: search, $options: 'i' } }
+          ];
+        }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const warehouses = await warehousesCollection
+          .find(filter)
+          .sort({ name: 1 })
+          .skip(skip)
+          .limit(parseInt(limit))
+          .toArray();
+
+        const total = await warehousesCollection.countDocuments(filter);
+
+        res.status(200).json({
+          warehouses,
+          pagination: {
+            current: parseInt(page),
+            pages: Math.ceil(total / parseInt(limit)),
+            total
+          }
+        });
         break;
 
       case 'POST':
-        try {
-          const { 
-            name, 
-            code, 
-            type, 
-            location, 
-            address, 
-            contact, 
-            manager, 
-            settings 
-          } = req.body;
-
-          // Validate required fields
-          if (!name || !code || !type) {
-            return res.status(400).json({ 
-              error: 'Name, code, and type are required fields' 
-            });
-          }
-
-          // Check for duplicate warehouse code
-          const existingWarehouse = await warehousesCol.findOne({ code });
-          if (existingWarehouse) {
-            return res.status(409).json({ 
-              error: 'Warehouse code already exists. Please use a unique code.' 
-            });
-          }
-
-          const newWarehouse = {
-            name: String(name).trim(),
-            code: String(code).trim().toUpperCase(),
-            type: String(type).trim(),
-            location: String(location || '').trim(),
-            address: {
-              street: String(address?.street || '').trim(),
-              city: String(address?.city || '').trim(),
-              state: String(address?.state || '').trim(),
-              zipCode: String(address?.zipCode || '').trim(),
-              country: String(address?.country || 'Pakistan').trim()
-            },
-            contact: {
-              phone: String(contact?.phone || '').trim(),
-              email: String(contact?.email || '').trim(),
-              website: String(contact?.website || '').trim()
-            },
-            manager: {
-              name: String(manager?.name || '').trim(),
-              phone: String(manager?.phone || '').trim(),
-              email: String(manager?.email || '').trim()
-            },
-            settings: {
-              enableNotifications: Boolean(settings?.enableNotifications ?? true),
-              lowStockThreshold: parseInt(settings?.lowStockThreshold) || 10,
-              criticalStockThreshold: parseInt(settings?.criticalStockThreshold) || 5,
-              allowNegativeStock: Boolean(settings?.allowNegativeStock ?? false)
-            },
-            isActive: true,
-            status: 'active',
-            createdAt: new Date(),
-            updatedAt: new Date()
-          };
-
-          const result = await warehousesCol.insertOne(newWarehouse);
-          res.status(201).json({ 
-            ...newWarehouse, 
-            _id: result.insertedId 
-          });
-        } catch (error) {
-          console.error('Error creating warehouse:', error);
-          res.status(500).json({ error: 'Failed to create warehouse' });
+        if (!permissions.canManageWarehouses) {
+          return res.status(403).json({ message: 'Access denied' });
         }
+
+        const {
+          name,
+          description,
+          warehouseType,
+          address,
+          contactInfo,
+          specifications
+        } = req.body;
+
+        if (!name || !warehouseType || !address?.city || !address?.country) {
+          return res.status(400).json({ message: 'Name, type, city, and country are required' });
+        }
+
+        const existingWarehouse = await warehousesCollection.findOne({ 
+          name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
+          isActive: true
+        });
+        if (existingWarehouse) {
+          return res.status(400).json({ message: 'Warehouse name already exists' });
+        }
+
+        const newWarehouse = {
+          name: name.trim(),
+          description: description?.trim() || '',
+          warehouseType,
+          address,
+          contactInfo: contactInfo || {},
+          specifications: specifications || {},
+          status: 'active',
+          isActive: true,
+          isPrimary: false,
+          allowsReceiving: true,
+          allowsShipping: true,
+          allowsTransfers: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: user.userId,
+          updatedBy: user.userId
+        };
+
+        const result = await warehousesCollection.insertOne(newWarehouse);
+
+        // Log activity
+        const activitiesCollection = await getCollection('activities');
+        await activitiesCollection.insertOne({
+          userId: user.userId,
+          username: user.username,
+          action: 'create_warehouse',
+          details: `Created warehouse: ${name}`,
+          entityType: 'Warehouse',
+          entityId: result.insertedId.toString(),
+          createdAt: new Date(),
+          ipAddress: req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown',
+          userAgent: req.headers['user-agent'] || 'unknown'
+        });
+
+        res.status(201).json({ _id: result.insertedId, ...newWarehouse });
         break;
 
       default:
@@ -120,7 +148,7 @@ export default async function handler(req, res) {
         res.status(405).end(`Method ${method} Not Allowed`);
     }
   } catch (error) {
-    console.error('Database connection error:', error);
-    res.status(500).json({ error: 'Database connection failed' });
+    console.error('API Error:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 }

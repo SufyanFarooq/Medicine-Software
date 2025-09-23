@@ -4,14 +4,48 @@ import Layout from '../../components/Layout';
 import { hasPermission } from '../../lib/permissions';
 import { logSupplierActivity } from '../../lib/activity-logger';
 import { apiRequest, getUser } from '../../lib/auth';
+import { 
+  Table, 
+  Button, 
+  Card, 
+  Row, 
+  Col, 
+  Space, 
+  Typography, 
+  Modal, 
+  Form, 
+  Input, 
+  message,
+  Popconfirm,
+  Tooltip,
+  Tag,
+  Alert,
+  Divider,
+  Spin
+} from 'antd';
+import { 
+  PlusOutlined, 
+  EditOutlined, 
+  DeleteOutlined, 
+  UserOutlined,
+  PhoneOutlined,
+  MailOutlined,
+  HomeOutlined,
+  ShopOutlined,
+  FileTextOutlined,
+  ArrowLeftOutlined
+} from '@ant-design/icons';
+
+const { Title, Text } = Typography;
+const { TextArea } = Input;
 
 export default function SuppliersPage() {
 	const [suppliers, setSuppliers] = useState([]);
 	const [loading, setLoading] = useState(false);
-	const [form, setForm] = useState({ name: '', phone: '', company: '', email: '', address: '', notes: '' });
-	const [error, setError] = useState('');
-	const [editingId, setEditingId] = useState(null);
+	const [formModalVisible, setFormModalVisible] = useState(false);
+	const [editingSupplier, setEditingSupplier] = useState(null);
 	const [currentUser, setCurrentUser] = useState({ role: 'super_admin' });
+	const [form] = Form.useForm();
 
 	const canManage = hasPermission(currentUser.role, 'canManageSuppliers');
 
@@ -21,6 +55,9 @@ export default function SuppliersPage() {
 			const res = await apiRequest('/api/suppliers');
 			const data = await res.json();
 			setSuppliers(Array.isArray(data) ? data : []);
+		} catch (error) {
+			console.error('Error loading suppliers:', error);
+			message.error('Failed to load suppliers');
 		} finally {
 			setLoading(false);
 		}
@@ -32,79 +69,60 @@ export default function SuppliersPage() {
 		loadSuppliers();
 	}, []);
 
-	const handleSubmit = async (e) => {
-		e.preventDefault();
-		setError('');
-		if (!form.name || !form.phone) {
-			setError('Name and phone are required');
-			return;
-		}
+	const onSubmit = async (values) => {
 		setLoading(true);
 		try {
-			const res = await apiRequest('/api/suppliers', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(form)
-			});
-			if (!res.ok) {
-				const data = await res.json();
-				throw new Error(data.error || 'Failed to add supplier');
+			if (editingSupplier) {
+				// Update existing supplier
+				const res = await apiRequest(`/api/suppliers/${editingSupplier._id}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(values)
+				});
+				if (!res.ok) {
+					const data = await res.json();
+					throw new Error(data.error || 'Failed to update supplier');
+				}
+				await logSupplierActivity.updated(values.name, editingSupplier._id);
+				message.success('Supplier updated successfully!');
+			} else {
+				// Create new supplier
+				const res = await apiRequest('/api/suppliers', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(values)
+				});
+				if (!res.ok) {
+					const data = await res.json();
+					throw new Error(data.error || 'Failed to add supplier');
+				}
+				const created = await res.json();
+				await logSupplierActivity.added(created.name, created._id);
+				message.success('Supplier added successfully!');
 			}
-			const created = await res.json();
-			await logSupplierActivity.added(created.name, created._id);
-			setForm({ name: '', phone: '', company: '', email: '', address: '', notes: '' });
+			resetForm();
 			loadSuppliers();
 		} catch (err) {
-			setError(err.message);
+			message.error(err.message);
 		} finally {
 			setLoading(false);
 		}
 	};
 
-	const startEdit = (s) => {
-		setEditingId(s._id);
-		setForm({
-			name: s.name || '',
-			phone: s.phone || '',
-			company: s.company || '',
-			email: s.email || '',
-			address: s.address || '',
-			notes: s.notes || ''
+	const handleEdit = (supplier) => {
+		setEditingSupplier(supplier);
+		form.setFieldsValue({
+			name: supplier.name || '',
+			phone: supplier.phone || '',
+			company: supplier.company || '',
+			email: supplier.email || '',
+			address: supplier.address || '',
+			notes: supplier.notes || ''
 		});
+		setFormModalVisible(true);
 	};
 
-	const cancelEdit = () => {
-		setEditingId(null);
-		setForm({ name: '', phone: '', company: '', email: '', address: '', notes: '' });
-		setError('');
-	};
-
-	const saveEdit = async () => {
-		if (!editingId) return;
-		setLoading(true);
-		setError('');
-		try {
-			const res = await apiRequest(`/api/suppliers/${editingId}`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(form)
-			});
-			if (!res.ok) {
-				const data = await res.json();
-				throw new Error(data.error || 'Failed to update supplier');
-			}
-			await logSupplierActivity.updated(form.name, editingId);
-			cancelEdit();
-			loadSuppliers();
-		} catch (err) {
-			setError(err.message);
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	const deleteSupplier = async (id, name) => {
-		if (!confirm('Delete this supplier?')) return;
+	const handleDelete = async (id, name) => {
 		setLoading(true);
 		try {
 			const res = await apiRequest(`/api/suppliers/${id}`, { method: 'DELETE' });
@@ -113,97 +131,300 @@ export default function SuppliersPage() {
 				throw new Error(data.error || 'Failed to delete');
 			}
 			await logSupplierActivity.deleted(name, id);
+			message.success('Supplier deleted successfully!');
 			loadSuppliers();
 		} catch (err) {
-			setError(err.message);
+			message.error(err.message);
 		} finally {
 			setLoading(false);
 		}
 	};
 
+	const resetForm = () => {
+		setFormModalVisible(false);
+		setEditingSupplier(null);
+		form.resetFields();
+	};
+
+	// Define table columns
+	const columns = [
+		{
+			title: 'Name',
+			dataIndex: 'name',
+			key: 'name',
+			render: (text) => (
+				<Space>
+					<UserOutlined style={{ color: '#1890ff' }} />
+					<Text strong>{text}</Text>
+				</Space>
+			),
+		},
+		{
+			title: 'Company',
+			dataIndex: 'company',
+			key: 'company',
+			render: (text) => (
+				<Space>
+					<ShopOutlined style={{ color: '#52c41a' }} />
+					<Text>{text || '—'}</Text>
+				</Space>
+			),
+		},
+		{
+			title: 'Phone',
+			dataIndex: 'phone',
+			key: 'phone',
+			render: (text) => (
+				<Space>
+					<PhoneOutlined style={{ color: '#fa8c16' }} />
+					<Text>{text}</Text>
+				</Space>
+			),
+		},
+		{
+			title: 'Email',
+			dataIndex: 'email',
+			key: 'email',
+			render: (text) => (
+				<Space>
+					<MailOutlined style={{ color: '#722ed1' }} />
+					<Text>{text || '—'}</Text>
+				</Space>
+			),
+		},
+		{
+			title: 'Address',
+			dataIndex: 'address',
+			key: 'address',
+			render: (text) => (
+				<Space>
+					<HomeOutlined style={{ color: '#eb2f96' }} />
+					<Text>{text || '—'}</Text>
+				</Space>
+			),
+		},
+		{
+			title: 'Actions',
+			key: 'actions',
+			render: (_, record) => (
+				<Space>
+					{canManage && (
+						<>
+							<Tooltip title="Edit Supplier">
+								<Button 
+									type="text" 
+									icon={<EditOutlined />}
+									onClick={() => handleEdit(record)}
+								/>
+							</Tooltip>
+							<Popconfirm
+								title="Delete Supplier"
+								description="Are you sure you want to delete this supplier?"
+								onConfirm={() => handleDelete(record._id, record.name)}
+								okText="Yes"
+								cancelText="No"
+								okType="danger"
+							>
+								<Tooltip title="Delete Supplier">
+									<Button 
+										type="text" 
+										danger 
+										icon={<DeleteOutlined />}
+									/>
+								</Tooltip>
+							</Popconfirm>
+						</>
+					)}
+				</Space>
+			),
+		},
+	];
+
+	if (!canManage) {
+		return (
+			<Layout>
+				<div style={{ padding: '24px' }}>
+					<Alert
+						message="Access Denied"
+						description="You do not have permission to manage suppliers."
+						type="error"
+						showIcon
+					/>
+				</div>
+			</Layout>
+		);
+	}
+
 	return (
 		<Layout>
-			<div className="container mx-auto p-4">
-				<div className="flex items-center justify-between mb-6">
-					<h1 className="text-2xl font-bold">🚚 Suppliers</h1>
-					<Link href="/products" className="text-blue-600 hover:underline">← Back to Products</Link>
-				</div>
+			<div style={{ padding: '24px' }}>
+				{/* Header */}
+				<Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
+					<Col>
+						<Title level={2} style={{ margin: 0 }}>
+							<Space>
+								🚚 Suppliers
+							</Space>
+						</Title>
+						<Text type="secondary">Manage your supplier database</Text>
+					</Col>
+					<Col>
+						<Space>
+							<Link href="/products">
+								<Button icon={<ArrowLeftOutlined />}>
+									Back to Products
+								</Button>
+							</Link>
+							<Button 
+								type="primary" 
+								icon={<PlusOutlined />}
+								size="large"
+								onClick={() => {
+									resetForm();
+									setFormModalVisible(true);
+								}}
+							>
+								Add Supplier
+							</Button>
+						</Space>
+					</Col>
+				</Row>
 
-				{canManage && (
-					<div className="card mb-6">
-						<h2 className="text-lg font-semibold mb-3">Add Supplier</h2>
-						<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-							<input className="input-field" placeholder="Name *" value={form.name} onChange={(e)=>setForm({ ...form, name: e.target.value })} />
-							<input className="input-field" placeholder="Phone *" value={form.phone} onChange={(e)=>setForm({ ...form, phone: e.target.value })} />
-							<input className="input-field" placeholder="Company" value={form.company} onChange={(e)=>setForm({ ...form, company: e.target.value })} />
-							<input className="input-field" placeholder="Email" value={form.email} onChange={(e)=>setForm({ ...form, email: e.target.value })} />
-							<input className="input-field md:col-span-2" placeholder="Address" value={form.address} onChange={(e)=>setForm({ ...form, address: e.target.value })} />
-							<textarea className="input-field md:col-span-2" placeholder="Notes" value={form.notes} onChange={(e)=>setForm({ ...form, notes: e.target.value })} />
-							<div className="md:col-span-2 flex justify-end">
-								<button disabled={loading} className="btn-primary">{loading ? 'Saving...' : 'Save Supplier'}</button>
-							</div>
-						</form>
-						{error && <p className="text-red-600 text-sm mt-2">{error}</p>}
-					</div>
-				)}
+				{/* Suppliers Table */}
+				<Card>
+					<Table
+						columns={columns}
+						dataSource={suppliers}
+						rowKey="_id"
+						loading={loading}
+						pagination={{
+							pageSize: 10,
+							showSizeChanger: true,
+							showQuickJumper: true,
+							showTotal: (total, range) => 
+								`${range[0]}-${range[1]} of ${total} suppliers`,
+						}}
+						scroll={{ x: 800 }}
+						locale={{
+							emptyText: (
+								<div style={{ textAlign: 'center', padding: '48px' }}>
+									<div style={{ fontSize: '48px', marginBottom: '16px' }}>🚚</div>
+									<Title level={4} type="secondary">No suppliers found</Title>
+									<Text type="secondary">Add your first supplier to get started!</Text>
+								</div>
+							)
+						}}
+					/>
+				</Card>
 
-				<div className="card">
-					<h2 className="text-lg font-semibold mb-3">All Suppliers</h2>
-					{loading ? (
-						<p>Loading...</p>
-					) : suppliers.length === 0 ? (
-						<p className="text-gray-500">No suppliers yet.</p>
-					) : (
-						<div className="overflow-x-auto">
-							<table className="min-w-full divide-y divide-gray-200">
-								<thead className="bg-gray-50">
-									<tr>
-										<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-										<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-										<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-										<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-										<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Address</th>
-										<th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-									</tr>
-								</thead>
-								<tbody className="bg-white divide-y divide-gray-200">
-									{suppliers.map(s => (
-										<tr key={s._id}>
-											<td className="px-4 py-2">{editingId === s._id ? (
-												<input className="input-field" value={form.name} onChange={(e)=>setForm({ ...form, name: e.target.value })} />
-											) : s.name}</td>
-											<td className="px-4 py-2">{editingId === s._id ? (
-												<input className="input-field" value={form.company} onChange={(e)=>setForm({ ...form, company: e.target.value })} />
-											) : s.company}</td>
-											<td className="px-4 py-2">{editingId === s._id ? (
-												<input className="input-field" value={form.phone} onChange={(e)=>setForm({ ...form, phone: e.target.value })} />
-											) : s.phone}</td>
-											<td className="px-4 py-2">{editingId === s._id ? (
-												<input className="input-field" value={form.email} onChange={(e)=>setForm({ ...form, email: e.target.value })} />
-											) : s.email}</td>
-											<td className="px-4 py-2">{editingId === s._id ? (
-												<input className="input-field" value={form.address} onChange={(e)=>setForm({ ...form, address: e.target.value })} />
-											) : s.address}</td>
-											<td className="px-4 py-2">
-												{editingId === s._id ? (
-													<div className="flex gap-2">
-														<button onClick={saveEdit} className="text-green-600">Save</button>
-														<button onClick={cancelEdit} className="text-gray-600">Cancel</button>
-													</div>
-												) : (
-													<div className="flex gap-2">
-														<button onClick={() => startEdit(s)} className="text-blue-600">Edit</button>
-														<button onClick={() => deleteSupplier(s._id, s.name)} className="text-red-600">Delete</button>
-													</div>
-												)}
-											</td>
-										</tr>
-									))}
-								</tbody>
-							</table>
-						</div>
-					)}
-				</div>
+				{/* Supplier Form Modal */}
+				<Modal
+					title={editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
+					open={formModalVisible}
+					onCancel={resetForm}
+					footer={null}
+					width={600}
+					destroyOnClose
+				>
+					<Form
+						form={form}
+						layout="vertical"
+						onFinish={onSubmit}
+						initialValues={{
+							name: '',
+							phone: '',
+							company: '',
+							email: '',
+							address: '',
+							notes: ''
+						}}
+					>
+						<Row gutter={16}>
+							<Col span={12}>
+								<Form.Item
+									label="Name"
+									name="name"
+									rules={[{ required: true, message: 'Please enter supplier name!' }]}
+								>
+									<Input 
+										placeholder="Enter supplier name"
+										prefix={<UserOutlined />}
+									/>
+								</Form.Item>
+							</Col>
+							<Col span={12}>
+								<Form.Item
+									label="Phone"
+									name="phone"
+									rules={[{ required: true, message: 'Please enter phone number!' }]}
+								>
+									<Input 
+										placeholder="Enter phone number"
+										prefix={<PhoneOutlined />}
+									/>
+								</Form.Item>
+							</Col>
+						</Row>
+						
+						<Row gutter={16}>
+							<Col span={12}>
+								<Form.Item
+									label="Company"
+									name="company"
+								>
+									<Input 
+										placeholder="Enter company name"
+										prefix={<ShopOutlined />}
+									/>
+								</Form.Item>
+							</Col>
+							<Col span={12}>
+								<Form.Item
+									label="Email"
+									name="email"
+									rules={[{ type: 'email', message: 'Please enter a valid email!' }]}
+								>
+									<Input 
+										placeholder="Enter email address"
+										prefix={<MailOutlined />}
+									/>
+								</Form.Item>
+							</Col>
+						</Row>
+						
+						<Form.Item
+							label="Address"
+							name="address"
+						>
+							<Input 
+								placeholder="Enter address"
+								prefix={<HomeOutlined />}
+							/>
+						</Form.Item>
+						
+						<Form.Item
+							label="Notes"
+							name="notes"
+						>
+							<TextArea 
+								rows={3} 
+								placeholder="Additional notes..."
+								prefix={<FileTextOutlined />}
+							/>
+						</Form.Item>
+						
+						<Row justify="end">
+							<Space>
+								<Button onClick={resetForm}>
+									Cancel
+								</Button>
+								<Button type="primary" htmlType="submit" loading={loading}>
+									{editingSupplier ? 'Update Supplier' : 'Add Supplier'}
+								</Button>
+							</Space>
+						</Row>
+					</Form>
+				</Modal>
 			</div>
 		</Layout>
 	);

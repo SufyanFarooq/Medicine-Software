@@ -55,10 +55,13 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
       const response = await apiRequest('/api/categories');
       if (response.ok) {
         const data = await response.json();
-        setCategories(data);
+        // Ensure categories is always an array
+        const categoriesArray = Array.isArray(data) ? data : (data.categories || data.items || []);
+        setCategories(categoriesArray);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories([]); // Ensure categories is always an array on error
     }
   };
 
@@ -67,20 +70,23 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
       const response = await apiRequest('/api/products');
       if (response.ok) {
         const data = await response.json();
-        setExistingProducts(data);
+        // Ensure existingProducts is always an array
+        const productsArray = data.products || data || [];
+        setExistingProducts(Array.isArray(productsArray) ? productsArray : []);
       }
     } catch (error) {
       console.error('Error fetching existing products:', error);
+      setExistingProducts([]); // Ensure existingProducts is always an array on error
     }
   };
 
   const isDuplicateCode = (code) => {
-    if (!code) return false;
+    if (!code || !Array.isArray(existingProducts)) return false;
     return existingProducts.some(p => p.code?.toLowerCase() === code.toLowerCase());
   };
 
   const isDuplicateBarcode = (barcode) => {
-    if (!barcode) return false;
+    if (!barcode || !Array.isArray(existingProducts)) return false;
     return existingProducts.some(p => (p.barcode || '').toLowerCase() === barcode.toLowerCase());
   };
 
@@ -138,6 +144,7 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
 
   // Helper: Generate next product code like PROD001, PROD002...
   const generateNextCode = () => {
+    if (!Array.isArray(existingProducts)) return 'PROD001';
     let maxNumber = 0;
     for (const p of existingProducts) {
       const code = p?.code || '';
@@ -186,7 +193,7 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
 
   // Duplicate name validation
   const validateName = (name) => {
-    if (!product) { // Only validate for new products
+    if (!product && Array.isArray(existingProducts)) { // Only validate for new products
       const existingProduct = existingProducts.find(
         prod => prod.name.toLowerCase() === name.toLowerCase()
       );
@@ -201,6 +208,28 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate required fields
+    const requiredFields = {
+      name: 'Product Name',
+      code: 'Product Code',
+      category: 'Category',
+      quantity: 'Quantity',
+      totalBuyingPrice: 'Total Buying Price',
+      sellingPrice: 'Selling Price'
+    };
+
+    const missingFields = [];
+    for (const [field, label] of Object.entries(requiredFields)) {
+      if (!formData[field] || formData[field].toString().trim() === '') {
+        missingFields.push(label);
+      }
+    }
+
+    if (missingFields.length > 0) {
+      setError(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
+    }
 
     // Check for validation errors
     if (Object.keys(validationErrors).some(key => validationErrors[key])) {
@@ -242,7 +271,7 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
           try { logProductActivity.updated(submitData.name || product.name, submitData.code || product.code, product._id); } catch {}
         } else {
           const errorData = await response.json();
-          setError(errorData.error || 'Failed to update product');
+          setError(errorData.message || errorData.error || 'Failed to update product');
         }
       } else {
         // Create new product
@@ -292,7 +321,7 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
           onSubmit(newProduct);
         } else {
           const errorData = await response.json();
-          setError(errorData.error || 'Failed to create product');
+          setError(errorData.message || errorData.error || 'Failed to create product');
         }
       }
     } catch (error) {
@@ -303,10 +332,15 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">
-        {product ? 'Edit Product' : 'Add New Product'}
-      </h2>
+    <div className="bg-white p-4">
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold text-gray-800 mb-1">
+          {product ? 'Edit Product' : 'Add New Product'}
+        </h3>
+        <p className="text-sm text-gray-600">
+          {product ? 'Update product information' : 'Fill in the details to add a new product'}
+        </p>
+      </div>
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -315,7 +349,7 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Product Name *
@@ -417,11 +451,13 @@ export default function ProductForm({ product, onSubmit, onCancel }) {
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {categories.map((cat) => (
+              {Array.isArray(categories) ? categories.map((cat) => (
                 <option key={cat._id || cat.name} value={cat.name}>
                   {cat.name}
                 </option>
-              ))}
+              )) : (
+                <option value="General">General</option>
+              )}
             </select>
           </div>
 

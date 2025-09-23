@@ -2,6 +2,55 @@ import { useEffect, useMemo, useState } from 'react';
 import Layout from '../../components/Layout';
 import Link from 'next/link';
 import { apiRequest } from '../../lib/auth';
+import { 
+  Table, 
+  Button, 
+  Card, 
+  Row, 
+  Col, 
+  Space, 
+  Typography, 
+  Modal, 
+  Form, 
+  Input, 
+  Select,
+  InputNumber,
+  message,
+  Popconfirm,
+  Tooltip,
+  Tag,
+  Alert,
+  Divider,
+  Drawer,
+  Collapse,
+  Spin,
+  Badge,
+  Progress,
+  Descriptions
+} from 'antd';
+import { 
+  PlusOutlined, 
+  EditOutlined, 
+  DeleteOutlined, 
+  ShoppingCartOutlined,
+  UserOutlined,
+  FileTextOutlined,
+  PrinterOutlined,
+  DollarOutlined,
+  WarningOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  SearchOutlined,
+  ReloadOutlined,
+  ExclamationCircleOutlined,
+  ShopOutlined,
+  BarcodeOutlined
+} from '@ant-design/icons';
+
+const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
+const { Option } = Select;
+const { Panel } = Collapse;
 
 export default function PurchaseOrdersPage() {
 	const [suppliers, setSuppliers] = useState([]);
@@ -10,12 +59,14 @@ export default function PurchaseOrdersPage() {
 	const [loading, setLoading] = useState(false);
 	const [form, setForm] = useState({ supplierId: '', items: [], notes: '', taxRate: 0, freight: 0, discount: 0 });
 	const [search, setSearch] = useState('');
-	const [error, setError] = useState('');
-	const [receiveDrawer, setReceiveDrawer] = useState(null); // po object for partial receive
+	const [receiveDrawer, setReceiveDrawer] = useState(null);
 	const [payment, setPayment] = useState({ poId: '', amount: '' });
 	const [priceWarning, setPriceWarning] = useState('');
 	const [showQuickAddProduct, setShowQuickAddProduct] = useState(false);
-	const [quickProductForm, setQuickProductForm] = useState({ name: '', code: '', category: '', unit: 'pcs', purchasePrice: 0, sellingPrice: 0 });
+	const [quickProductModalVisible, setQuickProductModalVisible] = useState(false);
+	const [quickProductForm] = Form.useForm();
+	const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+	const [paymentForm] = Form.useForm();
 
 	useEffect(() => {
 		const load = async () => {
@@ -28,7 +79,9 @@ export default function PurchaseOrdersPage() {
 				]);
 				setSuppliers(await supRes.json());
 				setProducts(await prodRes.json());
-				setOrders(await poRes.json());
+				const poData = await poRes.json();
+				const ordersArray = poData.purchaseOrders || poData || [];
+				setOrders(Array.isArray(ordersArray) ? ordersArray : []);
 			} finally {
 				setLoading(false);
 			}
@@ -60,9 +113,8 @@ export default function PurchaseOrdersPage() {
 	const grandTotal = useMemo(() => subTotal + taxAmount + (Number(form.freight)||0) - (Number(form.discount)||0), [subTotal, taxAmount, form.freight, form.discount]);
 
 	const createPO = async () => {
-		setError('');
 		if (!form.supplierId || form.items.length === 0) {
-			setError('Select supplier and add at least one item');
+			message.error('Select supplier and add at least one item');
 			return;
 		}
 		setLoading(true);
@@ -80,8 +132,9 @@ export default function PurchaseOrdersPage() {
 			const created = await res.json();
 			setOrders(prev => [created, ...prev]);
 			setForm({ supplierId: '', items: [], notes: '', taxRate: 0, freight: 0, discount: 0 });
+			message.success('Purchase order created successfully!');
 		} catch (e) {
-			setError(e.message);
+			message.error(e.message);
 		} finally {
 			setLoading(false);
 		}
@@ -126,7 +179,9 @@ export default function PurchaseOrdersPage() {
 			}
 			
 			const listRes = await apiRequest('/api/purchase-orders');
-			setOrders(await listRes.json());
+			const listData = await listRes.json();
+			const ordersArray = listData.purchaseOrders || listData || [];
+			setOrders(Array.isArray(ordersArray) ? ordersArray : []);
 			setReceiveDrawer(null);
 		} catch (e) {
 			setError(e.message);
@@ -141,7 +196,9 @@ export default function PurchaseOrdersPage() {
 		try {
 			await apiRequest(`/api/purchase-orders/${poId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cancel: true }) });
 			const listRes = await apiRequest('/api/purchase-orders');
-			setOrders(await listRes.json());
+			const listData = await listRes.json();
+			const ordersArray = listData.purchaseOrders || listData || [];
+			setOrders(Array.isArray(ordersArray) ? ordersArray : []);
 		} finally { setLoading(false); }
 	};
 
@@ -219,7 +276,9 @@ export default function PurchaseOrdersPage() {
 				
 				// Refresh orders to show updated status
 				const listRes = await apiRequest('/api/purchase-orders');
-				setOrders(await listRes.json());
+				const listData = await listRes.json();
+			const ordersArray = listData.purchaseOrders || listData || [];
+			setOrders(Array.isArray(ordersArray) ? ordersArray : []);
 				
 				// Refresh products to get updated data
 				const productsRes = await apiRequest('/api/products');
@@ -237,32 +296,28 @@ export default function PurchaseOrdersPage() {
 		}
 	};
 
-	const quickAddProduct = async () => {
-		if (!quickProductForm.name || !quickProductForm.code) {
-			setError('Product name and code are required');
-			return;
-		}
+	const quickAddProduct = async (values) => {
 		setLoading(true);
 		try {
 			const res = await apiRequest('/api/products', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					name: quickProductForm.name,
-					code: quickProductForm.code,
-					category: quickProductForm.category || 'General',
-					unit: quickProductForm.unit,
-					purchasePrice: Number(quickProductForm.purchasePrice) || 0,
-					sellingPrice: Number(quickProductForm.sellingPrice) || 0,
+					name: values.name,
+					code: values.code,
+					category: values.category || 'General',
+					unit: values.unit,
+					purchasePrice: Number(values.purchasePrice) || 0,
+					sellingPrice: Number(values.sellingPrice) || 0,
 					quantity: 0 // Will be updated when PO is received
 				})
 			});
 			if (res.ok) {
 				const newProduct = await res.json();
 				setProducts(prev => [newProduct, ...prev]);
-				setShowQuickAddProduct(false);
-				setQuickProductForm({ name: '', code: '', category: '', unit: 'pcs', purchasePrice: 0, sellingPrice: 0 });
-				setError('');
+				setQuickProductModalVisible(false);
+				quickProductForm.resetFields();
+				message.success('Product added successfully!');
 				// Auto-add to PO form
 				addItem(newProduct);
 			} else {
@@ -270,7 +325,7 @@ export default function PurchaseOrdersPage() {
 				throw new Error(data.error || 'Failed to create product');
 			}
 		} catch (e) {
-			setError(e.message);
+			message.error(e.message);
 		} finally {
 			setLoading(false);
 		}
@@ -326,126 +381,248 @@ export default function PurchaseOrdersPage() {
 		setTimeout(() => { w.print(); }, 300);
 	};
 
+	// Define table columns for purchase orders
+	const poColumns = [
+		{
+			title: 'PO #',
+			dataIndex: 'poNumber',
+			key: 'poNumber',
+			render: (text) => <Text code strong>{text}</Text>,
+		},
+		{
+			title: 'Supplier',
+			dataIndex: 'supplierName',
+			key: 'supplierName',
+			render: (text) => (
+				<Space>
+					<ShopOutlined style={{ color: '#1890ff' }} />
+					<Text>{text}</Text>
+				</Space>
+			),
+		},
+		{
+			title: 'Items',
+			dataIndex: 'items',
+			key: 'items',
+			render: (items) => (
+				<Badge count={items?.length || 0} showZero>
+					<ShoppingCartOutlined style={{ fontSize: '16px' }} />
+				</Badge>
+			),
+		},
+		{
+			title: 'Grand Total',
+			key: 'grandTotal',
+			render: (_, record) => (
+				<Text strong>Rs {(record.grandTotal ?? record.totalAmount)?.toFixed(2)}</Text>
+			),
+		},
+		{
+			title: 'Status',
+			dataIndex: 'status',
+			key: 'status',
+			render: (status) => {
+				const color = status === 'OPEN' ? 'processing' : 
+							 status === 'RECEIVED' ? 'success' : 
+							 status === 'CANCELLED' ? 'error' : 'default';
+				const icon = status === 'OPEN' ? <CloseCircleOutlined /> : 
+							status === 'RECEIVED' ? <CheckCircleOutlined /> : 
+							status === 'CANCELLED' ? <ExclamationCircleOutlined /> : null;
+				return <Tag color={color} icon={icon}>{status}</Tag>;
+			},
+		},
+		{
+			title: 'Actions',
+			key: 'actions',
+			render: (_, record) => (
+				<Space>
+					{record.status === 'OPEN' && (
+						<>
+							<Tooltip title="Partial Receive">
+								<Button 
+									type="text" 
+									icon={<ShoppingCartOutlined />}
+									onClick={() => {
+										console.log('PO data:', record);
+										openReceive(record);
+									}}
+								>
+									Receive
+								</Button>
+							</Tooltip>
+							<Popconfirm
+								title="Cancel Purchase Order"
+								description="Are you sure you want to cancel this PO?"
+								onConfirm={() => cancelPO(record._id)}
+								okText="Yes"
+								cancelText="No"
+								okType="danger"
+							>
+								<Tooltip title="Cancel PO">
+									<Button type="text" danger icon={<CloseCircleOutlined />}>
+										Cancel
+									</Button>
+								</Tooltip>
+							</Popconfirm>
+						</>
+					)}
+					{record.status === 'RECEIVED' && (
+						<Tooltip title="Check Price Warnings">
+							<Button 
+								type="text" 
+								icon={<WarningOutlined />}
+								onClick={() => checkPriceWarnings(record._id)}
+							>
+								Check Prices
+							</Button>
+						</Tooltip>
+					)}
+					{record.status !== 'CANCELLED' && (
+						<Tooltip title="Print PO">
+							<Button 
+								type="text" 
+								icon={<PrinterOutlined />}
+								onClick={() => printPO(record)}
+							>
+								Print
+							</Button>
+						</Tooltip>
+					)}
+				</Space>
+			),
+		},
+	];
+
 	return (
 		<Layout>
-			<div className="container mx-auto p-4 space-y-6">
-				<div className="flex items-center justify-between">
-					<h1 className="text-2xl font-bold">🧾 Purchase Orders</h1>
-				</div>
+			<div style={{ padding: '24px' }}>
+				{/* Header */}
+				<Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
+					<Col>
+						<Title level={2} style={{ margin: 0 }}>
+							<Space>
+								🧾 Purchase Orders
+							</Space>
+						</Title>
+						<Text type="secondary">Manage purchase orders and inventory receiving</Text>
+					</Col>
+				</Row>
 
-				<div className="card">
-					<h2 className="text-lg font-semibold mb-3">Create Purchase Order</h2>
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-						<select className="input-field" value={form.supplierId} onChange={(e)=>setForm({ ...form, supplierId: e.target.value })}>
-							<option value="">Select Supplier</option>
-							{suppliers.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
-						</select>
-						<input className="input-field md:col-span-2" placeholder="Notes" value={form.notes} onChange={(e)=>setForm({ ...form, notes: e.target.value })} />
-					</div>
+				{/* Create Purchase Order */}
+				<Card title="Create Purchase Order" style={{ marginBottom: '24px' }}>
+					<Row gutter={16} style={{ marginBottom: '16px' }}>
+						<Col span={8}>
+							<Text strong>Supplier *</Text>
+							<Select
+								placeholder="Select Supplier"
+								style={{ width: '100%', marginTop: '8px' }}
+								value={form.supplierId || undefined}
+								onChange={(value) => setForm({ ...form, supplierId: value })}
+								showSearch
+								filterOption={(input, option) =>
+									option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+								}
+							>
+								{suppliers.map(s => (
+									<Option key={s._id} value={s._id}>
+										<Space>
+											<UserOutlined />
+											{s.name}
+										</Space>
+									</Option>
+								))}
+							</Select>
+						</Col>
+						<Col span={16}>
+							<Text strong>Notes</Text>
+							<Input
+								placeholder="Enter order notes"
+								style={{ marginTop: '8px' }}
+								value={form.notes}
+								onChange={(e) => setForm({ ...form, notes: e.target.value })}
+								prefix={<FileTextOutlined />}
+							/>
+						</Col>
+					</Row>
 
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-						<div>
-							<h3 className="font-semibold mb-2">Products</h3>
-							<div className="mb-3 flex justify-between items-center">
-								<input className="input-field flex-1 mr-2" placeholder="Search products" value={search} onChange={(e)=>setSearch(e.target.value)} />
-								<button 
-									className="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-									onClick={() => setShowQuickAddProduct(!showQuickAddProduct)}
-								>
-									{showQuickAddProduct ? '✕' : '➕ Quick Add'}
-								</button>
-							</div>
+					<Row gutter={24}>
+						<Col span={12}>
+							<Title level={4}>Products</Title>
+							<Row gutter={8} style={{ marginBottom: '16px' }}>
+								<Col flex={1}>
+									<Input
+										placeholder="Search products"
+										value={search}
+										onChange={(e) => setSearch(e.target.value)}
+										prefix={<SearchOutlined />}
+										allowClear
+									/>
+								</Col>
+								<Col>
+									<Button 
+										type="primary"
+										icon={<PlusOutlined />}
+										onClick={() => setQuickProductModalVisible(true)}
+									>
+										Quick Add
+									</Button>
+								</Col>
+							</Row>
 							
-							{showQuickAddProduct && (
-								<div className="mb-4 p-3 bg-green-50 border border-green-200 rounded">
-									<h4 className="font-medium text-green-800 mb-2">Quick Add New Product</h4>
-									<div className="grid grid-cols-2 gap-2 mb-3">
-										<input 
-											className="input-field text-sm" 
-											placeholder="Product Name *" 
-											value={quickProductForm.name} 
-											onChange={(e)=>setQuickProductForm({...quickProductForm, name: e.target.value})} 
-										/>
-										<input 
-											className="input-field text-sm" 
-											placeholder="Product Code *" 
-											value={quickProductForm.code} 
-											onChange={(e)=>setQuickProductForm({...quickProductForm, code: e.target.value})} 
-										/>
-										<input 
-											className="input-field text-sm" 
-											placeholder="Category" 
-											value={quickProductForm.category} 
-											onChange={(e)=>setQuickProductForm({...quickProductForm, category: e.target.value})} 
-										/>
-										<select 
-											className="input-field text-sm" 
-											value={quickProductForm.unit} 
-											onChange={(e)=>setQuickProductForm({...quickProductForm, unit: e.target.value})}
-										>
-											<option value="pcs">pcs</option>
-											<option value="kg">kg</option>
-											<option value="liters">liters</option>
-											<option value="boxes">boxes</option>
-										</select>
-										<input 
-											className="input-field text-sm" 
-											type="number" 
-											step="0.01" 
-											placeholder="Purchase Price" 
-											value={quickProductForm.purchasePrice} 
-											onChange={(e)=>setQuickProductForm({...quickProductForm, purchasePrice: e.target.value})} 
-										/>
-										<input 
-											className="input-field text-sm" 
-											type="number" 
-											step="0.01" 
-											placeholder="Selling Price" 
-											value={quickProductForm.sellingPrice} 
-											onChange={(e)=>setQuickProductForm({...quickProductForm, sellingPrice: e.target.value})} 
-										/>
-									</div>
-									<div className="flex gap-2">
-										<button 
-											className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-											onClick={quickAddProduct}
-											disabled={loading}
-										>
-											{loading ? 'Adding...' : 'Add Product'}
-										</button>
-										<button 
-											className="px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
-											onClick={() => setShowQuickAddProduct(false)}
-										>
-											Cancel
-										</button>
-									</div>
-								</div>
-							)}
-							
-							<div className="max-h-64 overflow-auto border rounded">
+							<Card 
+								size="small"
+								style={{ maxHeight: '300px', overflowY: 'auto' }}
+								bodyStyle={{ padding: '8px' }}
+							>
 								{/* Valid products */}
 								{products.filter(p => p.name && p.name.toLowerCase().includes(search.toLowerCase())).map(p => (
-									<div key={p._id} className="flex items-center justify-between px-3 py-2 border-b">
-										<div>
-											<div className="font-medium">{p.name}</div>
-											<div className="text-xs text-gray-500">Stock: {p.quantity} {p.unit} • Cost: {p.purchasePrice}</div>
-										</div>
-										<button className="text-blue-600" onClick={()=>addItem(p)}>Add</button>
-									</div>
+									<Row key={p._id} justify="space-between" align="middle" style={{ padding: '8px', borderBottom: '1px solid #f0f0f0' }}>
+										<Col span={18}>
+											<div>
+												<Text strong>{p.name}</Text>
+												<br />
+												<Text type="secondary" style={{ fontSize: '12px' }}>
+													Stock: {p.quantity} {p.unit} • Cost: Rs {p.purchasePrice}
+												</Text>
+											</div>
+										</Col>
+										<Col span={6} style={{ textAlign: 'right' }}>
+											<Button 
+												type="link" 
+												size="small"
+												onClick={() => addItem(p)}
+											>
+												Add
+											</Button>
+										</Col>
+									</Row>
 								))}
 								
 								{/* Products with missing names */}
 								{products.filter(p => !p.name && (search === '' || p.code?.toLowerCase().includes(search.toLowerCase()) || p.barcode?.toLowerCase().includes(search.toLowerCase()))).map(p => (
-									<div key={p._id} className="flex items-center justify-between px-3 py-2 border-b bg-red-50">
-										<div>
-											<div className="font-medium text-red-700">
-												⚠️ Missing Name (Code: {p.code || 'N/A'})
+									<Row key={p._id} justify="space-between" align="middle" style={{ padding: '8px', borderBottom: '1px solid #f0f0f0', backgroundColor: '#fff2f0' }}>
+										<Col span={18}>
+											<div>
+												<Text type="danger" strong>
+													⚠️ Missing Name (Code: {p.code || 'N/A'})
+												</Text>
+												<br />
+												<Text type="secondary" style={{ fontSize: '12px' }}>
+													Stock: {p.quantity} {p.unit} • Cost: Rs {p.purchasePrice}
+												</Text>
 											</div>
-											<div className="text-xs text-red-500">Stock: {p.quantity} {p.unit} • Cost: {p.purchasePrice}</div>
-										</div>
-										<button className="text-red-600 text-xs" disabled>Fix Name First</button>
-									</div>
+										</Col>
+										<Col span={6} style={{ textAlign: 'right' }}>
+											<Button 
+												type="link" 
+												size="small"
+												disabled
+												danger
+											>
+												Fix Name First
+											</Button>
+										</Col>
+									</Row>
 								))}
 								
 								{/* No results message */}
@@ -453,251 +630,548 @@ export default function PurchaseOrdersPage() {
 									(p.name && p.name.toLowerCase().includes(search.toLowerCase())) ||
 									(!p.name && (search === '' || p.code?.toLowerCase().includes(search.toLowerCase()) || p.barcode?.toLowerCase().includes(search.toLowerCase())))
 								).length === 0 && (
-									<div className="px-3 py-4 text-center text-gray-500">
-										No products found matching "{search}"
+									<div style={{ padding: '32px', textAlign: 'center' }}>
+										<Text type="secondary">No products found matching "{search}"</Text>
 									</div>
 								)}
-							</div>
-						</div>
-						<div>
-							<h3 className="font-semibold mb-2">Order Items</h3>
+							</Card>
+						</Col>
+						<Col span={12}>
+							<Title level={4}>Order Items</Title>
 							{form.items.length === 0 ? (
-								<p className="text-gray-500 text-sm">No items added</p>
+								<Alert 
+									message="No items added" 
+									description="Add products from the left panel to create your purchase order"
+									type="info" 
+									showIcon 
+								/>
 							) : (
-								<div className="overflow-x-auto">
-									<table className="min-w-full divide-y divide-gray-200 text-sm">
-										<thead className="bg-gray-50">
-											<tr>
-												<th className="px-3 py-2 text-left">Item</th>
-												<th className="px-3 py-2 text-right">Qty</th>
-												<th className="px-3 py-2 text-right">Unit Price</th>
-												<th className="px-3 py-2 text-right">Total</th>
-												<th className="px-3 py-2">Actions</th>
-											</tr>
-										</thead>
-										<tbody className="bg-white divide-y divide-gray-200">
-											{form.items.map(i => (
-												<tr key={i.productId}>
-													<td className="px-3 py-2">{i.name}</td>
-													<td className="px-3 py-2 text-right">
-														<input type="number" className="input-field w-24 text-right" value={i.quantity} min="1" onChange={(e)=>updateItem(i.productId, { quantity: Number(e.target.value) })} />
-													</td>
-													<td className="px-3 py-2 text-right">
-														<input type="number" className="input-field w-28 text-right" value={i.unitPrice} min="0" step="0.01" onChange={(e)=>updateItem(i.productId, { unitPrice: Number(e.target.value) })} />
-													</td>
-													<td className="px-3 py-2 text-right">{(Number(i.quantity)||0) * (Number(i.unitPrice)||0)}</td>
-													<td className="px-3 py-2"><button className="text-red-600" onClick={()=>removeItem(i.productId)}>Remove</button></td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-								</div>
+								<Card size="small">
+									<Table
+										size="small"
+										dataSource={form.items.map(item => ({ ...item, key: item.productId }))}
+										pagination={false}
+										scroll={{ y: 200 }}
+										columns={[
+											{
+												title: 'Item',
+												dataIndex: 'name',
+												key: 'name',
+												render: (text) => <Text strong>{text}</Text>
+											},
+											{
+												title: 'Qty',
+												dataIndex: 'quantity',
+												key: 'quantity',
+												width: 80,
+												render: (value, record) => (
+													<InputNumber
+														size="small"
+														min={1}
+														value={value}
+														onChange={(val) => updateItem(record.productId, { quantity: val || 1 })}
+													/>
+												)
+											},
+											{
+												title: 'Unit Price',
+												dataIndex: 'unitPrice',
+												key: 'unitPrice',
+												width: 100,
+												render: (value, record) => (
+													<InputNumber
+														size="small"
+														min={0}
+														step={0.01}
+														value={value}
+														onChange={(val) => updateItem(record.productId, { unitPrice: val || 0 })}
+													/>
+												)
+											},
+											{
+												title: 'Total',
+												key: 'total',
+												width: 80,
+												render: (_, record) => (
+													<Text strong>Rs {((Number(record.quantity) || 0) * (Number(record.unitPrice) || 0)).toFixed(2)}</Text>
+												)
+											},
+											{
+												title: 'Action',
+												key: 'action',
+												width: 60,
+												render: (_, record) => (
+													<Button 
+														type="text" 
+														danger 
+														size="small"
+														icon={<DeleteOutlined />}
+														onClick={() => removeItem(record.productId)}
+													/>
+												)
+											}
+										]}
+									/>
+								</Card>
 							)}
-							<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-								<div className="space-y-2">
-									<label className="text-sm">Tax Rate (%)</label>
-									<input type="number" className="input-field" value={form.taxRate} onChange={(e)=>setForm({ ...form, taxRate: Number(e.target.value) })} />
-								</div>
-								<div className="space-y-2">
-									<label className="text-sm">Freight</label>
-									<input type="number" className="input-field" value={form.freight} onChange={(e)=>setForm({ ...form, freight: Number(e.target.value) })} />
-								</div>
-								<div className="space-y-2">
-									<label className="text-sm">Discount</label>
-									<input type="number" className="input-field" value={form.discount} onChange={(e)=>setForm({ ...form, discount: Number(e.target.value) })} />
-								</div>
-							</div>
-							<div className="flex justify-between items-center mt-4">
-								<div className="text-gray-600 text-sm">Subtotal: {subTotal} • Tax: {taxAmount} • Freight: {form.freight} • Discount: {form.discount}</div>
-								<div className="text-lg font-semibold">Grand Total: {grandTotal}</div>
-							</div>
-							<div className="mt-4 flex justify-end gap-3">
-								<button className="btn-primary" disabled={loading} onClick={createPO}>{loading ? 'Saving...' : 'Create PO'}</button>
-							</div>
-							{error && <p className="text-red-600 text-sm mt-2">{error}</p>}
-						</div>
-					</div>
-				</div>
+							
+							<Row gutter={16} style={{ marginTop: '16px' }}>
+								<Col span={8}>
+									<Text strong>Tax Rate (%)</Text>
+									<InputNumber
+										style={{ width: '100%', marginTop: '8px' }}
+										min={0}
+										max={100}
+										value={form.taxRate}
+										onChange={(value) => setForm({ ...form, taxRate: value || 0 })}
+									/>
+								</Col>
+								<Col span={8}>
+									<Text strong>Freight</Text>
+									<InputNumber
+										style={{ width: '100%', marginTop: '8px' }}
+										min={0}
+										step={0.01}
+										value={form.freight}
+										onChange={(value) => setForm({ ...form, freight: value || 0 })}
+										addonBefore="Rs"
+									/>
+								</Col>
+								<Col span={8}>
+									<Text strong>Discount</Text>
+									<InputNumber
+										style={{ width: '100%', marginTop: '8px' }}
+										min={0}
+										step={0.01}
+										value={form.discount}
+										onChange={(value) => setForm({ ...form, discount: value || 0 })}
+										addonBefore="Rs"
+									/>
+								</Col>
+							</Row>
+							
+							<Card size="small" style={{ marginTop: '16px' }}>
+								<Row justify="space-between" align="middle">
+									<Col>
+										<Space direction="vertical" size="small">
+											<Text type="secondary">Subtotal: Rs {subTotal.toFixed(2)}</Text>
+											<Text type="secondary">Tax: Rs {taxAmount.toFixed(2)}</Text>
+											<Text type="secondary">Freight: Rs {form.freight}</Text>
+											<Text type="secondary">Discount: Rs {form.discount}</Text>
+										</Space>
+									</Col>
+									<Col>
+										<Title level={3} style={{ margin: 0 }}>
+											Grand Total: Rs {grandTotal.toFixed(2)}
+										</Title>
+									</Col>
+								</Row>
+							</Card>
+							
+							<Row justify="end" style={{ marginTop: '16px' }}>
+								<Button 
+									type="primary" 
+									size="large"
+									loading={loading}
+									onClick={createPO}
+									icon={<ShoppingCartOutlined />}
+								>
+									{loading ? 'Creating...' : 'Create PO'}
+								</Button>
+							</Row>
+						</Col>
+					</Row>
+				</Card>
 
-				<div className="card">
-					<h2 className="text-lg font-semibold mb-3">Recent Purchase Orders</h2>
+				{/* Purchase Orders List */}
+				<Card title="Recent Purchase Orders" style={{ marginBottom: '24px' }}>
 					{orders.length > 0 && (
-						<div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
-							<details>
-								<summary className="cursor-pointer font-medium">Debug: PO Data ({orders.length} orders)</summary>
-								<pre className="text-xs mt-2 overflow-auto">{JSON.stringify(orders.slice(0, 2), null, 2)}</pre>
-							</details>
+						<Collapse size="small" style={{ marginBottom: '16px' }}>
+							<Panel header={`Debug: PO Data (${orders.length} orders)`} key="debug">
+								<pre style={{ fontSize: '12px', overflow: 'auto' }}>
+									{JSON.stringify(orders.slice(0, 2), null, 2)}
+								</pre>
+							</Panel>
+						</Collapse>
+					)}
+					
+					<Table
+						columns={poColumns}
+						dataSource={orders}
+						rowKey="_id"
+						loading={loading}
+						pagination={{
+							pageSize: 10,
+							showSizeChanger: true,
+							showQuickJumper: true,
+							showTotal: (total, range) => 
+								`${range[0]}-${range[1]} of ${total} purchase orders`,
+						}}
+						scroll={{ x: 1000 }}
+						locale={{
+							emptyText: (
+								<div style={{ textAlign: 'center', padding: '48px' }}>
+									<div style={{ fontSize: '48px', marginBottom: '16px' }}>🧾</div>
+									<Title level={4} type="secondary">No purchase orders found</Title>
+									<Text type="secondary">Create your first purchase order to get started!</Text>
+								</div>
+							)
+						}}
+					/>
+					
+					<Divider />
+					
+					<Row gutter={16} align="middle">
+						<Col flex={1}>
+							<Text strong>Record Payment</Text>
+							<Select
+								placeholder="Select PO for payment"
+								style={{ width: '100%', marginTop: '8px' }}
+								value={payment.poId || undefined}
+								onChange={(value) => setPayment({ ...payment, poId: value })}
+								showSearch
+							>
+								{orders.map(po => (
+									<Option key={po._id} value={po._id}>
+										{po.poNumber} - {po.supplierName}
+									</Option>
+								))}
+							</Select>
+						</Col>
+						<Col span={6}>
+							<Text strong>Amount</Text>
+							<InputNumber
+								placeholder="Amount"
+								style={{ width: '100%', marginTop: '8px' }}
+								value={payment.amount}
+								onChange={(value) => setPayment({ ...payment, amount: value })}
+								addonBefore="Rs"
+								min={0}
+								step={0.01}
+							/>
+						</Col>
+						<Col>
+							<Button 
+								type="primary"
+								icon={<DollarOutlined />}
+								onClick={recordPayment}
+								style={{ marginTop: '24px' }}
+							>
+								Record Payment
+							</Button>
+						</Col>
+					</Row>
+				</Card>
+
+				{/* Price Analysis Results */}
+				{priceWarning && (
+					<Card title="💰 Price Analysis Results" style={{ marginBottom: '24px' }}>
+						<Alert
+							message="📊 Price Analysis"
+							description={
+								<div>
+									<Paragraph style={{ whiteSpace: 'pre-line', marginBottom: '16px' }}>
+										{priceWarning}
+									</Paragraph>
+									
+									{priceWarning.includes('🔧 Quick Actions:') && (
+										<div style={{ marginTop: '16px' }}>
+											{(() => {
+												const warnings = priceWarning.match(/Product "([^"]+)": Current purchase price Rs(\d+\.?\d*) exceeds selling price Rs(\d+\.?\d*)/g);
+												const suggestions = priceWarning.match(/Suggested selling price for "([^"]+)": Rs(\d+\.?\d*)/g);
+												
+												if (warnings && suggestions) {
+													return warnings.map((warning, index) => {
+														const productName = warning.match(/Product "([^"]+)"/)[1];
+														const suggestedPrice = suggestions[index] ? parseFloat(suggestions[index].match(/Rs(\d+\.?\d*)/)[1]) : 0;
+														
+														return (
+															<Card key={index} size="small" style={{ marginBottom: '8px' }}>
+																<Row justify="space-between" align="middle">
+																	<Col>
+																		<Text strong>{productName}</Text>
+																	</Col>
+																	<Col>
+																		<Space>
+																			<Button 
+																				type="primary"
+																				size="small"
+																				onClick={() => quickUpdatePrice(productName, suggestedPrice)}
+																			>
+																				🚀 Update to Rs{suggestedPrice.toFixed(2)}
+																			</Button>
+																			<Button 
+																				size="small"
+																				onClick={() => setPriceWarning(prev => prev.replace(warning, `✅ IGNORED: ${warning}`))}
+																			>
+																				Ignore
+																			</Button>
+																		</Space>
+																	</Col>
+																</Row>
+															</Card>
+														);
+													});
+												}
+												return null;
+											})()}
+										</div>
+									)}
+									
+									<Text type="secondary" style={{ fontSize: '12px' }}>
+										💡 The system has detected potential profit margin issues. Use the quick actions above to fix them instantly!
+									</Text>
+								</div>
+							}
+							type="warning"
+							showIcon
+						/>
+					</Card>
+				)}
+
+				{/* Receive Items Drawer */}
+				<Drawer
+					title={`Receive items for ${receiveDrawer?.poNumber}`}
+					placement="right"
+					size="large"
+					onClose={() => setReceiveDrawer(null)}
+					open={!!receiveDrawer}
+					footer={
+						<Space>
+							<Button onClick={() => setReceiveDrawer(null)}>
+								Close
+							</Button>
+							<Button type="primary" onClick={submitReceive} loading={loading}>
+								Receive Items
+							</Button>
+						</Space>
+					}
+				>
+					{receiveDrawer && (
+						<div>
+							{priceWarning && (
+								<Alert
+									message="⚠️ Price Warning"
+									description={
+										<div>
+											<Paragraph style={{ whiteSpace: 'pre-line' }}>
+												{priceWarning}
+											</Paragraph>
+											<Text type="secondary" style={{ fontSize: '12px' }}>
+												💡 Consider updating the selling price to maintain profit margins.
+											</Text>
+										</div>
+									}
+									type="warning"
+									showIcon
+									style={{ marginBottom: '16px' }}
+								/>
+							)}
+							
+							<Table
+								size="small"
+								dataSource={receiveDrawer.items.map((item, idx) => ({ ...item, key: idx, index: idx }))}
+								pagination={false}
+								scroll={{ y: 400 }}
+								columns={[
+									{
+										title: 'Item',
+										dataIndex: 'name',
+										key: 'name',
+										render: (text) => <Text strong>{text}</Text>
+									},
+									{
+										title: 'Remaining',
+										dataIndex: 'remaining',
+										key: 'remaining',
+										width: 100,
+										render: (value) => <Text>{value}</Text>
+									},
+									{
+										title: 'Receive Now',
+										dataIndex: 'receiveQty',
+										key: 'receiveQty',
+										width: 120,
+										render: (value, record) => (
+											<InputNumber
+												size="small"
+												min={0}
+												max={record.remaining}
+												value={value}
+												onChange={(val) => {
+													setReceiveDrawer(prev => ({
+														...prev,
+														items: prev.items.map((x, j) =>
+															j === record.index ? { ...x, receiveQty: val || 0 } : x
+														)
+													}));
+												}}
+											/>
+										)
+									},
+									{
+										title: 'Unit Price',
+										dataIndex: 'unitPrice',
+										key: 'unitPrice',
+										width: 120,
+										render: (value, record) => (
+											<InputNumber
+												size="small"
+												min={0}
+												step={0.01}
+												value={value}
+												onChange={(val) => {
+													setReceiveDrawer(prev => ({
+														...prev,
+														items: prev.items.map((x, j) =>
+															j === record.index ? { ...x, unitPrice: val || 0 } : x
+														)
+													}));
+												}}
+												addonBefore="Rs"
+											/>
+										)
+									}
+								]}
+							/>
 						</div>
 					)}
-					<div className="overflow-x-auto">
-						<table className="min-w-full divide-y divide-gray-200 text-sm">
-							<thead className="bg-gray-50">
-								<tr>
-									<th className="px-3 py-2 text-left">PO #</th>
-									<th className="px-3 py-2 text-left">Supplier</th>
-									<th className="px-3 py-2 text-right">Items</th>
-									<th className="px-3 py-2 text-right">Grand Total</th>
-									<th className="px-3 py-2 text-left">Status</th>
-									<th className="px-3 py-2">Actions</th>
-								</tr>
-							</thead>
-							<tbody className="bg-white divide-y divide-gray-200">
-								{orders.map(po => (
-									<tr key={po._id}>
-										<td className="px-3 py-2 font-mono">{po.poNumber}</td>
-										<td className="px-3 py-2">{po.supplierName}</td>
-										<td className="px-3 py-2 text-right">{po.items.length}</td>
-										<td className="px-3 py-2 text-right">{po.grandTotal ?? po.totalAmount}</td>
-										<td className="px-3 py-2">{po.status}</td>
-										<td className="px-3 py-2 flex gap-3">
-											{po.status === 'OPEN' && (
-												<>
-													<button className="text-blue-700 hover:underline" onClick={() => {
-														console.log('PO data:', po);
-														openReceive(po);
-													}}>Partial Receive</button>
-													<button className="text-gray-700 hover:underline" onClick={() => cancelPO(po._id)}>Cancel</button>
-												</>
-											)}
-											{po.status === 'RECEIVED' && (
-												<button className="text-yellow-700 hover:underline" onClick={() => checkPriceWarnings(po._id)}>Check Price Warnings</button>
-											)}
-											{po.status !== 'CANCELLED' && <button className="text-green-700 hover:underline" onClick={() => printPO(po)}>Print</button>}
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
-					<div className="mt-4 flex items-center gap-2">
-						<select className="input-field w-64" value={payment.poId} onChange={(e)=>setPayment({ ...payment, poId: e.target.value })}>
-							<option value="">Select PO for payment</option>
-							{orders.map(po => (<option key={po._id} value={po._id}>{po.poNumber} - {po.supplierName}</option>))}
-						</select>
-						<input className="input-field w-40" placeholder="Amount" value={payment.amount} onChange={(e)=>setPayment({ ...payment, amount: e.target.value })} />
-						<button className="btn-primary" onClick={recordPayment}>Record Payment</button>
-					</div>
-				</div>
+				</Drawer>
 
-				{priceWarning && (
-					<div className="card mb-4">
-						<h3 className="text-lg font-semibold mb-3">💰 Price Analysis Results</h3>
-						<div className="p-4 bg-yellow-50 border border-yellow-200 rounded">
-							<div className="text-yellow-800 font-medium mb-2">📊 Price Analysis</div>
-							<div className="text-sm text-yellow-700 whitespace-pre-line mb-3">{priceWarning}</div>
-							
-							{priceWarning.includes('🔧 Quick Actions:') && (
-								<div className="mt-4 space-y-2">
-									{(() => {
-										const warnings = priceWarning.match(/Product "([^"]+)": Current purchase price Rs(\d+\.?\d*) exceeds selling price Rs(\d+\.?\d*)/g);
-										const suggestions = priceWarning.match(/Suggested selling price for "([^"]+)": Rs(\d+\.?\d*)/g);
-										
-										if (warnings && suggestions) {
-											return warnings.map((warning, index) => {
-												const productName = warning.match(/Product "([^"]+)"/)[1];
-												const suggestedPrice = suggestions[index] ? parseFloat(suggestions[index].match(/Rs(\d+\.?\d*)/)[1]) : 0;
-												
-												return (
-													<div key={index} className="flex items-center gap-3 p-2 bg-white rounded border">
-														<span className="text-sm font-medium">{productName}</span>
-														<button 
-															className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-															onClick={() => quickUpdatePrice(productName, suggestedPrice)}
-														>
-															🚀 Update to Rs{suggestedPrice.toFixed(2)}
-														</button>
-														<button 
-															className="px-2 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600"
-															onClick={() => setPriceWarning(prev => prev.replace(warning, `✅ IGNORED: ${warning}`))}
-														>
-															Ignore
-														</button>
-													</div>
-												);
-											});
-										}
-										return null;
-									})()}
-								</div>
-							)}
-							
-							<div className="text-xs text-yellow-600 mt-3">
-								💡 The system has detected potential profit margin issues. Use the quick actions above to fix them instantly!
-							</div>
-						</div>
-					</div>
-				)}
-
-				{receiveDrawer && (
-					<div className="card">
-						<h3 className="text-lg font-semibold mb-3">Receive items for {receiveDrawer.poNumber}</h3>
-						{priceWarning && (
-							<div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-								<div className="text-yellow-800 font-medium mb-2">⚠️ Price Warning</div>
-								<div className="text-sm text-yellow-700 whitespace-pre-line">{priceWarning}</div>
-								<div className="text-xs text-yellow-600 mt-2">
-									💡 Consider updating the selling price to maintain profit margins.
-								</div>
-							</div>
-						)}
-						<div className="overflow-x-auto">
-							<table className="min-w-full divide-y divide-gray-200 text-sm">
-								<thead className="bg-gray-50">
-									<tr>
-										<th className="px-3 py-2 text-left">Item</th>
-										<th className="px-3 py-2 text-right">Remaining</th>
-										<th className="px-3 py-2 text-right">Receive Now</th>
-										<th className="px-3 py-2 text-right">Unit Price</th>
-									</tr>
-								</thead>
-								<tbody className="bg-white divide-y divide-gray-200">
-									{receiveDrawer.items.map((i, idx) => (
-										<tr key={idx}>
-											<td className="px-3 py-2">{i.name}</td>
-											<td className="px-3 py-2 text-right">{i.remaining}</td>
-											<td className="px-3 py-2 text-right"><input type="number" className="input-field w-24 text-right" value={i.receiveQty} min="0" max={i.remaining} onChange={(e)=>{
-												const v = Number(e.target.value); setReceiveDrawer(prev => ({ ...prev, items: prev.items.map((x, j) => j===idx ? { ...x, receiveQty: v } : x) }));
-											}} /></td>
-											<td className="px-3 py-2 text-right"><input type="number" className="input-field w-28 text-right" value={i.unitPrice} step="0.01" onChange={(e)=>{
-												const v = Number(e.target.value); setReceiveDrawer(prev => ({ ...prev, items: prev.items.map((x, j) => j===idx ? { ...x, unitPrice: v } : x) }));
-											}} /></td>
-										</tr>
-									))}
-								</tbody>
-							</table>
-						</div>
-						<div className="mt-3 flex justify-end gap-2">
-							<button className="text-gray-700" onClick={()=>setReceiveDrawer(null)}>Close</button>
-							<button className="btn-primary" onClick={submitReceive}>Receive Items</button>
-						</div>
-					</div>
-				)}
-
-				{error && (
-					<div className="mb-4 p-4 bg-red-50 border border-red-200 rounded">
-						<div className="text-red-800 font-medium mb-2">❌ Error</div>
-						<div className="text-sm text-red-700">{error}</div>
-						{error.includes('corrupted data') && (
-							<div className="mt-2 text-xs text-red-600">
-								💡 This error suggests database corruption. Run "npm run fix-null-names" to fix it.
-							</div>
-						)}
-					</div>
-				)}
-
-				{/* Debug section for data issues */}
+				{/* Data Quality Warnings */}
 				{products.some(p => !p.name) && (
-					<div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded">
-						<div className="text-orange-800 font-medium mb-2">⚠️ Data Quality Warning</div>
-						<div className="text-sm text-orange-700">
-							Found {products.filter(p => !p.name).length} products with missing names. This may cause errors.
-						</div>
-						<div className="mt-2 text-xs text-orange-600">
-							💡 Run "npm run fix-null-names" in terminal to fix these issues.
-						</div>
-					</div>
+					<Alert
+						message="⚠️ Data Quality Warning"
+						description={
+							<div>
+								<Text>
+									Found {products.filter(p => !p.name).length} products with missing names. This may cause errors.
+								</Text>
+								<br />
+								<Text type="secondary" style={{ fontSize: '12px' }}>
+									💡 Run "npm run fix-null-names" in terminal to fix these issues.
+								</Text>
+							</div>
+						}
+						type="warning"
+						showIcon
+						style={{ marginBottom: '24px' }}
+					/>
 				)}
 
+				{/* Quick Add Product Modal */}
+				<Modal
+					title="Quick Add New Product"
+					open={quickProductModalVisible}
+					onCancel={() => {
+						setQuickProductModalVisible(false);
+						quickProductForm.resetFields();
+					}}
+					footer={null}
+					width={600}
+				>
+					<Form
+						form={quickProductForm}
+						layout="vertical"
+						onFinish={quickAddProduct}
+						initialValues={{
+							name: '',
+							code: '',
+							category: 'General',
+							unit: 'pcs',
+							purchasePrice: 0,
+							sellingPrice: 0
+						}}
+					>
+						<Row gutter={16}>
+							<Col span={12}>
+								<Form.Item
+									label="Product Name"
+									name="name"
+									rules={[{ required: true, message: 'Please enter product name!' }]}
+								>
+									<Input placeholder="Enter product name" />
+								</Form.Item>
+							</Col>
+							<Col span={12}>
+								<Form.Item
+									label="Product Code"
+									name="code"
+									rules={[{ required: true, message: 'Please enter product code!' }]}
+								>
+									<Input placeholder="Enter product code" />
+								</Form.Item>
+							</Col>
+						</Row>
+						
+						<Row gutter={16}>
+							<Col span={12}>
+								<Form.Item
+									label="Category"
+									name="category"
+								>
+									<Input placeholder="Enter category" />
+								</Form.Item>
+							</Col>
+							<Col span={12}>
+								<Form.Item
+									label="Unit"
+									name="unit"
+								>
+									<Select>
+										<Option value="pcs">pcs</Option>
+										<Option value="kg">kg</Option>
+										<Option value="liters">liters</Option>
+										<Option value="boxes">boxes</Option>
+									</Select>
+								</Form.Item>
+							</Col>
+						</Row>
+						
+						<Row gutter={16}>
+							<Col span={12}>
+								<Form.Item
+									label="Purchase Price"
+									name="purchasePrice"
+								>
+									<InputNumber
+										style={{ width: '100%' }}
+										min={0}
+										step={0.01}
+										addonBefore="Rs"
+									/>
+								</Form.Item>
+							</Col>
+							<Col span={12}>
+								<Form.Item
+									label="Selling Price"
+									name="sellingPrice"
+								>
+									<InputNumber
+										style={{ width: '100%' }}
+										min={0}
+										step={0.01}
+										addonBefore="Rs"
+									/>
+								</Form.Item>
+							</Col>
+						</Row>
+						
+						<Row justify="end">
+							<Space>
+								<Button onClick={() => {
+									setQuickProductModalVisible(false);
+									quickProductForm.resetFields();
+								}}>
+									Cancel
+								</Button>
+								<Button type="primary" htmlType="submit" loading={loading}>
+									Add Product
+								</Button>
+							</Space>
+						</Row>
+					</Form>
+				</Modal>
 			</div>
 		</Layout>
 	);

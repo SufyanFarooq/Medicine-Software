@@ -3,12 +3,52 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import { apiRequest } from '../../lib/auth';
 import { SYSTEM_CONFIG, getBusinessTypeConfig, getDefaultCategories, getDefaultDiscount } from '../../lib/config';
+import {
+  Steps,
+  Card,
+  Form,
+  Input,
+  Select,
+  Button,
+  Row,
+  Col,
+  Typography,
+  Space,
+  Checkbox,
+  InputNumber,
+  Tag,
+  Alert,
+  Divider,
+  Modal,
+  notification,
+  Progress,
+  Descriptions
+} from 'antd';
+import {
+  ShopOutlined,
+  EnvironmentOutlined,
+  SettingOutlined,
+  CheckOutlined,
+  RocketOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  SaveOutlined,
+  ArrowLeftOutlined,
+  ArrowRightOutlined
+} from '@ant-design/icons';
 
 export default function BusinessSetup() {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(0); // Changed to 0 for Ant Design Steps
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [form] = Form.useForm();
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  const { Title, Text, Paragraph } = Typography;
+  const { Option } = Select;
+  const { TextArea } = Input;
   
   const [businessConfig, setBusinessConfig] = useState({
     businessName: '',
@@ -50,7 +90,8 @@ export default function BusinessSetup() {
             ...prev,
             ...settings
           }));
-          setCurrentStep(4); // Skip to final step if already configured
+          form.setFieldsValue(settings);
+          setCurrentStep(3); // Skip to final step if already configured (0-based index)
         }
       }
     } catch (error) {
@@ -83,9 +124,14 @@ export default function BusinessSetup() {
   };
 
   const addCustomCategory = () => {
-    const newCategory = prompt('Enter new category name:');
-    if (newCategory && newCategory.trim()) {
-      setCustomCategories(prev => [...prev, newCategory.trim()]);
+    setIsModalVisible(true);
+  };
+
+  const handleAddCategory = () => {
+    if (newCategoryName && newCategoryName.trim()) {
+      setCustomCategories(prev => [...prev, newCategoryName.trim()]);
+      setNewCategoryName('');
+      setIsModalVisible(false);
     }
   };
 
@@ -94,13 +140,13 @@ export default function BusinessSetup() {
   };
 
   const nextStep = () => {
-    if (currentStep < 4) {
+    if (currentStep < 3) {
       setCurrentStep(prev => prev + 1);
     }
   };
 
   const prevStep = () => {
-    if (currentStep > 1) {
+    if (currentStep > 0) {
       setCurrentStep(prev => prev - 1);
     }
   };
@@ -169,7 +215,11 @@ export default function BusinessSetup() {
 
       if (response.ok) {
         const result = await response.json();
-        alert('Business setup completed successfully!');
+        notification.success({
+          message: 'Setup Complete!',
+          description: 'Business setup completed successfully!',
+          duration: 5,
+        });
         console.log('Setup result:', result);
         router.push('/');
       } else {
@@ -177,6 +227,10 @@ export default function BusinessSetup() {
         throw new Error(errorData.message || 'Failed to complete business setup');
       }
     } catch (error) {
+      notification.error({
+        message: 'Setup Failed',
+        description: 'Failed to complete business setup: ' + error.message,
+      });
       setError('Failed to complete business setup: ' + error.message);
     } finally {
       setLoading(false);
@@ -189,399 +243,549 @@ export default function BusinessSetup() {
   };
 
   const renderStep1 = () => (
-    <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Business Information</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Business Name *
-            </label>
-            <input
-              type="text"
-              value={businessConfig.businessName}
-              onChange={(e) => updateBusinessConfig('businessName', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter your business name"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Business Type *
-            </label>
-            <select
-              value={businessConfig.businessType}
-              onChange={(e) => updateBusinessConfig('businessType', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+        <ShopOutlined style={{ fontSize: '48px', color: '#1890ff', marginBottom: '16px' }} />
+        <Title level={3} style={{ margin: 0 }}>Business Information</Title>
+        <Text type="secondary">Let's start with your basic business details</Text>
+      </div>
+      
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={businessConfig}
+        onValuesChange={(changedValues) => {
+          Object.keys(changedValues).forEach(key => {
+            updateBusinessConfig(key, changedValues[key]);
+          });
+        }}
+      >
+        <Row gutter={[24, 16]}>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="businessName"
+              label="Business Name"
+              rules={[{ required: true, message: 'Please enter your business name' }]}
             >
+              <Input
+                size="large"
+              placeholder="Enter your business name"
+                prefix={<ShopOutlined />}
+              />
+            </Form.Item>
+          </Col>
+          
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="businessType"
+              label="Business Type"
+              rules={[{ required: true, message: 'Please select your business type' }]}
+            >
+              <Select size="large" placeholder="Select business type">
               {Object.entries(SYSTEM_CONFIG.businessTypes).map(([key, type]) => (
-                <option key={key} value={key}>
+                  <Option key={key} value={key}>
                   {type.name} - {type.description}
-                </option>
-              ))}
-            </select>
-          </div>
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Industry
-            </label>
-            <input
-              type="text"
-              value={businessConfig.industry}
-              onChange={(e) => updateBusinessConfig('industry', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="industry"
+              label="Industry"
+            >
+              <Input
+                size="large"
               placeholder="e.g., Electronics, Fashion, Food"
             />
-          </div>
+            </Form.Item>
+          </Col>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Currency *
-            </label>
-            <select
-              value={businessConfig.currency}
-              onChange={(e) => updateBusinessConfig('currency', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="currency"
+              label="Currency"
+              rules={[{ required: true, message: 'Please select currency' }]}
             >
-              <option value="Rs">Pakistani Rupee (Rs)</option>
-              <option value="$">US Dollar ($)</option>
-              <option value="€">Euro (€)</option>
-              <option value="£">British Pound (£)</option>
-              <option value="₹">Indian Rupee (₹)</option>
-            </select>
-          </div>
-        </div>
-      </div>
+              <Select size="large" placeholder="Select currency">
+                <Option value="Rs">🇵🇰 Pakistani Rupee (Rs)</Option>
+                <Option value="$">🇺🇸 US Dollar ($)</Option>
+                <Option value="€">🇪🇺 Euro (€)</Option>
+                <Option value="£">🇬🇧 British Pound (£)</Option>
+                <Option value="₹">🇮🇳 Indian Rupee (₹)</Option>
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+      </Form>
     </div>
   );
 
   const renderStep2 = () => (
-    <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Contact & Location</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Business Address
-            </label>
-            <textarea
-              value={businessConfig.address}
-              onChange={(e) => updateBusinessConfig('address', e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter your business address"
-            />
+      <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+        <EnvironmentOutlined style={{ fontSize: '48px', color: '#1890ff', marginBottom: '16px' }} />
+        <Title level={3} style={{ margin: 0 }}>Contact & Location</Title>
+        <Text type="secondary">Where can customers find and reach you?</Text>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Contact Number
-            </label>
-            <input
-              type="tel"
-              value={businessConfig.contactNumber}
-              onChange={(e) => updateBusinessConfig('contactNumber', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="+92 XXX XXXXXXX"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email Address
-            </label>
-            <input
-              type="email"
-              value={businessConfig.email}
-              onChange={(e) => updateBusinessConfig('email', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="business@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Website
-            </label>
-            <input
-              type="url"
-              value={businessConfig.website}
-              onChange={(e) => updateBusinessConfig('website', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="https://www.example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Timezone
-            </label>
-            <select
-              value={businessConfig.timezone}
-              onChange={(e) => updateBusinessConfig('timezone', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={businessConfig}
+        onValuesChange={(changedValues) => {
+          Object.keys(changedValues).forEach(key => {
+            updateBusinessConfig(key, changedValues[key]);
+          });
+        }}
+      >
+        <Row gutter={[24, 16]}>
+          <Col xs={24}>
+            <Form.Item
+              name="address"
+              label="Business Address"
             >
-              <option value="Asia/Karachi">Pakistan (UTC+5)</option>
-              <option value="Asia/Dubai">UAE (UTC+4)</option>
-              <option value="Asia/Kolkata">India (UTC+5:30)</option>
-              <option value="America/New_York">US Eastern (UTC-5)</option>
-              <option value="Europe/London">UK (UTC+0)</option>
-            </select>
-          </div>
-        </div>
-      </div>
+              <TextArea
+                rows={3}
+                placeholder="Enter your complete business address"
+                size="large"
+              />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="contactNumber"
+              label="Contact Number"
+              rules={[{ required: true, message: 'Please enter contact number' }]}
+            >
+              <Input
+                size="large"
+              placeholder="+92 XXX XXXXXXX"
+                prefix="📞"
+              />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="email"
+              label="Email Address"
+              rules={[{ type: 'email', message: 'Please enter valid email' }]}
+            >
+              <Input
+                size="large"
+              placeholder="business@example.com"
+                prefix="📧"
+              />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="website"
+              label="Website"
+              rules={[{ type: 'url', message: 'Please enter valid URL' }]}
+            >
+              <Input
+                size="large"
+              placeholder="https://www.example.com"
+                prefix="🌐"
+              />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="timezone"
+              label="Timezone"
+            >
+              <Select size="large" placeholder="Select timezone">
+                <Option value="Asia/Karachi">🇵🇰 Pakistan (UTC+5)</Option>
+                <Option value="Asia/Dubai">🇦🇪 UAE (UTC+4)</Option>
+                <Option value="Asia/Kolkata">🇮🇳 India (UTC+5:30)</Option>
+                <Option value="America/New_York">🇺🇸 US Eastern (UTC-5)</Option>
+                <Option value="Europe/London">🇬🇧 UK (UTC+0)</Option>
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+      </Form>
     </div>
   );
 
   const renderStep3 = () => (
-    <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Business Settings</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Default Discount (%)
-            </label>
-            <input
-              type="number"
-              value={businessConfig.defaultDiscount}
-              onChange={(e) => updateBusinessConfig('defaultDiscount', parseFloat(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              min="0"
-              max="100"
-              step="0.1"
-            />
+      <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+        <SettingOutlined style={{ fontSize: '48px', color: '#1890ff', marginBottom: '16px' }} />
+        <Title level={3} style={{ margin: 0 }}>Business Settings</Title>
+        <Text type="secondary">Configure your business operations and features</Text>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tax Rate (%)
-            </label>
-            <input
-              type="number"
-              value={businessConfig.taxRate}
-              onChange={(e) => updateBusinessConfig('taxRate', parseFloat(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              min="0"
-              max="100"
-              step="0.1"
-            />
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <h4 className="text-md font-medium text-gray-900 mb-3">Inventory Features</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={businessConfig.hasExpiryDates}
-                onChange={(e) => updateBusinessConfig('hasExpiryDates', e.target.checked)}
-                className="mr-2"
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={businessConfig}
+        onValuesChange={(changedValues) => {
+          Object.keys(changedValues).forEach(key => {
+            updateBusinessConfig(key, changedValues[key]);
+          });
+        }}
+      >
+        <Row gutter={[24, 16]}>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="defaultDiscount"
+              label="Default Discount (%)"
+            >
+              <InputNumber
+                size="large"
+                min={0}
+                max={100}
+                step={0.1}
+                style={{ width: '100%' }}
+                placeholder="Enter default discount percentage"
+                prefix="💰"
               />
-              <span className="text-sm text-gray-700">Track Expiry Dates</span>
-            </label>
+            </Form.Item>
+          </Col>
 
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={businessConfig.hasBatchNumbers}
-                onChange={(e) => updateBusinessConfig('hasBatchNumbers', e.target.checked)}
-                className="mr-2"
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="taxRate"
+              label="Tax Rate (%)"
+            >
+              <InputNumber
+                size="large"
+                min={0}
+                max={100}
+                step={0.1}
+                style={{ width: '100%' }}
+                placeholder="Enter tax rate"
+                prefix="📊"
               />
-              <span className="text-sm text-gray-700">Track Batch Numbers</span>
-            </label>
+            </Form.Item>
+          </Col>
+        </Row>
 
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={businessConfig.hasSerialNumbers}
-                onChange={(e) => updateBusinessConfig('hasSerialNumbers', e.target.checked)}
-                className="mr-2"
-              />
-              <span className="text-sm text-gray-700">Track Serial Numbers</span>
-            </label>
+        <Divider orientation="left">
+          <Title level={4}>Inventory Features</Title>
+        </Divider>
+        
+        <Row gutter={[24, 16]}>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="hasExpiryDates"
+              valuePropName="checked"
+            >
+              <Checkbox>
+                <Space>
+                  📅 <span>Track Expiry Dates</span>
+                </Space>
+              </Checkbox>
+            </Form.Item>
+          </Col>
 
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={businessConfig.hasWarranty}
-                onChange={(e) => updateBusinessConfig('hasWarranty', e.target.checked)}
-                className="mr-2"
-              />
-              <span className="text-sm text-gray-700">Track Warranty</span>
-            </label>
-          </div>
-        </div>
-      </div>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="hasBatchNumbers"
+              valuePropName="checked"
+            >
+              <Checkbox>
+                <Space>
+                  🏷️ <span>Track Batch Numbers</span>
+                </Space>
+              </Checkbox>
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="hasSerialNumbers"
+              valuePropName="checked"
+            >
+              <Checkbox>
+                <Space>
+                  🔢 <span>Track Serial Numbers</span>
+                </Space>
+              </Checkbox>
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="hasWarranty"
+              valuePropName="checked"
+            >
+              <Checkbox>
+                <Space>
+                  🛡️ <span>Track Warranty</span>
+                </Space>
+              </Checkbox>
+            </Form.Item>
+          </Col>
+        </Row>
+      </Form>
     </div>
   );
 
   const renderStep4 = () => (
-    <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Categories & Final Setup</h3>
-        
-        <div className="mb-6">
-          <h4 className="text-md font-medium text-gray-900 mb-3">Default Categories</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {categories.map((category, index) => (
-              <div key={index} className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-                <span className="text-sm font-medium text-blue-800">{category}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-md font-medium text-gray-900">Custom Categories</h4>
-            <button
-              onClick={addCustomCategory}
-              className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
-            >
-              + Add Category
-            </button>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {customCategories.map((category, index) => (
-              <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-3 text-center flex items-center justify-between">
-                <span className="text-sm font-medium text-green-800">{category}</span>
-                <button
-                  onClick={() => removeCustomCategory(index)}
-                  className="text-red-500 hover:text-red-700 ml-2"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h4 className="text-md font-medium text-gray-900 mb-3">Configuration Summary</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <p><strong>Business:</strong> {businessConfig.businessName}</p>
-              <p><strong>Type:</strong> {getBusinessTypeConfig(businessConfig.businessType).name}</p>
-              <p><strong>Currency:</strong> {businessConfig.currency}</p>
-              <p><strong>Default Discount:</strong> {businessConfig.defaultDiscount}%</p>
-            </div>
-            <div>
-              <p><strong>Categories:</strong> {categories.length + customCategories.length}</p>
-              <p><strong>Expiry Tracking:</strong> {businessConfig.hasExpiryDates ? 'Yes' : 'No'}</p>
-              <p><strong>Batch Numbers:</strong> {businessConfig.hasBatchNumbers ? 'Yes' : 'No'}</p>
-              <p><strong>Serial Numbers:</strong> {businessConfig.hasSerialNumbers ? 'Yes' : 'No'}</p>
-            </div>
-          </div>
-        </div>
+      <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+        <CheckOutlined style={{ fontSize: '48px', color: '#52c41a', marginBottom: '16px' }} />
+        <Title level={3} style={{ margin: 0 }}>Categories & Final Setup</Title>
+        <Text type="secondary">Review and finalize your business configuration</Text>
       </div>
+      
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        {/* Default Categories */}
+        <Card title="Default Categories" size="small">
+          <Row gutter={[8, 8]}>
+            {categories.map((category, index) => (
+              <Col key={index} xs={12} sm={8} md={6}>
+                <Tag color="blue" style={{ width: '100%', textAlign: 'center', padding: '8px' }}>
+                  {category}
+                </Tag>
+              </Col>
+            ))}
+          </Row>
+        </Card>
+
+        {/* Custom Categories */}
+        <Card 
+          title="Custom Categories" 
+          size="small"
+          extra={
+            <Button 
+              type="primary" 
+              icon={<PlusOutlined />} 
+              onClick={addCustomCategory}
+              size="small"
+            >
+              Add Category
+            </Button>
+          }
+        >
+          {customCategories.length > 0 ? (
+            <Row gutter={[8, 8]}>
+            {customCategories.map((category, index) => (
+                <Col key={index} xs={12} sm={8} md={6}>
+                  <Tag 
+                    color="green" 
+                    closable
+                    onClose={() => removeCustomCategory(index)}
+                    style={{ width: '100%', textAlign: 'center', padding: '8px' }}
+                  >
+                    {category}
+                  </Tag>
+                </Col>
+              ))}
+            </Row>
+          ) : (
+            <Text type="secondary">No custom categories added yet</Text>
+          )}
+        </Card>
+
+        {/* Configuration Summary */}
+        <Card title="Configuration Summary" size="small">
+          <Descriptions bordered column={{ xs: 1, sm: 2 }} size="small">
+            <Descriptions.Item label="Business Name">
+              {businessConfig.businessName}
+            </Descriptions.Item>
+            <Descriptions.Item label="Business Type">
+              {getBusinessTypeConfig(businessConfig.businessType).name}
+            </Descriptions.Item>
+            <Descriptions.Item label="Currency">
+              {businessConfig.currency}
+            </Descriptions.Item>
+            <Descriptions.Item label="Default Discount">
+              {businessConfig.defaultDiscount}%
+            </Descriptions.Item>
+            <Descriptions.Item label="Tax Rate">
+              {businessConfig.taxRate}%
+            </Descriptions.Item>
+            <Descriptions.Item label="Total Categories">
+              {categories.length + customCategories.length}
+            </Descriptions.Item>
+            <Descriptions.Item label="Expiry Tracking">
+              <Tag color={businessConfig.hasExpiryDates ? 'green' : 'red'}>
+                {businessConfig.hasExpiryDates ? 'Enabled' : 'Disabled'}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Batch Numbers">
+              <Tag color={businessConfig.hasBatchNumbers ? 'green' : 'red'}>
+                {businessConfig.hasBatchNumbers ? 'Enabled' : 'Disabled'}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Serial Numbers">
+              <Tag color={businessConfig.hasSerialNumbers ? 'green' : 'red'}>
+                {businessConfig.hasSerialNumbers ? 'Enabled' : 'Disabled'}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Warranty Tracking">
+              <Tag color={businessConfig.hasWarranty ? 'green' : 'red'}>
+                {businessConfig.hasWarranty ? 'Enabled' : 'Disabled'}
+              </Tag>
+            </Descriptions.Item>
+          </Descriptions>
+        </Card>
+      </Space>
     </div>
   );
 
   const renderCurrentStep = () => {
     switch (currentStep) {
-      case 1: return renderStep1();
-      case 2: return renderStep2();
-      case 3: return renderStep3();
-      case 4: return renderStep4();
+      case 0: return renderStep1();
+      case 1: return renderStep2();
+      case 2: return renderStep3();
+      case 3: return renderStep4();
       default: return renderStep1();
     }
   };
 
   const canProceed = () => {
-    if (currentStep === 1) return businessConfig.businessName.trim() !== '';
-    if (currentStep === 2) return businessConfig.contactNumber.trim() !== '';
+    if (currentStep === 0) return businessConfig.businessName.trim() !== '';
+    if (currentStep === 1) return businessConfig.contactNumber.trim() !== '';
+    if (currentStep === 2) return true;
     if (currentStep === 3) return true;
-    if (currentStep === 4) return true;
     return false;
   };
 
+  // Define steps for Ant Design Steps component
+  const stepsConfig = [
+    {
+      title: 'Business Info',
+      description: 'Basic details',
+      icon: <ShopOutlined />,
+    },
+    {
+      title: 'Contact',
+      description: 'Location & contact',
+      icon: <EnvironmentOutlined />,
+    },
+    {
+      title: 'Settings',
+      description: 'Business settings',
+      icon: <SettingOutlined />,
+    },
+    {
+      title: 'Finish',
+      description: 'Review & complete',
+      icon: <CheckOutlined />,
+    },
+  ];
+
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            🚀 Business Setup Wizard
-          </h1>
-          <p className="text-lg text-gray-600">
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px' }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+          <RocketOutlined style={{ fontSize: '72px', color: '#1890ff', marginBottom: '24px' }} />
+          <Title level={1} style={{ margin: 0, color: '#1890ff' }}>
+            Business Setup Wizard
+          </Title>
+          <Paragraph style={{ fontSize: '18px', color: '#666', marginTop: '8px' }}>
             Configure your Universal Business Management System
-          </p>
+          </Paragraph>
         </div>
 
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            {[1, 2, 3, 4].map((step) => (
-              <div key={step} className="flex items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step <= currentStep 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-200 text-gray-600'
-                }`}>
-                  {step}
-                </div>
-                {step < 4 && (
-                  <div className={`w-16 h-1 mx-2 ${
-                    step < currentStep ? 'bg-blue-600' : 'bg-gray-200'
-                  }`} />
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="text-sm text-gray-600">
-            Step {currentStep} of 4: {
-              currentStep === 1 ? 'Business Information' :
-              currentStep === 2 ? 'Contact & Location' :
-              currentStep === 3 ? 'Business Settings' :
-              'Categories & Final Setup'
-            }
-          </div>
-        </div>
+        {/* Steps Progress */}
+        <Card style={{ marginBottom: '32px' }}>
+          <Steps
+            current={currentStep}
+            items={stepsConfig}
+            size="small"
+          />
+        </Card>
 
         {/* Step Content */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <Card style={{ marginBottom: '32px', minHeight: '500px' }}>
           {renderCurrentStep()}
-        </div>
+        </Card>
 
         {/* Navigation */}
-        <div className="flex justify-between">
-          <button
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Button
+              icon={<ArrowLeftOutlined />}
             onClick={prevStep}
-            disabled={currentStep === 1}
-            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={currentStep === 0}
+              size="large"
           >
             Previous
-          </button>
+            </Button>
 
-          <div className="flex space-x-3">
-            {currentStep < 4 ? (
-              <button
+            <div style={{ textAlign: 'center' }}>
+              <Text type="secondary">
+                Step {currentStep + 1} of 4
+              </Text>
+            </div>
+
+            <Space>
+              {currentStep < 3 ? (
+                <Button
+                  type="primary"
+                  icon={<ArrowRightOutlined />}
                 onClick={nextStep}
                 disabled={!canProceed()}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  size="large"
               >
                 Next
-              </button>
+                </Button>
             ) : (
-              <button
+                <Button
+                  type="primary"
+                  icon={<SaveOutlined />}
                 onClick={saveConfiguration}
                 disabled={loading || !canProceed()}
-                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Saving...' : 'Save Configuration'}
-              </button>
-            )}
+                  loading={loading}
+                  size="large"
+                  style={{
+                    background: 'linear-gradient(135deg, #52c41a, #389e0d)',
+                    border: 'none',
+                  }}
+                >
+                  {loading ? 'Saving Configuration...' : 'Complete Setup'}
+                </Button>
+              )}
+            </Space>
           </div>
-        </div>
+        </Card>
 
+        {/* Add Category Modal */}
+        <Modal
+          title="Add Custom Category"
+          open={isModalVisible}
+          onOk={handleAddCategory}
+          onCancel={() => {
+            setIsModalVisible(false);
+            setNewCategoryName('');
+          }}
+          okText="Add Category"
+          cancelText="Cancel"
+        >
+          <Input
+            placeholder="Enter category name"
+            value={newCategoryName}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+            onPressEnter={handleAddCategory}
+            size="large"
+            prefix={<PlusOutlined />}
+          />
+        </Modal>
+
+        {/* Error Alert */}
         {error && (
-          <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            {error}
-          </div>
+          <Alert
+            message="Setup Error"
+            description={error}
+            type="error"
+            closable
+            style={{ marginTop: '16px' }}
+            onClose={() => setError('')}
+          />
         )}
       </div>
     </Layout>
