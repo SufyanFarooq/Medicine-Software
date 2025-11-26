@@ -2,7 +2,7 @@ const { MongoClient } = require('mongodb');
 const bcrypt = require('bcryptjs');
 
 const MONGODB_URI = 'mongodb://localhost:27017';
-const MONGODB_DB = 'medical_shop';
+const MONGODB_DB = 'retail_shop';
 
 async function createSuperAdmin() {
   try {

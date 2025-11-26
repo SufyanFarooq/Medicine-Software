@@ -54,11 +54,11 @@ export default async function handler(req, res) {
           return res.status(404).json({ message: 'Invoice not found' });
         }
 
-        // Restore medicine quantities (reverse the sale)
-        const medicinesCollection = await getCollection('medicines');
+        // Restore product quantities (reverse the sale)
+        const productsCollection = await getCollection('products');
         for (const item of invoiceToDelete.items) {
-          await medicinesCollection.updateOne(
-            { _id: new ObjectId(item.medicineId) },
+          await productsCollection.updateOne(
+            { _id: new ObjectId(item.productId) },
             { $inc: { quantity: item.quantity } }
           );
         }

@@ -130,14 +130,14 @@ export default function SalesReport() {
     <Layout>
       <div className="p-6 max-w-7xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Internal Medicine Statistics</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Product Sales Statistics</h1>
           
           {/* Search Bar */}
           <div className="mb-4">
             <div className="relative max-w-md">
               <input
                 type="text"
-                placeholder="Search by medicine name..."
+                placeholder="Search by product name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -151,102 +151,106 @@ export default function SalesReport() {
           </div>
 
           {/* Time Filter and Pagination Controls */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            {/* Time Filter */}
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-700">Time Filter:</span>
-              <select
-                value={timeFilter}
-                onChange={(e) => setTimeFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="daily">Daily (24H)</option>
-                <option value="weekly">Weekly (7 Days)</option>
-                <option value="monthly">Monthly (30 Days)</option>
-                <option value="custom">Custom Date</option>
-              </select>
-            </div>
-            
-            {/* Custom Date Inputs */}
-            {timeFilter === 'custom' && (
+          <div className="space-y-4 mb-6">
+            {/* First Row: Time Filter and Pagination */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              {/* Time Filter */}
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">From:</span>
-                <input
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <span className="text-sm font-medium text-gray-700">To:</span>
-                <input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            )}
-
-            {/* Quick Date Selectors for Custom Date */}
-            {timeFilter === 'custom' && (
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Quick Select:</span>
-                <button
-                  onClick={() => {
-                    const yesterday = new Date();
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    const yesterdayStr = yesterday.toISOString().split('T')[0];
-                    setCustomStartDate(yesterdayStr);
-                    setCustomEndDate(yesterdayStr);
-                  }}
-                  className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                >
-                  Yesterday
-                </button>
-                <button
-                  onClick={() => {
-                    const twoDaysAgo = new Date();
-                    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-                    const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
-                    setCustomStartDate(twoDaysAgoStr);
-                    setCustomEndDate(twoDaysAgoStr);
-                  }}
-                  className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
-                >
-                  2 Days Ago
-                </button>
-                <button
-                  onClick={() => {
-                    const threeDaysAgo = new Date();
-                    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-                    const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
-                    setCustomStartDate(threeDaysAgoStr);
-                    setCustomEndDate(threeDaysAgoStr);
-                  }}
-                  className="px-3 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
-                >
-                  3 Days Ago
-                </button>
-              </div>
-            )}
-
-            {/* Pagination Controls */}
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Page Size:</span>
+                <span className="text-sm font-medium text-gray-700">Time Filter:</span>
                 <select
-                  value={pageSize}
-                  onChange={(e) => handlePageSizeChange(e.target.value)}
+                  value={timeFilter}
+                  onChange={(e) => setTimeFilter(e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
+                  <option value="daily">Daily (24H)</option>
+                  <option value="weekly">Weekly (7 Days)</option>
+                  <option value="monthly">Monthly (30 Days)</option>
+                  <option value="custom">Custom Date</option>
                 </select>
               </div>
-              <span className="text-sm text-gray-600">Total Records: {totalRecords}</span>
+
+              {/* Pagination Controls */}
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-gray-700">Page Size:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => handlePageSizeChange(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+                <span className="text-sm text-gray-600">Total Records: {totalRecords}</span>
+              </div>
             </div>
+
+            {/* Second Row: Custom Date Fields and Quick Select (only shown when custom is selected) */}
+            {timeFilter === 'custom' && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                {/* Custom Date Inputs */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">From:</span>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <span className="text-sm font-medium text-gray-700">To:</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Quick Date Selectors */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Quick Select:</span>
+                  <button
+                    onClick={() => {
+                      const yesterday = new Date();
+                      yesterday.setDate(yesterday.getDate() - 1);
+                      const yesterdayStr = yesterday.toISOString().split('T')[0];
+                      setCustomStartDate(yesterdayStr);
+                      setCustomEndDate(yesterdayStr);
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors whitespace-nowrap"
+                  >
+                    Yesterday
+                  </button>
+                  <button
+                    onClick={() => {
+                      const twoDaysAgo = new Date();
+                      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+                      const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
+                      setCustomStartDate(twoDaysAgoStr);
+                      setCustomEndDate(twoDaysAgoStr);
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors whitespace-nowrap"
+                  >
+                    2 Days Ago
+                  </button>
+                  <button
+                    onClick={() => {
+                      const threeDaysAgo = new Date();
+                      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+                      const threeDaysAgoStr = threeDaysAgo.toISOString().split('T')[0];
+                      setCustomStartDate(threeDaysAgoStr);
+                      setCustomEndDate(threeDaysAgoStr);
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors whitespace-nowrap"
+                  >
+                    3 Days Ago
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -260,7 +264,7 @@ export default function SalesReport() {
                     Sr. No
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Medicine Name
+                    Product Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Quantity

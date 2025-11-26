@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         const defaultSettings = {
           currency: '$',
           discountPercentage: 3,
-          shopName: 'Medical Shop',
+          shopName: 'Retail Shop',
           contactNumber: '',
           address: '',
           createdAt: new Date(),

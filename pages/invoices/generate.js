@@ -4,24 +4,24 @@ import InvoiceTable from '../../components/InvoiceTable';
 import { apiRequest } from '../../lib/auth';
 
 export default function GenerateInvoice() {
-  const [medicines, setMedicines] = useState([]);
+  const [products, setProducts] = useState([]);
   const [settings, setSettings] = useState({ discountPercentage: 3 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchMedicines();
+    fetchProducts();
     fetchSettings();
   }, []);
 
-  const fetchMedicines = async () => {
+  const fetchProducts = async () => {
     try {
-      const response = await apiRequest('/api/medicines');
+      const response = await apiRequest('/api/products');
       if (response.ok) {
         const data = await response.json();
-        setMedicines(data);
+        setProducts(data);
       }
     } catch (error) {
-      console.error('Error fetching medicines:', error);
+      console.error('Error fetching products:', error);
     } finally {
       setLoading(false);
     }
@@ -47,8 +47,8 @@ export default function GenerateInvoice() {
 
   const handleInvoiceGenerated = async (invoiceData) => {
     alert('Invoice generated successfully!');
-    // Refresh medicines list to show updated quantities
-    await fetchMedicines();
+    // Refresh products list to show updated quantities
+    await fetchProducts();
   };
 
   if (loading) {
@@ -64,7 +64,7 @@ export default function GenerateInvoice() {
   return (
     <Layout>
       <InvoiceTable 
-        medicines={medicines} 
+        products={products} 
         settings={settings}
         onInvoiceGenerated={handleInvoiceGenerated} 
       />

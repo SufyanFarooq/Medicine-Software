@@ -70,7 +70,7 @@ export default function Returns() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Returns</h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage medicine returns
+              Manage product returns
             </p>
           </div>
           <Link href="/returns/add" className="btn-primary">
@@ -122,7 +122,7 @@ export default function Returns() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="table-header">Return #</th>
-                    <th className="table-header">Medicine</th>
+                    <th className="table-header">Product</th>
                     <th className="table-header">Quantity</th>
                     <th className="table-header">Return Value</th>
                     <th className="table-header">Reason</th>
@@ -136,8 +136,8 @@ export default function Returns() {
                       <td className="table-cell font-medium">{returnItem.returnNumber}</td>
                       <td className="table-cell">
                         <div>
-                          <div className="font-medium">{returnItem.medicineName}</div>
-                          <div className="text-sm text-gray-500">{returnItem.medicineCode}</div>
+                          <div className="font-medium">{returnItem.productName || returnItem.medicineName}</div>
+                          <div className="text-sm text-gray-500">{returnItem.productCode || returnItem.medicineCode}</div>
                         </div>
                       </td>
                       <td className="table-cell">{returnItem.quantity}</td>

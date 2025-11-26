@@ -45,64 +45,25 @@ export default async function handler(req, res) {
       }
     };
 
-    // Get inventory transactions (inflow only - what was added to inventory)
-    const inventoryTransactions = await db.collection('inventory_transactions')
-      .find({ ...dateFilter, type: 'inflow' })
-      .sort({ date: -1 })
-      .toArray();
-    
-    // Get medicines data for names
-    const medicines = await db.collection('medicines')
+    // Get current products from products collection (current inventory)
+    const products = await db.collection('products')
       .find({})
       .sort({ name: 1 })
       .toArray();
     
-    // Create a map of medicine names
-    const medicineMap = {};
-    medicines.forEach(medicine => {
-      medicineMap[medicine._id.toString()] = medicine.name;
-    });
-    
-    // Debug: Log the results
-    console.log('Filter:', filter);
-    console.log('Date filter:', dateFilter);
-    console.log('Total inventory transactions found:', inventoryTransactions.length);
-    if (inventoryTransactions.length > 0) {
-      console.log('Sample transaction:', JSON.stringify(inventoryTransactions[0], null, 2));
-    }
-
-    // Process inventory data - group by medicine and sum quantities
-    const inventoryByMedicine = {};
-    
-    inventoryTransactions.forEach(transaction => {
-      const medicineId = transaction.medicineId?.toString();
-      const medicineName = medicineMap[medicineId] || 'Unknown Medicine';
-      
-      if (!inventoryByMedicine[medicineName]) {
-        inventoryByMedicine[medicineName] = {
-          name: medicineName,
-          quantity: 0,
-          unitPrice: transaction.unitPrice || 0,
-          totalValue: 0,
-          batchNo: transaction.batchNo || 'N/A',
-          expiryDate: transaction.expiryDate ? new Date(transaction.expiryDate).toLocaleDateString() : 'N/A'
-        };
-      }
-      
-      inventoryByMedicine[medicineName].quantity += transaction.quantity || 0;
-      inventoryByMedicine[medicineName].totalValue += (transaction.quantity || 0) * (transaction.unitPrice || 0);
-    });
-    
-    // Convert to array and sort by quantity
-    const processedData = Object.values(inventoryByMedicine)
-      .map((item, index) => ({
+    // Process products data - show current inventory
+    const processedData = products
+      .map((product, index) => ({
         srNo: index + 1,
-        ...item
+        name: product.name || 'Unknown Product',
+        quantity: product.quantity || 0,
+        unitPrice: product.purchasePrice || 0,
+        totalValue: (product.quantity || 0) * (product.purchasePrice || 0),
+        batchNo: product.batchNo || 'N/A',
+        expiryDate: product.expiryDate ? new Date(product.expiryDate).toLocaleDateString() : 'N/A'
       }))
-      .sort((a, b) => b.quantity - a.quantity);
-
-    // Sort by quantity (highest first)
-    processedData.sort((a, b) => b.quantity - a.quantity);
+      .filter(item => item.quantity > 0) // Only show products with stock
+      .sort((a, b) => b.quantity - a.quantity); // Sort by quantity (highest first)
 
     // Calculate totals
     const totalQuantity = processedData.reduce((sum, item) => sum + item.quantity, 0);

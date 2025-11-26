@@ -4,10 +4,10 @@ import { formatCurrency } from '../lib/currency';
 import { logInvoiceActivity } from '../lib/activity-logger';
 import { getUser } from '../lib/auth';
 
-export default function InvoiceTable({ medicines, settings = { discountPercentage: 3 }, onInvoiceGenerated }) {
-  const [selectedMedicines, setSelectedMedicines] = useState([]);
+export default function InvoiceTable({ products, settings = { discountPercentage: 3 }, onInvoiceGenerated }) {
+  const [selectedProducts, setSelectedProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredMedicines, setFilteredMedicines] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [returnNotifications, setReturnNotifications] = useState([]);
@@ -16,21 +16,21 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
   const [currentInvoiceId, setCurrentInvoiceId] = useState(null);
 
   useEffect(() => {
-    setFilteredMedicines(medicines);
+    setFilteredProducts(products);
     generateInvoiceNumber();
-  }, [medicines]);
+  }, [products]);
 
   useEffect(() => {
     if (searchTerm.trim()) {
-      const filtered = medicines.filter(medicine =>
-        medicine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        medicine.code.toLowerCase().includes(searchTerm.toLowerCase())
+      const filtered = products.filter(product =>
+        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.code.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      setFilteredMedicines(filtered);
+      setFilteredProducts(filtered);
     } else {
-      setFilteredMedicines(medicines);
+      setFilteredProducts(products);
     }
-  }, [searchTerm, medicines]);
+  }, [searchTerm, products]);
 
   const generateInvoiceNumber = () => {
     const timestamp = Date.now().toString().slice(-8);
@@ -39,7 +39,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
   };
 
   const saveCurrentInvoiceToQueue = () => {
-    if (selectedMedicines.length === 0) {
+    if (selectedProducts.length === 0) {
       alert('No items to save in queue');
       return;
     }
@@ -48,7 +48,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     const pendingInvoice = {
       id: invoiceId,
       invoiceNumber,
-      items: [...selectedMedicines],
+      items: [...selectedProducts],
       originalQuantities: { ...originalQuantities },
       timestamp: Date.now(),
       customerName: `Customer ${pendingInvoices.length + 1}`
@@ -57,7 +57,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     setPendingInvoices(prev => [...prev, pendingInvoice]);
     
     // Clear current invoice
-    setSelectedMedicines([]);
+    setSelectedProducts([]);
     setOriginalQuantities({});
     setCurrentInvoiceId(null);
     generateInvoiceNumber();
@@ -80,12 +80,12 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     if (!pendingInvoice) return;
 
     // Save current invoice if any
-    if (selectedMedicines.length > 0) {
+    if (selectedProducts.length > 0) {
       saveCurrentInvoiceToQueue();
     }
 
     // Load the selected invoice
-    setSelectedMedicines([...pendingInvoice.items]);
+    setSelectedProducts([...pendingInvoice.items]);
     setOriginalQuantities({ ...pendingInvoice.originalQuantities });
     setCurrentInvoiceId(pendingInvoice.id);
     setInvoiceNumber(pendingInvoice.invoiceNumber);
@@ -125,14 +125,14 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     }, 3000);
   };
 
-  const addMedicine = (medicine) => {
-    const existingItem = selectedMedicines.find(item => item._id === medicine._id);
+  const addProduct = (product) => {
+    const existingItem = selectedProducts.find(item => item._id === product._id);
     
     if (existingItem) {
-      // Show notification that medicine is already added
+      // Show notification that product is already added
       const notification = {
         id: Date.now(),
-        message: `${medicine.name} is already in the invoice. Use quantity field to adjust.`,
+        message: `${product.name} is already in the invoice. Use quantity field to adjust.`,
         type: 'warning'
       };
       setReturnNotifications(prev => [...prev, notification]);
@@ -144,18 +144,18 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       
       return; // Don't add duplicate
     } else {
-      // Add new medicine with quantity 1
-      setSelectedMedicines(prev => [...prev, { ...medicine, quantity: 1 }]);
+      // Add new product with quantity 1
+      setSelectedProducts(prev => [...prev, { ...product, quantity: 1 }]);
       // Track original quantity when first added
       setOriginalQuantities(prev => ({
         ...prev,
-        [medicine._id]: 1
+        [product._id]: 1
       }));
       
       // Show success notification
       const notification = {
         id: Date.now(),
-        message: `${medicine.name} added to invoice`,
+        message: `${product.name} added to invoice`,
         type: 'success'
       };
       setReturnNotifications(prev => [...prev, notification]);
@@ -167,20 +167,20 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     }
   };
 
-  const updateQuantity = (medicineId, quantity) => {
-    const currentItem = selectedMedicines.find(item => item._id === medicineId);
-    const originalMedicine = medicines.find(m => m._id === medicineId);
+  const updateQuantity = (productId, quantity) => {
+    const currentItem = selectedProducts.find(item => item._id === productId);
+    const originalProduct = products.find(m => m._id === productId);
     
-    if (!currentItem || !originalMedicine) return;
+    if (!currentItem || !originalProduct) return;
     
     const newQuantity = parseInt(quantity) || 0;
     
     // Check if quantity exceeds available stock
-    if (newQuantity > originalMedicine.quantity) {
+    if (newQuantity > originalProduct.quantity) {
       // Show warning notification
       const notification = {
         id: Date.now(),
-        message: `Warning: ${originalMedicine.name} quantity (${newQuantity}) exceeds available stock (${originalMedicine.quantity})`,
+        message: `Warning: ${originalProduct.name} quantity (${newQuantity}) exceeds available stock (${originalProduct.quantity})`,
         type: 'warning'
       };
       setReturnNotifications(prev => [...prev, notification]);
@@ -195,30 +195,77 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     }
     
     // Update quantity if it's within available stock
-    setSelectedMedicines(prev =>
+    setSelectedProducts(prev =>
       prev.map(item =>
-        item._id === medicineId ? { ...item, quantity: newQuantity } : item
+        item._id === productId ? { ...item, quantity: newQuantity } : item
       )
     );
     
     // Update original quantities tracking
     setOriginalQuantities(prev => ({
       ...prev,
-      [medicineId]: newQuantity
+      [productId]: newQuantity
     }));
   };
 
-  const handleReturn = async (medicine, returnQuantity) => {
+  const updateSellingPrice = (productId, newPrice) => {
+    const currentItem = selectedProducts.find(item => item._id === productId);
+    const originalProduct = products.find(m => m._id === productId);
+    
+    if (!currentItem || !originalProduct) return;
+    
+    // Allow empty input for better UX
+    if (newPrice === '' || newPrice === null || newPrice === undefined) {
+      setSelectedProducts(prev =>
+        prev.map(item =>
+          item._id === productId ? { ...item, sellingPrice: '' } : item
+        )
+      );
+      return;
+    }
+    
+    const price = parseFloat(newPrice) || 0;
+    const purchasePrice = parseFloat(originalProduct.purchasePrice) || 0;
+    
+    // Always update the price in state (allow user to type any value)
+    setSelectedProducts(prev =>
+      prev.map(item =>
+        item._id === productId ? { ...item, sellingPrice: price } : item
+      )
+    );
+    
+    // Show warning if price is below purchase price, but still allow the input
+    if (price < purchasePrice && price > 0) {
+      // Show warning notification
+      const notification = {
+        id: Date.now(),
+        message: `Warning: Selling price (${formatCurrency(price)}) is less than purchase price (${formatCurrency(purchasePrice)}) for ${originalProduct.name}. Invoice cannot be generated with this price.`,
+        type: 'warning'
+      };
+      setReturnNotifications(prev => {
+        // Remove previous warnings for this product
+        const filtered = prev.filter(n => !n.message.includes(originalProduct.name) || n.type !== 'warning');
+        return [...filtered, notification];
+      });
+      
+      // Remove notification after 5 seconds
+      setTimeout(() => {
+        setReturnNotifications(prev => prev.filter(n => n.id !== notification.id));
+      }, 5000);
+    }
+  };
+
+  const handleReturn = async (product, returnQuantity) => {
     try {
       // Calculate return value with discount
-      const returnValue = medicine.sellingPrice * returnQuantity * (1 - (settings.discountPercentage / 100));
+      const returnValue = product.sellingPrice * returnQuantity * (1 - (settings.discountPercentage / 100));
       
       // Create return record
       const returnData = {
         returnNumber: generateReturnNumber(),
-        medicineId: medicine._id,
-        medicineName: medicine.name,
-        medicineCode: medicine.code,
+        productId: product._id,
+        productName: product.name,
+        productCode: product.code,
         quantity: returnQuantity,
         reason: 'Quantity Adjustment',
         notes: `Quantity reduced during invoice generation`,
@@ -242,7 +289,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
         // Add notification
         const notification = {
           id: Date.now(),
-          message: `Return created: ${returnQuantity} units of ${medicine.name} (${formatCurrency(returnValue)})`,
+          message: `Return created: ${returnQuantity} units of ${product.name} (${formatCurrency(returnValue)})`,
           type: 'success'
         };
         setReturnNotifications(prev => [...prev, notification]);
@@ -252,7 +299,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
           setReturnNotifications(prev => prev.filter(n => n.id !== notification.id));
         }, 3000);
         
-        console.log(`Return created for ${returnQuantity} units of ${medicine.name}`);
+        console.log(`Return created for ${returnQuantity} units of ${product.name}`);
       } else {
         console.error('Failed to create return');
       }
@@ -267,18 +314,20 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     return `RET${timestamp}${random}`;
   };
 
-  const removeMedicine = (medicineId) => {
-    setSelectedMedicines(prev => prev.filter(item => item._id !== medicineId));
+  const removeProduct = (productId) => {
+    setSelectedProducts(prev => prev.filter(item => item._id !== productId));
     setOriginalQuantities(prev => {
       const newState = { ...prev };
-      delete newState[medicineId];
+      delete newState[productId];
       return newState;
     });
   };
 
   const calculateSubtotal = () => {
-    return selectedMedicines.reduce((total, item) => {
-      return total + (item.sellingPrice * item.quantity);
+    return selectedProducts.reduce((total, item) => {
+      const price = parseFloat(item.sellingPrice) || 0;
+      const qty = parseInt(item.quantity) || 0;
+      return total + (price * qty);
     }, 0);
   };
 
@@ -295,17 +344,31 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
   };
 
   const handleGenerateInvoice = async () => {
-    if (selectedMedicines.length === 0) {
-      alert('Please select at least one medicine');
+    if (selectedProducts.length === 0) {
+      alert('Please select at least one product');
       return;
     }
 
     // Validate quantities before generating invoice
-    for (const item of selectedMedicines) {
-      const originalMedicine = medicines.find(m => m._id === item._id);
-      if (originalMedicine && item.quantity > originalMedicine.quantity) {
-        alert(`Cannot generate invoice: ${originalMedicine.name} quantity (${item.quantity}) exceeds available stock (${originalMedicine.quantity})`);
+    for (const item of selectedProducts) {
+      const originalProduct = products.find(m => m._id === item._id);
+      if (originalProduct && item.quantity > originalProduct.quantity) {
+        alert(`Cannot generate invoice: ${originalProduct.name} quantity (${item.quantity}) exceeds available stock (${originalProduct.quantity})`);
         return;
+      }
+    }
+
+    // Validate selling prices - cannot be less than purchase price
+    for (const item of selectedProducts) {
+      const originalProduct = products.find(m => m._id === item._id);
+      if (originalProduct) {
+        const sellingPrice = parseFloat(item.sellingPrice) || 0;
+        const purchasePrice = parseFloat(originalProduct.purchasePrice) || 0;
+        
+        if (sellingPrice < purchasePrice) {
+          alert(`Cannot generate invoice: ${originalProduct.name} selling price (${formatCurrency(sellingPrice)}) cannot be less than purchase price (${formatCurrency(purchasePrice)}). Please adjust the price before generating invoice.`);
+          return;
+        }
       }
     }
 
@@ -314,16 +377,16 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       // Calculate returns for negative quantities
       const returnsToProcess = [];
       
-      for (const item of selectedMedicines) {
-        const originalMedicine = medicines.find(m => m._id === item._id);
-        if (originalMedicine) {
+      for (const item of selectedProducts) {
+        const originalProduct = products.find(m => m._id === item._id);
+        if (originalProduct) {
           // If quantity is negative, create return for the absolute value
           if (item.quantity < 0) {
             const returnQuantity = Math.abs(item.quantity); // Convert negative to positive
-            const returnValue = originalMedicine.sellingPrice * returnQuantity * (1 - (settings.discountPercentage / 100));
+            const returnValue = originalProduct.sellingPrice * returnQuantity * (1 - (settings.discountPercentage / 100));
             
             returnsToProcess.push({
-              medicine: originalMedicine,
+              product: originalProduct,
               returnQuantity,
               returnValue
             });
@@ -333,8 +396,8 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
 
       const invoiceData = {
         invoiceNumber,
-        items: selectedMedicines.map(item => ({
-          medicineId: item._id,
+        items: selectedProducts.map(item => ({
+          productId: item._id,
           name: item.name,
           code: item.code,
           quantity: item.quantity,
@@ -358,9 +421,9 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
           try {
             const returnRecord = {
               returnNumber: generateReturnNumber(),
-              medicineId: returnData.medicine._id,
-              medicineName: returnData.medicine.name,
-              medicineCode: returnData.medicine.code,
+              productId: returnData.product._id,
+              productName: returnData.product.name,
+              productCode: returnData.product.code,
               quantity: returnData.returnQuantity,
               reason: 'Negative Quantity Adjustment',
               notes: `Negative quantity during invoice generation`,
@@ -383,7 +446,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
               // Add notification
               const notification = {
                 id: Date.now() + Math.random(),
-                message: `Return created: ${returnData.returnQuantity} units of ${returnData.medicine.name} (${formatCurrency(returnData.returnValue)})`,
+                message: `Return created: ${returnData.returnQuantity} units of ${returnData.product.name} (${formatCurrency(returnData.returnValue)})`,
                 type: 'success'
               };
               setReturnNotifications(prev => [...prev, notification]);
@@ -398,31 +461,31 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
           }
         }
         
-        // Update medicine quantities and record inventory transactions
-        for (const item of selectedMedicines) {
-          const originalMedicine = medicines.find(m => m._id === item._id);
-          if (originalMedicine) {
+        // Update product quantities and record inventory transactions
+        for (const item of selectedProducts) {
+          const originalProduct = products.find(m => m._id === item._id);
+          if (originalProduct) {
             let newQuantity;
             
             if (item.quantity < 0) {
               // For negative quantities, add the absolute value back to stock
-              newQuantity = originalMedicine.quantity + Math.abs(item.quantity);
+              newQuantity = originalProduct.quantity + Math.abs(item.quantity);
             } else {
               // For positive quantities, subtract from stock
-              newQuantity = originalMedicine.quantity - item.quantity;
+              newQuantity = originalProduct.quantity - item.quantity;
             }
             
-            // Update medicine quantity
-            await apiRequest(`/api/medicines/${item._id}`, {
+            // Update product quantity
+            await apiRequest(`/api/products/${item._id}`, {
               method: 'PUT',
               body: JSON.stringify({
-                name: originalMedicine.name,
-                code: originalMedicine.code,
+                name: originalProduct.name,
+                code: originalProduct.code,
                 quantity: newQuantity,
-                purchasePrice: originalMedicine.purchasePrice,
-                sellingPrice: originalMedicine.sellingPrice,
-                expiryDate: originalMedicine.expiryDate,
-                batchNo: originalMedicine.batchNo,
+                purchasePrice: originalProduct.purchasePrice,
+                sellingPrice: originalProduct.sellingPrice,
+                expiryDate: originalProduct.expiryDate,
+                batchNo: originalProduct.batchNo,
               }),
             });
 
@@ -430,13 +493,13 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
             if (item.quantity > 0) {
               try {
                 const transactionData = {
-                  medicineId: item._id,
+                  productId: item._id,
                   type: 'outflow',
                   quantity: item.quantity,
                   unitPrice: item.sellingPrice,
                   totalAmount: item.sellingPrice * item.quantity,
-                  batchNo: originalMedicine.batchNo,
-                  expiryDate: originalMedicine.expiryDate,
+                  batchNo: originalProduct.batchNo,
+                  expiryDate: originalProduct.expiryDate,
                   supplier: null,
                   notes: `Sale via invoice ${invoiceNumber}`,
                   referenceType: 'sale',
@@ -460,7 +523,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
         logInvoiceActivity.generated(invoiceNumber, formatCurrency(calculateTotal()));
         
         onInvoiceGenerated(invoiceData);
-        setSelectedMedicines([]);
+        setSelectedProducts([]);
         setOriginalQuantities({});
         generateInvoiceNumber();
       } else {
@@ -474,9 +537,32 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
   };
 
   const handlePrint = async () => {
-    if (selectedMedicines.length === 0) {
-      alert('Please select medicines before printing');
+    if (selectedProducts.length === 0) {
+      alert('Please select products before printing');
       return;
+    }
+
+    // Validate quantities before printing
+    for (const item of selectedProducts) {
+      const originalProduct = products.find(m => m._id === item._id);
+      if (originalProduct && item.quantity > originalProduct.quantity) {
+        alert(`Cannot print invoice: ${originalProduct.name} quantity (${item.quantity}) exceeds available stock (${originalProduct.quantity})`);
+        return;
+      }
+    }
+
+    // Validate selling prices - cannot be less than purchase price
+    for (const item of selectedProducts) {
+      const originalProduct = products.find(m => m._id === item._id);
+      if (originalProduct) {
+        const sellingPrice = parseFloat(item.sellingPrice) || 0;
+        const purchasePrice = parseFloat(originalProduct.purchasePrice) || 0;
+        
+        if (sellingPrice < purchasePrice) {
+          alert(`Cannot print invoice: ${originalProduct.name} selling price (${formatCurrency(sellingPrice)}) cannot be less than purchase price (${formatCurrency(purchasePrice)}). Please adjust the price before printing.`);
+          return;
+        }
+      }
     }
 
     // First save the invoice to database
@@ -484,8 +570,8 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
     try {
       const invoiceData = {
         invoiceNumber,
-        items: selectedMedicines.map(item => ({
-          medicineId: item._id,
+        items: selectedProducts.map(item => ({
+          productId: item._id,
           name: item.name,
           code: item.code,
           quantity: item.quantity,
@@ -504,25 +590,25 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
       });
 
       if (response.ok) {
-        // Update medicine quantities and record inventory transactions
-        for (const item of selectedMedicines) {
-          const originalMedicine = medicines.find(m => m._id === item._id);
-          if (originalMedicine) {
+        // Update product quantities and record inventory transactions
+        for (const item of selectedProducts) {
+          const originalProduct = products.find(m => m._id === item._id);
+          if (originalProduct) {
             let newQuantity;
             if (item.quantity < 0) {
               // Handle negative quantities (returns)
-              newQuantity = originalMedicine.quantity + Math.abs(item.quantity);
+              newQuantity = originalProduct.quantity + Math.abs(item.quantity);
             } else {
               // Normal sale
-              newQuantity = originalMedicine.quantity - item.quantity;
+              newQuantity = originalProduct.quantity - item.quantity;
             }
 
-            // Update medicine quantity in database
+            // Update product quantity in database
             try {
-              await apiRequest(`/api/medicines/${item._id}`, {
+              await apiRequest(`/api/products/${item._id}`, {
                 method: 'PUT',
                 body: JSON.stringify({
-                  ...originalMedicine,
+                  ...originalProduct,
                   quantity: Math.max(0, newQuantity), // Ensure quantity doesn't go negative
                 }),
               });
@@ -531,13 +617,13 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
               if (item.quantity > 0) {
                 try {
                   const transactionData = {
-                    medicineId: item._id,
+                    productId: item._id,
                     type: 'outflow',
                     quantity: item.quantity,
                     unitPrice: item.sellingPrice,
                     totalAmount: item.sellingPrice * item.quantity,
-                    batchNo: originalMedicine.batchNo,
-                    expiryDate: originalMedicine.expiryDate,
+                    batchNo: originalProduct.batchNo,
+                    expiryDate: originalProduct.expiryDate,
                     supplier: null,
                     notes: `Sale via invoice ${invoiceNumber}`,
                     referenceType: 'sale',
@@ -555,7 +641,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
                 }
               }
             } catch (error) {
-              console.error('Error updating medicine quantity:', error);
+              console.error('Error updating product quantity:', error);
             }
           }
         }
@@ -579,7 +665,7 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
         logInvoiceActivity.printed(invoiceNumber);
         
         // Clear the form after successful save and print
-        setSelectedMedicines([]);
+        setSelectedProducts([]);
         setOriginalQuantities({});
         generateInvoiceNumber();
         
@@ -600,8 +686,8 @@ export default function InvoiceTable({ medicines, settings = { discountPercentag
 
 // 1) Direct print button handler (simple & reliable)
 const handleDirectPrint = () => {
-  if (selectedMedicines.length === 0) {
-    alert('Please select medicines before printing');
+  if (selectedProducts.length === 0) {
+    alert('Please select products before printing');
     return;
   }
   const receiptText = generatePlainTextReceipt(); // 42-column strict text
@@ -721,7 +807,7 @@ function generatePlainTextReceipt() {
 
   // ---- items block with improved formatting ----
   let itemsText = "";
-  selectedMedicines.forEach((item) => {
+  selectedProducts.forEach((item) => {
     const price = +item.sellingPrice || 0;
     const qty = parseInt(item.quantity) || 0;
     const totalLine = (price * qty).toFixed(2);
@@ -778,8 +864,8 @@ function generatePlainTextReceipt() {
 
 
   const handleCopyToClipboard = async () => {
-    if (selectedMedicines.length === 0) {
-      alert('Please select medicines before copying receipt');
+    if (selectedProducts.length === 0) {
+      alert('Please select products before copying receipt');
       return;
     }
     
@@ -816,7 +902,7 @@ function generatePlainTextReceipt() {
     const discountAmt = calculateTotalDiscount();
     const total = calculateTotal();
 
-    const itemsList = selectedMedicines.map(item => {
+    const itemsList = selectedProducts.map(item => {
       const sellingPrice = parseFloat(item.sellingPrice) || 0;
       const quantity = parseInt(item.quantity) || 0;
       const itemTotal = sellingPrice * quantity;
@@ -942,7 +1028,7 @@ function generatePlainTextReceipt() {
     };
 
     // Build items block with proper formatting and spacing
-    const itemsBlock = selectedMedicines.map(item => {
+    const itemsBlock = selectedProducts.map(item => {
       // Ensure we have valid price values with fallbacks
       const sellingPrice = parseFloat(item.sellingPrice) || parseFloat(item.price) || 0;
       const quantity = parseInt(item.quantity) || 0;
@@ -1191,7 +1277,7 @@ function generatePlainTextReceipt() {
           </div>
           <button
             onClick={saveCurrentInvoiceToQueue}
-            disabled={selectedMedicines.length === 0}
+            disabled={selectedProducts.length === 0}
             className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Save Current to Queue
@@ -1237,33 +1323,33 @@ function generatePlainTextReceipt() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Available Medicines */}
+        {/* Available Products */}
         <div className="card">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Available Medicines</h3>
+            <h3 className="text-lg font-medium text-gray-900">Available Products</h3>
             <div className="text-sm text-gray-500">
-              {filteredMedicines.length} of {medicines.length} medicines
+              {filteredProducts.length} of {products.length} products
             </div>
           </div>
           <div className="mb-3">
             <input
               type="text"
-              placeholder="Search medicines by name or code..."
+              placeholder="Search products by name or code..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="input-field"
             />
           </div>
           <div className="max-h-96 overflow-y-auto">
-            {filteredMedicines.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">No medicines available</p>
+            {filteredProducts.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">No products available</p>
             ) : (
               <div className="grid grid-cols-1 gap-1">
-                {filteredMedicines.map((medicine) => {
-                  const isAlreadyAdded = selectedMedicines.some(item => item._id === medicine._id);
+                {filteredProducts.map((product) => {
+                  const isAlreadyAdded = selectedProducts.some(item => item._id === product._id);
                   return (
                     <div
-                      key={medicine._id}
+                      key={product._id}
                       className={`flex items-center justify-between p-2 border rounded transition-colors ${
                         isAlreadyAdded 
                           ? 'border-green-300 bg-green-50 hover:bg-green-100' 
@@ -1272,7 +1358,7 @@ function generatePlainTextReceipt() {
                     >
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900 truncate flex items-center">
-                          {medicine.name}
+                          {product.name}
                           {isAlreadyAdded && (
                             <span className="ml-2 text-xs bg-green-500 text-white px-1 py-0.5 rounded">
                               Added
@@ -1280,22 +1366,22 @@ function generatePlainTextReceipt() {
                           )}
                         </div>
                         <div className="text-xs text-gray-500 flex items-center space-x-3">
-                          <span>Code: {medicine.code}</span>
+                          <span>Code: {product.code}</span>
                           <span className={`px-1 py-0.5 rounded text-xs font-medium ${
-                            medicine.quantity <= 10 
+                            product.quantity <= 10 
                               ? 'bg-red-100 text-red-800' 
-                              : medicine.quantity <= 50 
+                              : product.quantity <= 50 
                               ? 'bg-yellow-100 text-yellow-800'
                               : 'bg-green-100 text-green-800'
                           }`}>
-                            Stock: {medicine.quantity}
+                            Stock: {product.quantity}
                           </span>
-                          <span>Price: {formatCurrency(medicine.sellingPrice)}</span>
+                          <span>Price: {formatCurrency(product.sellingPrice)}</span>
                         </div>
                       </div>
                       <button
-                        onClick={() => addMedicine(medicine)}
-                        disabled={medicine.quantity <= 0 || isAlreadyAdded}
+                        onClick={() => addProduct(product)}
+                        disabled={product.quantity <= 0 || isAlreadyAdded}
                         className={`ml-2 text-xs px-2 py-1 rounded whitespace-nowrap transition-colors ${
                           isAlreadyAdded
                             ? 'bg-green-500 text-white cursor-not-allowed opacity-50'
@@ -1312,20 +1398,20 @@ function generatePlainTextReceipt() {
           </div>
         </div>
 
-        {/* Selected Medicines */}
+        {/* Selected Products */}
         <div className="card">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium text-gray-900">Invoice Items</h3>
             <div className="text-sm text-gray-500">
-              {selectedMedicines.length} item{selectedMedicines.length !== 1 ? 's' : ''} selected
+              {selectedProducts.length} item{selectedProducts.length !== 1 ? 's' : ''} selected
             </div>
           </div>
-          {selectedMedicines.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No medicines selected</p>
+          {selectedProducts.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">No products selected</p>
           ) : (
             <>
               {/* Stock Warning */}
-              {selectedMedicines.some(item => item.quantity > (medicines.find(m => m._id === item._id)?.quantity || 0)) && (
+              {selectedProducts.some(item => item.quantity > (products.find(m => m._id === item._id)?.quantity || 0)) && (
                 <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <div className="flex items-center">
                     <span className="text-yellow-600 mr-2">⚠️</span>
@@ -1337,8 +1423,8 @@ function generatePlainTextReceipt() {
               )}
               <div className="max-h-96 overflow-y-auto">
                 <div className="space-y-2">
-                  {selectedMedicines.map((item) => (
-                    <div key={item._id} className="flex items-center justify-between p-2 border border-gray-200 rounded hover:bg-gray-50">
+                  {selectedProducts.map((item) => (
+                    <div key={item._id} className="flex items-center justify-between p-3 pb-6 border border-gray-200 rounded hover:bg-gray-50">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900 truncate">{item.name}</div>
                         <div className="text-xs text-gray-500">Code: {item.code}</div>
@@ -1348,28 +1434,54 @@ function generatePlainTextReceipt() {
                           <input
                             type="number"
                             min="-999"
-                            max={medicines.find(m => m._id === item._id)?.quantity || 999}
+                            max={products.find(m => m._id === item._id)?.quantity || 999}
                             value={item.quantity}
                             onChange={(e) => updateQuantity(item._id, e.target.value)}
                             className={`w-14 px-1 py-1 border border-gray-300 rounded text-center text-sm ${
                               item.quantity < 0 ? 'bg-red-50 border-red-300 text-red-700' : 
-                              item.quantity > (medicines.find(m => m._id === item._id)?.quantity || 0) ? 'bg-yellow-50 border-yellow-300 text-yellow-700' : ''
+                              item.quantity > (products.find(m => m._id === item._id)?.quantity || 0) ? 'bg-yellow-50 border-yellow-300 text-yellow-700' : ''
                             }`}
-                            title={`Available stock: ${medicines.find(m => m._id === item._id)?.quantity || 0} units`}
+                            title={`Available stock: ${products.find(m => m._id === item._id)?.quantity || 0} units`}
                           />
                           {/* Stock info moved to tooltip only - cleaner interface */}
-                          {item.quantity > (medicines.find(m => m._id === item._id)?.quantity || 0) && (
-                            <div className="absolute -bottom-6 left-0 text-xs text-yellow-600 font-medium whitespace-nowrap">
+                          {item.quantity > (products.find(m => m._id === item._id)?.quantity || 0) && (
+                            <div className="absolute -bottom-5 left-0 text-xs text-yellow-600 font-medium whitespace-nowrap z-10">
                               ⚠️ Exceeds stock!
                             </div>
                           )}
                         </div>
-                        <span className="text-xs text-gray-500">× {formatCurrency(item.sellingPrice)}</span>
+                        <span className="text-xs text-gray-500">×</span>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.sellingPrice || ''}
+                            onChange={(e) => updateSellingPrice(item._id, e.target.value)}
+                            onBlur={(e) => {
+                              // Ensure value is valid number on blur
+                              const val = parseFloat(e.target.value) || 0;
+                              if (val !== item.sellingPrice) {
+                                updateSellingPrice(item._id, val);
+                              }
+                            }}
+                            className={`w-20 px-1 py-1 border border-gray-300 rounded text-center text-sm ${
+                              item.sellingPrice && parseFloat(item.sellingPrice) < (parseFloat(products.find(m => m._id === item._id)?.purchasePrice) || 0) 
+                                ? 'bg-red-50 border-red-300 text-red-700' : ''
+                            }`}
+                            title={`Purchase price: ${formatCurrency(products.find(m => m._id === item._id)?.purchasePrice || 0)}`}
+                          />
+                          {item.sellingPrice && parseFloat(item.sellingPrice) < (parseFloat(products.find(m => m._id === item._id)?.purchasePrice) || 0) && (
+                            <div className="absolute -bottom-5 left-0 text-xs text-red-600 font-medium whitespace-nowrap z-10">
+                              ⚠️ Below cost!
+                            </div>
+                          )}
+                        </div>
                         <span className={`font-medium text-sm ${item.quantity < 0 ? 'text-red-600' : ''}`}>
-                          {formatCurrency(item.sellingPrice * item.quantity)}
+                          {formatCurrency((parseFloat(item.sellingPrice) || 0) * (parseInt(item.quantity) || 0))}
                         </span>
                         <button
-                          onClick={() => removeMedicine(item._id)}
+                          onClick={() => removeProduct(item._id)}
                           className="text-red-600 hover:text-red-800 text-sm ml-1"
                         >
                           ✕
@@ -1407,21 +1519,21 @@ function generatePlainTextReceipt() {
               <div className="flex space-x-3 pt-4 sticky bottom-0 bg-white">
                 <button
                   onClick={handleGenerateInvoice}
-                  disabled={loading || selectedMedicines.length === 0}
+                  disabled={loading || selectedProducts.length === 0}
                   className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? '⏳ Processing...' : '🧾 Generate Invoice'}
                 </button>
                 <button
                   onClick={saveCurrentInvoiceToQueue}
-                  disabled={selectedMedicines.length === 0}
+                  disabled={selectedProducts.length === 0}
                   className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Save to Queue
                 </button>
                 {/* <button
                   onClick={handlePreviewInvoice}
-                  disabled={selectedMedicines.length === 0}
+                  disabled={selectedProducts.length === 0}
                   className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   👁️ Preview Receipt
@@ -1429,7 +1541,7 @@ function generatePlainTextReceipt() {
 
                 <button
                   onClick={handlePrint}
-                  disabled={selectedMedicines.length === 0 || loading}
+                  disabled={selectedProducts.length === 0 || loading}
                   className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? '⏳ Saving & Printing...' : '💾 Save & Print Invoice'}

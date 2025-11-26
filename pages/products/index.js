@@ -4,27 +4,27 @@ import Link from 'next/link';
 import { apiRequest } from '../../lib/auth';
 import { formatCurrency } from '../../lib/currency';
 
-export default function Medicines() {
-  const [medicines, setMedicines] = useState([]);
+export default function Products() {
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [topSellingItems, setTopSellingItems] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
   useEffect(() => {
-    fetchMedicines();
+    fetchProducts();
     fetchTopSellingItems();
   }, []);
 
-  const fetchMedicines = async () => {
+  const fetchProducts = async () => {
     try {
-      const response = await apiRequest('/api/medicines');
+      const response = await apiRequest('/api/products');
       if (response.ok) {
         const data = await response.json();
-        setMedicines(data);
+        setProducts(data);
       }
     } catch (error) {
-      console.error('Error fetching medicines:', error);
+      console.error('Error fetching products:', error);
     } finally {
       setLoading(false);
     }
@@ -37,15 +37,15 @@ export default function Medicines() {
       if (response.ok) {
         const invoices = await response.json();
         
-        // Calculate sales for each medicine
+        // Calculate sales for each product
         const salesData = {};
         
         invoices.forEach(invoice => {
           invoice.items.forEach(item => {
-            if (item.medicineId) {
-              if (!salesData[item.medicineId]) {
-                salesData[item.medicineId] = {
-                  medicineId: item.medicineId,
+            if (item.productId) {
+              if (!salesData[item.productId]) {
+                salesData[item.productId] = {
+                  productId: item.productId,
                   name: item.name,
                   code: item.code,
                   totalSold: 0,
@@ -57,14 +57,14 @@ export default function Medicines() {
               const quantity = item.quantity || 0;
               const price = item.price || 0;
               
-              salesData[item.medicineId].totalSold += quantity;
-              salesData[item.medicineId].totalRevenue += Math.round((price * quantity) * 100) / 100;
+              salesData[item.productId].totalSold += quantity;
+              salesData[item.productId].totalRevenue += Math.round((price * quantity) * 100) / 100;
               
-              // Find medicine to calculate profit
-              const medicine = medicines.find(m => m._id === item.medicineId);
-              if (medicine) {
-                const profit = Math.round(((price - medicine.purchasePrice) * quantity) * 100) / 100;
-                salesData[item.medicineId].totalProfit += profit;
+              // Find product to calculate profit
+              const product = products.find(m => m._id === item.productId);
+              if (product) {
+                const profit = Math.round(((price - product.purchasePrice) * quantity) * 100) / 100;
+                salesData[item.productId].totalProfit += profit;
               }
             }
           });
@@ -85,30 +85,30 @@ export default function Medicines() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this medicine?')) {
+    if (!confirm('Are you sure you want to delete this product?')) {
       return;
     }
 
     try {
-      const response = await apiRequest(`/api/medicines/${id}`, {
+      const response = await apiRequest(`/api/products/${id}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
-        fetchMedicines();
+        fetchProducts();
         fetchTopSellingItems(); // Refresh analytics after deletion
       } else {
-        alert('Failed to delete medicine');
+        alert('Failed to delete product');
       }
     } catch (error) {
-      console.error('Error deleting medicine:', error);
-      alert('Error deleting medicine');
+      console.error('Error deleting product:', error);
+      alert('Error deleting product');
     }
   };
 
-  const filteredMedicines = medicines.filter(medicine =>
-    medicine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    medicine.code.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -149,13 +149,13 @@ export default function Medicines() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Medicines</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Products</h1>
             <p className="mt-1 text-sm text-gray-500">
-              Manage your medicine inventory
+              Manage your product inventory
             </p>
           </div>
-          <Link href="/medicines/add" className="btn-primary">
-            💊 Add Medicine
+          <Link href="/products/add" className="btn-primary">
+            📦 Add Product
           </Link>
         </div>
 
@@ -239,7 +239,7 @@ export default function Medicines() {
                 tabIndex={0}
               >
                 {topSellingItems.map((item, index) => (
-                  <div key={item.medicineId} className="flex items-center space-x-2 bg-blue-50 border border-blue-200 rounded-full px-3 py-2 hover:bg-blue-100 transition-colors flex-shrink-0">
+                  <div key={item.productId} className="flex items-center space-x-2 bg-blue-50 border border-blue-200 rounded-full px-3 py-2 hover:bg-blue-100 transition-colors flex-shrink-0">
                     {/* Rank Badge */}
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white font-bold text-xs ${
                       index === 0 ? 'bg-yellow-500' : 
@@ -249,7 +249,7 @@ export default function Medicines() {
                       {index + 1}
                     </div>
                     
-                    {/* Medicine Name */}
+                    {/* Product Name */}
                     <span className="text-sm font-medium text-gray-800 max-w-32 truncate" title={item.name}>
                       {item.name}
                     </span>
@@ -271,7 +271,7 @@ export default function Medicines() {
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="Search medicines by name or code..."
+                placeholder="Search products by name or code..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="input-field"
@@ -280,13 +280,13 @@ export default function Medicines() {
           </div>
         </div>
 
-        {/* Medicines List */}
+        {/* Products List */}
         <div className="card">
-          {filteredMedicines.length === 0 ? (
+          {filteredProducts.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">No medicines found</p>
+              <p className="text-gray-500">No products found</p>
               <p className="text-sm text-gray-400 mt-2">
-                {searchTerm ? 'Try adjusting your search terms' : 'Add your first medicine to get started'}
+                {searchTerm ? 'Try adjusting your search terms' : 'Add your first product to get started'}
               </p>
             </div>
           ) : (
@@ -304,46 +304,46 @@ export default function Medicines() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredMedicines.map((medicine) => (
-                    <tr key={medicine._id} className="hover:bg-gray-50">
-                      <td className="table-cell font-medium">{medicine.name}</td>
-                      <td className="table-cell">{medicine.code}</td>
+                  {filteredProducts.map((product) => (
+                    <tr key={product._id} className="hover:bg-gray-50">
+                      <td className="table-cell font-medium">{product.name}</td>
+                      <td className="table-cell">{product.code}</td>
                       <td className="table-cell">
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                          medicine.quantity <= 10 
+                          product.quantity <= 10 
                             ? 'bg-red-100 text-red-800' 
-                            : medicine.quantity <= 50 
+                            : product.quantity <= 50 
                             ? 'bg-yellow-100 text-yellow-800'
                             : 'bg-green-100 text-green-800'
                         }`}>
-                          {medicine.quantity}
+                          {product.quantity}
                         </span>
                       </td>
-                      <td className="table-cell">{formatCurrency(medicine.purchasePrice)}</td>
-                      <td className="table-cell">{formatCurrency(medicine.sellingPrice)}</td>
+                      <td className="table-cell">{formatCurrency(product.purchasePrice)}</td>
+                      <td className="table-cell">{formatCurrency(product.sellingPrice)}</td>
                       <td className="table-cell">
-                        {new Date(medicine.expiryDate).toLocaleDateString()}
+                        {new Date(product.expiryDate).toLocaleDateString()}
                       </td>
                       <td className="table-cell">
                         <div className="flex space-x-3">
                           <Link
-                            href={`/medicines/${medicine._id}`}
+                            href={`/products/${product._id}`}
                             className="text-blue-600 hover:text-blue-900 text-lg cursor-pointer transition-colors duration-200"
                             title="View Details"
                           >
                             👁️
                           </Link>
                           <Link
-                            href={`/medicines/${medicine._id}/edit`}
+                            href={`/products/${product._id}/edit`}
                             className="text-green-600 hover:text-green-900 text-lg cursor-pointer transition-colors duration-200"
-                            title="Edit Medicine"
+                            title="Edit Product"
                           >
                             ✏️
                           </Link>
                           <button
-                            onClick={() => handleDelete(medicine._id)}
+                            onClick={() => handleDelete(product._id)}
                             className="text-red-600 hover:text-red-900 text-lg cursor-pointer transition-colors duration-200"
-                            title="Delete Medicine"
+                            title="Delete Product"
                           >
                             🗑️
                           </button>

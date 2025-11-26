@@ -4,10 +4,10 @@ import Layout from '../../components/Layout';
 import { apiRequest } from '../../lib/auth';
 import { formatCurrency } from '../../lib/currency';
 
-export default function MedicineDetail() {
+export default function ProductDetail() {
   const router = useRouter();
   const { id } = router.query;
-  const [medicine, setMedicine] = useState(null);
+  const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [analytics, setAnalytics] = useState({
@@ -42,28 +42,28 @@ export default function MedicineDetail() {
 
   useEffect(() => {
     if (id) {
-      fetchMedicine();
+      fetchProduct();
     }
   }, [id]);
 
   useEffect(() => {
-    if (medicine) {
+    if (product) {
       fetchAnalytics();
     }
-  }, [medicine]);
+  }, [product]);
 
-  const fetchMedicine = async () => {
+  const fetchProduct = async () => {
     try {
-      const response = await apiRequest(`/api/medicines/${id}`);
+      const response = await apiRequest(`/api/products/${id}`);
       if (response.ok) {
         const data = await response.json();
-        setMedicine(data);
+        setProduct(data);
       } else {
-        setError('Medicine not found');
+        setError('Product not found');
       }
     } catch (error) {
-      console.error('Error fetching medicine:', error);
-      setError('Error loading medicine');
+      console.error('Error fetching product:', error);
+      setError('Error loading product');
     } finally {
       setLoading(false);
     }
@@ -79,7 +79,7 @@ export default function MedicineDetail() {
       end.setHours(23, 59, 59, 999); // End of day
       
       // Fetch inflow data for custom time range using ISO format
-      const inflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${start.toISOString()}&endDate=${end.toISOString()}`);
+      const inflowResponse = await apiRequest(`/api/inventory?productId=${product._id}&type=inflow&startDate=${start.toISOString()}&endDate=${end.toISOString()}`);
       let customInflow = 0;
       if (inflowResponse.ok) {
         const inflowData = await inflowResponse.json();
@@ -159,12 +159,12 @@ export default function MedicineDetail() {
 
   const fetchAnalytics = async () => {
     try {
-      // Fetch invoices data for this medicine
+      // Fetch invoices data for this product
       const invoicesResponse = await apiRequest('/api/invoices');
       if (invoicesResponse.ok) {
         const invoices = await invoicesResponse.json();
         
-        // Calculate analytics for this specific medicine
+        // Calculate analytics for this specific product
         let totalSold = 0;
         let totalProfit = 0;
         const salesData = [];
@@ -172,9 +172,9 @@ export default function MedicineDetail() {
         
         invoices.forEach(invoice => {
           invoice.items.forEach(item => {
-            if (item.medicineId === id) {
+            if (item.productId === id) {
               const soldQty = item.quantity;
-              const profit = Math.round(((item.price - medicine?.purchasePrice) * soldQty) * 100) / 100;
+              const profit = Math.round(((item.price - product?.purchasePrice) * soldQty) * 100) / 100;
               
               totalSold += soldQty;
               totalProfit += profit;
@@ -203,15 +203,15 @@ export default function MedicineDetail() {
         let totalReceived = 0;
         
         try {
-          const allInflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow`);
+          const allInflowResponse = await apiRequest(`/api/inventory?productId=${product._id}&type=inflow`);
           if (allInflowResponse.ok) {
             const allInflowData = await allInflowResponse.json();
             totalReceived = allInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
           }
         } catch (error) {
           console.error('Error fetching total inflow:', error);
-          // Fallback: use medicine quantity + total sold
-          totalReceived = (medicine?.quantity || 0) + totalSold;
+          // Fallback: use product quantity + total sold
+          totalReceived = (product?.quantity || 0) + totalSold;
         }
         
         // Calculate current stock as Total Received - Total Sold
@@ -290,7 +290,7 @@ export default function MedicineDetail() {
 
         // Fetch real inflow data from inventory transactions
         try {
-          const inflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${startOfDay.toISOString()}&endDate=${endOfDay.toISOString()}`);
+          const inflowResponse = await apiRequest(`/api/inventory?productId=${product._id}&type=inflow&startDate=${startOfDay.toISOString()}&endDate=${endOfDay.toISOString()}`);
           if (inflowResponse.ok) {
             const dailyInflowData = await inflowResponse.json();
             dailyInflow = dailyInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
@@ -301,7 +301,7 @@ export default function MedicineDetail() {
         }
 
         try {
-          const weeklyInflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${startOfWeek.toISOString()}&endDate=${endOfWeek.toISOString()}`);
+          const weeklyInflowResponse = await apiRequest(`/api/inventory?productId=${product._id}&type=inflow&startDate=${startOfWeek.toISOString()}&endDate=${endOfWeek.toISOString()}`);
           if (weeklyInflowResponse.ok) {
             const weeklyInflowData = await weeklyInflowResponse.json();
             weeklyInflow = weeklyInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
@@ -312,7 +312,7 @@ export default function MedicineDetail() {
         }
 
         try {
-          const monthlyInflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${startOfMonth.toISOString()}&endDate=${endOfMonth.toISOString()}`);
+          const monthlyInflowResponse = await apiRequest(`/api/inventory?productId=${product._id}&type=inflow&startDate=${startOfMonth.toISOString()}&endDate=${endOfMonth.toISOString()}`);
           if (monthlyInflowResponse.ok) {
             const monthlyInflowData = await monthlyInflowResponse.json();
             monthlyInflow = monthlyInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
@@ -324,7 +324,7 @@ export default function MedicineDetail() {
 
         // Fetch quarterly inflow data
         try {
-          const quarterlyInflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${quarterStart.toISOString()}&endDate=${endOfMonth.toISOString()}`);
+          const quarterlyInflowResponse = await apiRequest(`/api/inventory?productId=${product._id}&type=inflow&startDate=${quarterStart.toISOString()}&endDate=${endOfMonth.toISOString()}`);
           if (quarterlyInflowResponse.ok) {
             const quarterlyInflowData = await quarterlyInflowResponse.json();
             quarterlyInflow = quarterlyInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
@@ -336,7 +336,7 @@ export default function MedicineDetail() {
 
         // Fetch yearly inflow data
         try {
-          const yearlyInflowResponse = await apiRequest(`/api/inventory?medicineId=${medicine._id}&type=inflow&startDate=${yearStart.toISOString()}&endDate=${endOfMonth.toISOString()}`);
+          const yearlyInflowResponse = await apiRequest(`/api/inventory?productId=${product._id}&type=inflow&startDate=${yearStart.toISOString()}&endDate=${endOfMonth.toISOString()}`);
           if (yearlyInflowResponse.ok) {
             const yearlyInflowData = await yearlyInflowResponse.json();
             yearlyInflow = yearlyInflowData.reduce((sum, transaction) => sum + transaction.quantity, 0);
@@ -347,8 +347,8 @@ export default function MedicineDetail() {
         }
 
         // Prepare profit breakdown with proper rounding
-        const totalRevenue = Math.round((totalSold * (medicine?.sellingPrice || 0)) * 100) / 100;
-        const totalCost = Math.round((totalSold * (medicine?.purchasePrice || 0)) * 100) / 100;
+        const totalRevenue = Math.round((totalSold * (product?.sellingPrice || 0)) * 100) / 100;
+        const totalCost = Math.round((totalSold * (product?.purchasePrice || 0)) * 100) / 100;
         const roundedProfit = Math.round(totalProfit * 100) / 100;
         const profitMargin = totalRevenue > 0 ? Math.round(((roundedProfit / totalRevenue) * 100) * 10) / 10 : 0;
         
@@ -531,16 +531,16 @@ export default function MedicineDetail() {
     );
   }
 
-  if (error || !medicine) {
+  if (error || !product) {
     return (
       <Layout>
         <div className="text-center py-8">
-          <div className="text-red-600 text-lg mb-4">{error || 'Medicine not found'}</div>
+          <div className="text-red-600 text-lg mb-4">{error || 'Product not found'}</div>
           <button
-            onClick={() => router.push('/medicines')}
+            onClick={() => router.push('/products')}
             className="btn-primary"
           >
-            Back to Medicines
+            Back to Products
           </button>
         </div>
       </Layout>
@@ -550,7 +550,7 @@ export default function MedicineDetail() {
   // Prepare data for enhanced charts
   const inventoryData = [
     { label: 'Total Sold', value: analytics.totalSold, color: '#ef4444' },
-    { label: 'Current Stock', value: medicine.quantity, color: '#10b981' }
+    { label: 'Current Stock', value: product.quantity, color: '#10b981' }
   ];
 
   const profitData = [
@@ -558,8 +558,8 @@ export default function MedicineDetail() {
     { label: 'Total Profit', value: analytics.totalProfit || 0, color: '#3b82f6' }
   ];
 
-  const marginPercentage = medicine.purchasePrice > 0 
-    ? Math.round(((medicine.sellingPrice - medicine.purchasePrice) / medicine.purchasePrice * 100) * 10) / 10
+  const marginPercentage = product.purchasePrice > 0 
+    ? Math.round(((product.sellingPrice - product.purchasePrice) / product.purchasePrice * 100) * 10) / 10
     : 0;
 
   return (
@@ -568,17 +568,17 @@ export default function MedicineDetail() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{medicine.name}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{product.name}</h1>
             <p className="mt-2 text-lg text-gray-600">
-              Code: <span className="font-mono font-semibold">{medicine.code}</span> | 
-              Batch: <span className="font-mono font-semibold">{medicine.batchNo || 'N/A'}</span>
+              Code: <span className="font-mono font-semibold">{product.code}</span> | 
+              Batch: <span className="font-mono font-semibold">{product.batchNo || 'N/A'}</span>
             </p>
           </div>
           <button
-            onClick={() => router.push('/medicines')}
+            onClick={() => router.push('/products')}
             className="btn-secondary text-lg px-6 py-3"
           >
-            ⬅️ Back to Medicines
+            ⬅️ Back to Products
           </button>
         </div>
 
@@ -623,7 +623,7 @@ export default function MedicineDetail() {
               </div>
               <div className="ml-4">
                 <p className="text-sm opacity-90">Current Stock</p>
-                <p className="text-3xl font-bold">{medicine.quantity}</p>
+                <p className="text-3xl font-bold">{product.quantity}</p>
                 <p className="text-xs opacity-75">units</p>
               </div>
             </div>
@@ -1007,21 +1007,21 @@ export default function MedicineDetail() {
             </h3>
             <dl className="space-y-4">
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
-                <dt className="text-sm font-medium text-gray-600">Medicine Name</dt>
-                <dd className="text-sm text-gray-900 font-semibold">{medicine.name}</dd>
+                <dt className="text-sm font-medium text-gray-600">Product Name</dt>
+                <dd className="text-sm text-gray-900 font-semibold">{product.name}</dd>
               </div>
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
                 <dt className="text-sm font-medium text-gray-600">Product Code</dt>
-                <dd className="text-sm text-gray-900 font-mono">{medicine.code}</dd>
+                <dd className="text-sm text-gray-900 font-mono">{product.code}</dd>
               </div>
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
                 <dt className="text-sm font-medium text-gray-600">Batch Number</dt>
-                <dd className="text-sm text-gray-900">{medicine.batchNo || 'N/A'}</dd>
+                <dd className="text-sm text-gray-900">{product.batchNo || 'N/A'}</dd>
               </div>
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
                 <dt className="text-sm font-medium text-gray-600">Expiry Date</dt>
                 <dd className="text-sm text-gray-900 font-semibold">
-                  {new Date(medicine.expiryDate).toLocaleDateString()}
+                  {new Date(product.expiryDate).toLocaleDateString()}
                 </dd>
               </div>
             </dl>
@@ -1037,28 +1037,28 @@ export default function MedicineDetail() {
                 <dt className="text-sm font-medium text-gray-600">Current Stock</dt>
                 <dd className="mt-1">
                   <span className={`inline-flex px-4 py-2 text-sm font-semibold rounded-full ${
-                    medicine.quantity <= 10 
+                    product.quantity <= 10 
                       ? 'bg-red-100 text-red-800' 
-                      : medicine.quantity <= 50 
+                      : product.quantity <= 50 
                       ? 'bg-yellow-100 text-yellow-800'
                       : 'bg-green-100 text-green-800'
                   }`}>
-                      {medicine.quantity} units
+                      {product.quantity} units
                     </span>
                 </dd>
               </div>
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
                 <dt className="text-sm font-medium text-gray-600">Purchase Price</dt>
-                <dd className="text-sm text-gray-900 font-semibold">{formatCurrency(medicine.purchasePrice)}</dd>
+                <dd className="text-sm text-gray-900 font-semibold">{formatCurrency(product.purchasePrice)}</dd>
               </div>
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
                 <dt className="text-sm font-medium text-gray-600">Selling Price</dt>
-                <dd className="text-sm text-gray-900 font-semibold">{formatCurrency(medicine.sellingPrice)}</dd>
+                <dd className="text-sm text-gray-900 font-semibold">{formatCurrency(product.sellingPrice)}</dd>
               </div>
               <div className="flex justify-between items-center py-3 border-b border-gray-100">
                 <dt className="text-sm font-medium text-gray-600">Profit per Unit</dt>
                 <dd className="text-sm text-green-600 font-bold">
-                  {formatCurrency(medicine.sellingPrice - medicine.purchasePrice)}
+                  {formatCurrency(product.sellingPrice - product.purchasePrice)}
                 </dd>
               </div>
               <div className="flex justify-between items-center py-3">
@@ -1163,13 +1163,13 @@ export default function MedicineDetail() {
         {/* Actions */}
         <div className="flex space-x-4 justify-center">
           <button
-            onClick={() => router.push(`/medicines/${id}/edit`)}
+            onClick={() => router.push(`/products/${id}/edit`)}
             className="btn-primary text-lg px-8 py-3"
           >
-            ✏️ Edit Medicine
+            ✏️ Edit Product
           </button>
           <button
-            onClick={() => router.push('/medicines')}
+            onClick={() => router.push('/products')}
             className="btn-secondary text-lg px-8 py-3"
           >
             📋 Back to List

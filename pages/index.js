@@ -6,7 +6,7 @@ import { formatCurrency } from '../lib/currency';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
-    totalMedicines: 0,
+    totalProducts: 0,
     lowStock: 0,
     expiringSoon: 0,
     totalSales: 0,
@@ -64,17 +64,17 @@ export default function Dashboard() {
 
   const fetchStats = async () => {
     try {
-      const [medicinesRes, invoicesRes, returnsRes] = await Promise.all([
-        apiRequest('/api/medicines'),
+      const [productsRes, invoicesRes, returnsRes] = await Promise.all([
+        apiRequest('/api/products'),
         apiRequest('/api/invoices'),
         apiRequest('/api/returns'),
       ]);
 
-      let medicines = [];
-      if (medicinesRes.ok) {
-        medicines = await medicinesRes.json();
-        const lowStock = medicines.filter(m => m.quantity <= 10).length;
-        const expiringSoon = medicines.filter(m => {
+      let products = [];
+      if (productsRes.ok) {
+        products = await productsRes.json();
+        const lowStock = products.filter(m => m.quantity <= 10).length;
+        const expiringSoon = products.filter(m => {
           const expiryDate = new Date(m.expiryDate);
           const thirtyDaysFromNow = new Date();
           thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
@@ -82,18 +82,18 @@ export default function Dashboard() {
         }).length;
 
         // Calculate inventory value (current stock × purchase price)
-        const inventoryValue = medicines.reduce((sum, medicine) => {
-          return sum + (medicine.quantity * medicine.purchasePrice);
+        const inventoryValue = products.reduce((sum, product) => {
+          return sum + (product.quantity * product.purchasePrice);
         }, 0);
 
         // Calculate total cost of inventory
-        const totalCost = medicines.reduce((sum, medicine) => {
-          return sum + (medicine.quantity * medicine.purchasePrice);
+        const totalCost = products.reduce((sum, product) => {
+          return sum + (product.quantity * product.purchasePrice);
         }, 0);
 
         setStats(prev => ({
           ...prev,
-          totalMedicines: medicines.length,
+          totalProducts: products.length,
           lowStock,
           expiringSoon,
           inventoryValue,
@@ -113,10 +113,10 @@ export default function Dashboard() {
         
         invoices.forEach(invoice => {
           invoice.items.forEach(item => {
-            // Find the medicine to get purchase price
-            const medicine = medicines.find(m => m._id === item.medicineId);
-            if (medicine) {
-              totalPurchasePrice += item.quantity * medicine.purchasePrice;
+            // Find the product to get purchase price
+            const product = products.find(m => m._id === item.productId);
+            if (product) {
+              totalPurchasePrice += item.quantity * product.purchasePrice;
               totalSellingPrice += item.quantity * item.price;
             }
           });
@@ -158,10 +158,10 @@ export default function Dashboard() {
 
   const fetchRecentActivity = async () => {
     try {
-      const [invoicesRes, returnsRes, medicinesRes] = await Promise.all([
+      const [invoicesRes, returnsRes, productsRes] = await Promise.all([
         apiRequest('/api/invoices'),
         apiRequest('/api/returns'),
-        apiRequest('/api/medicines'),
+        apiRequest('/api/products'),
       ]);
 
       const activities = [];
@@ -199,7 +199,7 @@ export default function Dashboard() {
             id: returnItem._id,
             type: 'return',
             title: `Return ${returnItem.returnNumber} processed`,
-            description: `${returnItem.medicineName} - ${returnItem.quantity} qty - ${formatCurrency(returnItem.returnValue)}`,
+            description: `${returnItem.productName} - ${returnItem.quantity} qty - ${formatCurrency(returnItem.returnValue)}`,
             date: new Date(returnItem.createdAt),
             icon: '🔄',
             color: 'text-orange-600',
@@ -208,21 +208,21 @@ export default function Dashboard() {
         });
       }
 
-      // Process medicine updates (recently added or updated)
-      if (medicinesRes.ok) {
-        const medicines = await medicinesRes.json();
-        const recentMedicines = medicines
+      // Process product updates (recently added or updated)
+      if (productsRes.ok) {
+        const products = await productsRes.json();
+        const recentProducts = products
           .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
           .slice(0, 3);
         
-        recentMedicines.forEach(medicine => {
+        recentProducts.forEach(product => {
           activities.push({
-            id: medicine._id,
-            type: 'medicine',
-            title: `${medicine.name} updated`,
-            description: `Stock: ${medicine.quantity} | Price: ${formatCurrency(medicine.sellingPrice)}`,
-            date: new Date(medicine.updatedAt || medicine.createdAt),
-            icon: '💊',
+            id: product._id,
+            type: 'product',
+            title: `${product.name} updated`,
+            description: `Stock: ${product.quantity} | Price: ${formatCurrency(product.sellingPrice)}`,
+            date: new Date(product.updatedAt || product.createdAt),
+            icon: '📦',
             color: 'text-blue-600',
             bgColor: 'bg-blue-50',
           });
@@ -275,10 +275,10 @@ export default function Dashboard() {
           startDate = new Date('2020-01-01'); // Very old date to get all data
       }
 
-      const [invoicesRes, returnsRes, medicinesRes] = await Promise.all([
+      const [invoicesRes, returnsRes, productsRes] = await Promise.all([
         apiRequest('/api/invoices'),
         apiRequest('/api/returns'),
-        apiRequest('/api/medicines'),
+        apiRequest('/api/products'),
       ]);
 
       const salesData = [];
@@ -289,11 +289,11 @@ export default function Dashboard() {
 
       // Declare variables at function scope so they can be used throughout
       let invoices = [];
-      let medicines = [];
+      let products = [];
 
-      if (invoicesRes.ok && medicinesRes.ok) {
+      if (invoicesRes.ok && productsRes.ok) {
         invoices = await invoicesRes.json();
-        medicines = await medicinesRes.json();
+        products = await productsRes.json();
         
         // Group invoices by month with profit calculation
         const monthlySales = {};
@@ -364,9 +364,9 @@ export default function Dashboard() {
           
           // Calculate purchase price for this invoice
           invoice.items.forEach(item => {
-            const medicine = medicines.find(m => m._id === item.medicineId);
-            if (medicine) {
-              const purchaseCost = item.quantity * medicine.purchasePrice;
+            const product = products.find(m => m._id === item.productId);
+            if (product) {
+              const purchaseCost = item.quantity * product.purchasePrice;
               monthlySales[monthKey].purchasePrice += purchaseCost;
               dailySales[dayKey].purchasePrice += purchaseCost;
               weeklySales[weekKey].purchasePrice += purchaseCost;
@@ -546,9 +546,9 @@ export default function Dashboard() {
               
               // Calculate profit
               invoice.items.forEach(item => {
-                const medicine = medicines.find(m => m._id === item.medicineId);
-                if (medicine) {
-                  const purchaseCost = item.quantity * medicine.purchasePrice;
+                const product = products.find(m => m._id === item.productId);
+                if (product) {
+                  const purchaseCost = item.quantity * product.purchasePrice;
                   dayData.profit = dayData.sales - purchaseCost;
                 }
               });
@@ -657,25 +657,25 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: 'Total Medicines',
-      value: stats.totalMedicines,
-      icon: '💊',
+      title: 'Total Products',
+      value: stats.totalProducts,
+      icon: '📦',
       color: 'bg-blue-500',
-      href: '/medicines',
+      href: '/products',
     },
     {
       title: 'Inventory Value',
       value: `${formatCurrency(stats.inventoryValue)}`,
       icon: '📦',
       color: 'bg-blue-500',
-      href: '/medicines'
+      href: '/products'
     },
     {
       title: 'Total Cost',
       value: `${formatCurrency(stats.totalPurchasePrice || 0)}`,
       icon: '🛒',
       color: 'bg-orange-500',
-      href: '/medicines'
+      href: '/products'
     },
     {
       title: 'Total Sales Value',
@@ -702,10 +702,10 @@ export default function Dashboard() {
 
   const quickActions = [
     {
-      title: 'Add New Medicine',
-      description: 'Add a new medicine to inventory',
+      title: 'Add New Product',
+      description: 'Add a new product to inventory',
       icon: '➕',
-      href: '/medicines/add',
+      href: '/products/add',
       color: 'bg-primary-500',
     },
     {
@@ -716,10 +716,10 @@ export default function Dashboard() {
       color: 'bg-success-500',
     },
     {
-      title: 'View Medicines',
-      description: 'Browse and manage medicines',
+      title: 'View Products',
+      description: 'Browse and manage products',
       icon: '📋',
-      href: '/medicines',
+      href: '/products',
       color: 'bg-warning-500',
     },
   ];
@@ -989,7 +989,7 @@ export default function Dashboard() {
               <div className="text-center py-8">
                 <p className="text-gray-500">No recent activity</p>
                 <p className="text-sm text-gray-400 mt-2">
-                  Start by adding medicines or generating invoices
+                  Start by adding products or generating invoices
                 </p>
               </div>
             ) : (

@@ -30,15 +30,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const medicinesCollection = await getCollection('medicines');
+    const productsCollection = await getCollection('products');
 
     switch (method) {
       case 'GET':
-        const medicine = await medicinesCollection.findOne({ _id: new ObjectId(id) });
-        if (!medicine) {
-          return res.status(404).json({ message: 'Medicine not found' });
+        const product = await productsCollection.findOne({ _id: new ObjectId(id) });
+        if (!product) {
+          return res.status(404).json({ message: 'Product not found' });
         }
-        res.status(200).json(medicine);
+        res.status(200).json(product);
         break;
 
       case 'PUT':
@@ -49,19 +49,19 @@ export default async function handler(req, res) {
           return res.status(400).json({ message: 'Missing required fields' });
         }
 
-        // Get current medicine to compare quantities
-        const currentMedicine = await medicinesCollection.findOne({ _id: new ObjectId(id) });
-        if (!currentMedicine) {
-          return res.status(404).json({ message: 'Medicine not found' });
+        // Get current product to compare quantities
+        const currentProduct = await productsCollection.findOne({ _id: new ObjectId(id) });
+        if (!currentProduct) {
+          return res.status(404).json({ message: 'Product not found' });
         }
 
-        // Check for duplicate code (excluding current medicine)
-        const existingMedicine = await medicinesCollection.findOne({ 
+        // Check for duplicate code (excluding current product)
+        const existingProduct = await productsCollection.findOne({ 
           code, 
           _id: { $ne: new ObjectId(id) } 
         });
-        if (existingMedicine) {
-          return res.status(400).json({ message: 'Medicine code already exists' });
+        if (existingProduct) {
+          return res.status(400).json({ message: 'Product code already exists' });
         }
 
         const updateData = {
@@ -75,18 +75,18 @@ export default async function handler(req, res) {
           updatedAt: new Date(),
         };
 
-        const result = await medicinesCollection.updateOne(
+        const result = await productsCollection.updateOne(
           { _id: new ObjectId(id) },
           { $set: updateData }
         );
 
         if (result.matchedCount === 0) {
-          return res.status(404).json({ message: 'Medicine not found' });
+          return res.status(404).json({ message: 'Product not found' });
         }
 
         // Track inventory change if quantity changed
         const newQuantity = parseInt(quantity);
-        const oldQuantity = currentMedicine.quantity;
+        const oldQuantity = currentProduct.quantity;
         
         if (newQuantity !== oldQuantity) {
           try {
@@ -94,9 +94,9 @@ export default async function handler(req, res) {
             const quantityDifference = newQuantity - oldQuantity;
             
             await inventoryCollection.insertOne({
-              medicineId: id,
-              medicineName: name,
-              medicineCode: code,
+              productId: id,
+              productName: name,
+              productCode: code,
               type: quantityDifference > 0 ? 'add' : 'adjustment',
               quantity: Math.abs(quantityDifference),
               previousStock: oldQuantity,
@@ -105,7 +105,7 @@ export default async function handler(req, res) {
               batchNo: batchNo || '',
               expiryDate: new Date(expiryDate),
               purchasePrice: parseFloat(purchasePrice),
-              notes: `Stock ${quantityDifference > 0 ? 'added' : 'adjusted'} via medicine update`,
+              notes: `Stock ${quantityDifference > 0 ? 'added' : 'adjusted'} via product update`,
               userId: user.userId,
               username: user.username,
               createdAt: new Date()
@@ -116,20 +116,20 @@ export default async function handler(req, res) {
           }
         }
 
-        res.status(200).json({ message: 'Medicine updated successfully' });
+        res.status(200).json({ message: 'Product updated successfully' });
         break;
 
       case 'DELETE':
-        // Get medicine details before deletion for activity logging
-        const medicineToDelete = await medicinesCollection.findOne({ _id: new ObjectId(id) });
-        if (!medicineToDelete) {
-          return res.status(404).json({ message: 'Medicine not found' });
+        // Get product details before deletion for activity logging
+        const productToDelete = await productsCollection.findOne({ _id: new ObjectId(id) });
+        if (!productToDelete) {
+          return res.status(404).json({ message: 'Product not found' });
         }
 
-        const deleteResult = await medicinesCollection.deleteOne({ _id: new ObjectId(id) });
+        const deleteResult = await productsCollection.deleteOne({ _id: new ObjectId(id) });
         
         if (deleteResult.deletedCount === 0) {
-          return res.status(404).json({ message: 'Medicine not found' });
+          return res.status(404).json({ message: 'Product not found' });
         }
 
         // Log activity
@@ -138,10 +138,10 @@ export default async function handler(req, res) {
           await activitiesCollection.insertOne({
             userId: user.userId,
             username: user.username,
-            action: 'MEDICINE_DELETED',
-            details: `Deleted medicine: ${medicineToDelete.name} (${medicineToDelete.code})`,
-            entityType: 'medicine',
-            entityId: medicineToDelete.code,
+            action: 'PRODUCT_DELETED',
+            details: `Deleted product: ${productToDelete.name} (${productToDelete.code})`,
+            entityType: 'product',
+            entityId: productToDelete.code,
             createdAt: new Date(),
             ipAddress: req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown',
             userAgent: req.headers['user-agent'] || 'unknown'
@@ -151,7 +151,7 @@ export default async function handler(req, res) {
           // Don't fail the main operation if activity logging fails
         }
 
-        res.status(200).json({ message: 'Medicine deleted successfully' });
+        res.status(200).json({ message: 'Product deleted successfully' });
         break;
 
       default:

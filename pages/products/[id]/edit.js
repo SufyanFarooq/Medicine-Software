@@ -1,34 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
-import MedicineForm from '../../../components/MedicineForm';
+import ProductForm from '../../../components/ProductForm';
 import { apiRequest } from '../../../lib/auth';
 
-export default function EditMedicine() {
+export default function EditProduct() {
   const router = useRouter();
   const { id } = router.query;
-  const [medicine, setMedicine] = useState(null);
+  const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (id) {
-      fetchMedicine();
+      fetchProduct();
     }
   }, [id]);
 
-  const fetchMedicine = async () => {
+  const fetchProduct = async () => {
     try {
-      const response = await apiRequest(`/api/medicines/${id}`);
+      const response = await apiRequest(`/api/products/${id}`);
       if (response.ok) {
         const data = await response.json();
-        setMedicine(data);
+        setProduct(data);
       } else {
-        setError('Medicine not found');
+        setError('Product not found');
       }
     } catch (error) {
-      console.error('Error fetching medicine:', error);
-      setError('Error loading medicine');
+      console.error('Error fetching product:', error);
+      setError('Error loading product');
     } finally {
       setLoading(false);
     }
@@ -44,16 +44,16 @@ export default function EditMedicine() {
     );
   }
 
-  if (error || !medicine) {
+  if (error || !product) {
     return (
       <Layout>
         <div className="text-center py-8">
-          <div className="text-red-600 text-lg mb-4">{error || 'Medicine not found'}</div>
+          <div className="text-red-600 text-lg mb-4">{error || 'Product not found'}</div>
           <button
-            onClick={() => router.push('/medicines')}
+            onClick={() => router.push('/products')}
             className="btn-primary"
           >
-            ⬅️ Back to Medicines
+            ⬅️ Back to Products
           </button>
         </div>
       </Layout>
@@ -66,13 +66,13 @@ export default function EditMedicine() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Edit Medicine</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Edit Product</h1>
             <p className="mt-1 text-sm text-gray-500">
-              Update medicine information
+              Update product information
             </p>
           </div>
           <button
-            onClick={() => router.push(`/medicines/${id}`)}
+            onClick={() => router.push(`/products/${id}`)}
             className="btn-secondary"
           >
             ⬅️ Back to Details
@@ -81,7 +81,7 @@ export default function EditMedicine() {
 
         {/* Edit Form */}
         <div className="card">
-          <MedicineForm medicine={medicine} isEditing={true} />
+          <ProductForm product={product} isEditing={true} />
         </div>
       </div>
     </Layout>

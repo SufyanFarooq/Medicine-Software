@@ -62,8 +62,8 @@ export default async function handler(req, res) {
       .sort({ date: -1 })
       .toArray();
 
-    // Get medicines data for purchase prices
-    const medicines = await db.collection('medicines')
+    // Get products data for purchase prices
+    const products = await db.collection('products')
       .find({})
       .sort({ name: 1 })
       .toArray();
@@ -77,26 +77,27 @@ export default async function handler(req, res) {
       console.log('Sample invoice structure:', JSON.stringify(invoices[0], null, 2));
     }
 
-    // Aggregate sales data by medicine
+    // Aggregate sales data by product
     const salesStats = {};
     
     invoices.forEach(invoice => {
       if (invoice.items && Array.isArray(invoice.items)) {
         invoice.items.forEach(item => {
-          const medicineId = item.medicineId || item.medicine || item.productId;
-          let medicineName = item.name; // Invoice items have 'name' field
+          // Support both productId and medicineId for backward compatibility
+          const productId = item.productId || item.medicineId || item.medicine;
+          let productName = item.name; // Invoice items have 'name' field
           
-          // Skip items without medicine names
-          if (!medicineName) {
+          // Skip items without product names
+          if (!productName) {
             return;
           }
           
           const unitPrice = item.price || 0;
           const quantity = item.quantity || 0;
           
-          if (!salesStats[medicineName]) {
-            salesStats[medicineName] = {
-              name: medicineName,
+          if (!salesStats[productName]) {
+            salesStats[productName] = {
+              name: productName,
               quantity: 0,
               unitPrice: unitPrice,
               totalPrice: 0,
@@ -106,19 +107,19 @@ export default async function handler(req, res) {
             };
           }
           
-          salesStats[medicineName].quantity += quantity;
-          salesStats[medicineName].totalPrice += quantity * unitPrice;
+          salesStats[productName].quantity += quantity;
+          salesStats[productName].totalPrice += quantity * unitPrice;
           
-          // Get purchase price from medicines collection
-          const medicine = medicines.find(m => m._id.toString() === medicineId);
-          if (medicine) {
-            salesStats[medicineName].purchasePrice = medicine.purchasePrice || 0;
+          // Get purchase price from products collection
+          const product = products.find(p => p._id.toString() === productId);
+          if (product) {
+            salesStats[productName].purchasePrice = product.purchasePrice || 0;
           }
         });
       }
     });
     
-    // Calculate totals and profit for each medicine
+    // Calculate totals and profit for each product
     Object.values(salesStats).forEach(item => {
       item.totalPurchasePrice = item.quantity * item.purchasePrice;
       item.profit = item.totalPrice - item.totalPurchasePrice;

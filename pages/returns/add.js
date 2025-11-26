@@ -5,14 +5,14 @@ import { apiRequest } from '../../lib/auth';
 import { formatCurrency } from '../../lib/currency';
 
 export default function AddReturn() {
-  const [medicines, setMedicines] = useState([]);
+  const [products, setProducts] = useState([]);
   const [invoices, setInvoices] = useState([]);
-  const [filteredMedicines, setFilteredMedicines] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const [filteredInvoices, setFilteredInvoices] = useState([]);
-  const [selectedMedicine, setSelectedMedicine] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [selectedInvoiceItems, setSelectedInvoiceItems] = useState([]);
-  const [searchMode, setSearchMode] = useState('invoice'); // 'invoice' or 'medicine'
+  const [searchMode, setSearchMode] = useState('invoice'); // 'invoice' or 'product'
   const [formData, setFormData] = useState({
     quantity: '',
     reason: '',
@@ -22,19 +22,19 @@ export default function AddReturn() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchMedicines();
+    fetchProducts();
     fetchInvoices();
   }, []);
 
-  const fetchMedicines = async () => {
+  const fetchProducts = async () => {
     try {
-      const response = await apiRequest('/api/medicines');
+      const response = await apiRequest('/api/products');
       if (response.ok) {
         const data = await response.json();
-        setMedicines(data);
-        setFilteredMedicines(data);
+        setProducts(data);
+        setFilteredProducts(data);
       } else {
-        setError('Failed to fetch medicines');
+        setError('Failed to fetch products');
       }
     } catch (error) {
       setError('Error connecting to database');
@@ -72,22 +72,22 @@ export default function AddReturn() {
     setFilteredInvoices(filtered);
   };
 
-  const handleMedicineSearch = (searchTerm) => {
+  const handleProductSearch = (searchTerm) => {
     if (!searchTerm.trim()) {
-      setFilteredMedicines(medicines);
+      setFilteredProducts(products);
       return;
     }
 
-    const filtered = medicines.filter(medicine =>
-      medicine.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      medicine.code.toLowerCase().includes(searchTerm.toLowerCase())
+    const filtered = products.filter(product =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.code.toLowerCase().includes(searchTerm.toLowerCase())
     );
-    setFilteredMedicines(filtered);
+    setFilteredProducts(filtered);
   };
 
   const handleInvoiceSelect = (invoice) => {
     setSelectedInvoice(invoice);
-    setSelectedMedicine(null);
+    setSelectedProduct(null);
     setSelectedInvoiceItems([]);
     setFormData(prev => ({ 
       ...prev, 
@@ -97,8 +97,8 @@ export default function AddReturn() {
     }));
   };
 
-  const handleMedicineSelect = (medicine) => {
-    setSelectedMedicine(medicine);
+  const handleProductSelect = (product) => {
+    setSelectedProduct(product);
     setSelectedInvoice(null);
     setSelectedInvoiceItems([]);
     setFormData(prev => ({ ...prev, quantity: '' }));
@@ -113,26 +113,27 @@ export default function AddReturn() {
   };
 
   const handleInvoiceItemSelect = (item) => {
-    const existingItem = selectedInvoiceItems.find(selected => selected.medicineId === item.medicineId);
+    const productId = item.productId || item.medicineId;
+    const existingItem = selectedInvoiceItems.find(selected => (selected.productId || selected.medicineId) === productId);
     if (existingItem) {
-      setSelectedInvoiceItems(prev => prev.filter(selected => selected.medicineId !== item.medicineId));
+      setSelectedInvoiceItems(prev => prev.filter(selected => (selected.productId || selected.medicineId) !== productId));
     } else {
       setSelectedInvoiceItems(prev => [...prev, { ...item, returnQuantity: 1 }]);
     }
   };
 
-  const handleInvoiceItemQuantityChange = (medicineId, quantity) => {
+  const handleInvoiceItemQuantityChange = (productId, quantity) => {
     setSelectedInvoiceItems(prev => 
       prev.map(item => 
-        item.medicineId === medicineId 
+        (item.productId || item.medicineId) === productId 
           ? { ...item, returnQuantity: parseInt(quantity) || 0 }
           : item
       )
     );
   };
 
-  const removeInvoiceItem = (medicineId) => {
-    setSelectedInvoiceItems(prev => prev.filter(item => item.medicineId !== medicineId));
+  const removeInvoiceItem = (productId) => {
+    setSelectedInvoiceItems(prev => prev.filter(item => (item.productId || item.medicineId) !== productId));
   };
 
   const generateReturnNumber = () => {
@@ -144,8 +145,8 @@ export default function AddReturn() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!selectedMedicine && !selectedInvoice) {
-      alert('Please select either a medicine or an invoice');
+    if (!selectedProduct && !selectedInvoice) {
+      alert('Please select either a product or an invoice');
       return;
     }
 
@@ -154,8 +155,8 @@ export default function AddReturn() {
       return;
     }
 
-    // Handle single medicine return
-    if (selectedMedicine) {
+    // Handle single product return
+    if (selectedProduct) {
       if (!formData.quantity) {
         alert('Please specify quantity to return');
         return;
@@ -191,13 +192,13 @@ export default function AddReturn() {
     try {
       let returnRequests = [];
 
-      if (selectedMedicine) {
-        // Single medicine return
+      if (selectedProduct) {
+        // Single product return
         returnRequests.push({
           returnNumber: generateReturnNumber(),
-          medicineId: selectedMedicine._id,
-          medicineName: selectedMedicine.name,
-          medicineCode: selectedMedicine.code,
+          productId: selectedProduct._id,
+          productName: selectedProduct.name,
+          productCode: selectedProduct.code,
           quantity: parseInt(formData.quantity),
           reason: formData.reason,
           notes: formData.notes,
@@ -211,9 +212,9 @@ export default function AddReturn() {
         for (const item of selectedInvoiceItems) {
           returnRequests.push({
             returnNumber: generateReturnNumber(),
-            medicineId: item.medicineId,
-            medicineName: item.name,
-            medicineCode: item.code,
+            productId: item.productId || item.medicineId,
+            productName: item.name,
+            productCode: item.code,
             quantity: item.returnQuantity,
             reason: formData.reason,
             notes: formData.notes,
@@ -242,7 +243,7 @@ export default function AddReturn() {
       if (allSuccessful) {
         alert(`Return request${returnRequests.length > 1 ? 's' : ''} submitted successfully!`);
         // Reset form
-        setSelectedMedicine(null);
+        setSelectedProduct(null);
         setSelectedInvoice(null);
         setSelectedInvoiceItems([]);
         setFormData({
@@ -267,7 +268,7 @@ export default function AddReturn() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Add Return</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Process customer medicine returns
+            Process customer product returns
           </p>
         </div>
 
@@ -285,14 +286,14 @@ export default function AddReturn() {
               Search by Invoice
             </button>
             <button
-              onClick={() => setSearchMode('medicine')}
+              onClick={() => setSearchMode('product')}
               className={`px-4 py-2 rounded-lg font-medium ${
-                searchMode === 'medicine'
+                searchMode === 'product'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              Search by Medicine
+              Search by Product
             </button>
           </div>
         </div>
@@ -301,13 +302,13 @@ export default function AddReturn() {
           {/* Search Section */}
           <div className="card">
             <h3 className="text-lg font-medium text-gray-900 mb-4">
-              {searchMode === 'invoice' ? 'Search Invoices' : 'Select Medicine'}
+              {searchMode === 'invoice' ? 'Search Invoices' : 'Select Product'}
             </h3>
             
             <div className="mb-4">
               <SearchBar 
-                onSearch={searchMode === 'invoice' ? handleInvoiceSearch : handleMedicineSearch} 
-                placeholder={searchMode === 'invoice' ? "Search invoices by number or medicine..." : "Search medicines..."} 
+                onSearch={searchMode === 'invoice' ? handleInvoiceSearch : handleProductSearch} 
+                placeholder={searchMode === 'invoice' ? "Search invoices by number or product..." : "Search products..."} 
               />
             </div>
 
@@ -339,21 +340,21 @@ export default function AddReturn() {
                   ))
                 )
               ) : (
-                // Medicine Search Results
-                filteredMedicines.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">No medicines available</p>
+                // Product Search Results
+                filteredProducts.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">No products available</p>
                 ) : (
-                  filteredMedicines.map((medicine) => (
+                  filteredProducts.map((product) => (
                     <div
-                      key={medicine._id}
+                      key={product._id}
                       className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 ${
-                        selectedMedicine?._id === medicine._id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                        selectedProduct?._id === product._id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
                       }`}
-                      onClick={() => handleMedicineSelect(medicine)}
+                      onClick={() => handleProductSelect(product)}
                     >
-                      <div className="font-medium text-gray-900">{medicine.name}</div>
+                      <div className="font-medium text-gray-900">{product.name}</div>
                       <div className="text-sm text-gray-500">
-                        Code: {medicine.code} | Stock: {medicine.quantity} | Price: {formatCurrency(medicine.sellingPrice)}
+                        Code: {product.code} | Stock: {product.quantity} | Price: {formatCurrency(product.sellingPrice)}
                       </div>
                     </div>
                   ))
@@ -376,16 +377,16 @@ export default function AddReturn() {
                   Total Items: {selectedInvoice.items.length} | Total: {formatCurrency(selectedInvoice.total)}
                 </div>
               </div>
-            ) : selectedMedicine ? (
+            ) : selectedProduct ? (
               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="font-medium text-blue-900">Selected Medicine:</div>
+                <div className="font-medium text-blue-900">Selected Product:</div>
                 <div className="text-sm text-blue-700">
-                  {selectedMedicine.name} ({selectedMedicine.code})
+                  {selectedProduct.name} ({selectedProduct.code})
                 </div>
               </div>
             ) : (
               <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <div className="text-sm text-yellow-700">Please select an invoice or medicine first</div>
+                <div className="text-sm text-yellow-700">Please select an invoice or product first</div>
               </div>
             )}
 
@@ -395,10 +396,11 @@ export default function AddReturn() {
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Select Items to Return:</h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {selectedInvoice.items.map((item) => {
-                    const isSelected = selectedInvoiceItems.find(selected => selected.medicineId === item.medicineId);
+                    const productId = item.productId || item.medicineId;
+                    const isSelected = selectedInvoiceItems.find(selected => (selected.productId || selected.medicineId) === productId);
                     return (
                       <div
-                        key={item.medicineId}
+                        key={productId}
                         className={`p-3 border rounded-lg ${
                           isSelected ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:bg-gray-50'
                         }`}
@@ -424,7 +426,7 @@ export default function AddReturn() {
                                   min="1"
                                   max={item.quantity}
                                   value={isSelected.returnQuantity || 1}
-                                  onChange={(e) => handleInvoiceItemQuantityChange(item.medicineId, e.target.value)}
+                                  onChange={(e) => handleInvoiceItemQuantityChange(productId, e.target.value)}
                                   className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-sm"
                                   placeholder="Qty"
                                 />
@@ -445,27 +447,30 @@ export default function AddReturn() {
               <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                 <div className="font-medium text-green-900 mb-2">Selected Items:</div>
                 <div className="space-y-1">
-                  {selectedInvoiceItems.map((item) => (
-                    <div key={item.medicineId} className="flex items-center justify-between text-sm">
-                      <span className="text-green-700">{item.name}</span>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-green-600">{item.returnQuantity} / {item.quantity}</span>
-                        <button
-                          onClick={() => removeInvoiceItem(item.medicineId)}
-                          className="text-red-600 hover:text-red-800 text-xs"
-                        >
-                          ✕
-                        </button>
+                  {selectedInvoiceItems.map((item) => {
+                    const productId = item.productId || item.medicineId;
+                    return (
+                      <div key={productId} className="flex items-center justify-between text-sm">
+                        <span className="text-green-700">{item.name}</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-green-600">{item.returnQuantity} / {item.quantity}</span>
+                          <button
+                            onClick={() => removeInvoiceItem(productId)}
+                            className="text-red-600 hover:text-red-800 text-xs"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
 
-              {selectedMedicine && (
+              {selectedProduct && (
                 <div>
                   <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-2">
                     Return Quantity *
@@ -478,7 +483,7 @@ export default function AddReturn() {
                     onChange={handleInputChange}
                     required
                     min="1"
-                    max={selectedMedicine?.quantity || 1}
+                    max={selectedProduct?.quantity || 1}
                     className="input-field"
                     placeholder="Enter quantity to return"
                   />
@@ -500,7 +505,7 @@ export default function AddReturn() {
                   <option value="">Select a reason</option>
                   <option value="Expired">Expired</option>
                   <option value="Damaged">Damaged</option>
-                  <option value="Wrong Medicine">Wrong Medicine</option>
+                  <option value="Wrong Product">Wrong Product</option>
                   <option value="Allergic Reaction">Allergic Reaction</option>
                   <option value="Side Effects">Side Effects</option>
                   <option value="Not Needed">Not Needed</option>
@@ -535,7 +540,7 @@ export default function AddReturn() {
                 <button
                   type="submit"
                   className="btn-primary"
-                  disabled={loading || (!selectedMedicine && !selectedInvoice)}
+                  disabled={loading || (!selectedProduct && !selectedInvoice)}
                 >
                   {loading ? '⏳ Submitting...' : '↩️ Submit Return'}
                 </button>

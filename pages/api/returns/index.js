@@ -30,7 +30,7 @@ export default async function handler(req, res) {
 
   try {
     const returnsCollection = await getCollection('returns');
-    const medicinesCollection = await getCollection('medicines');
+    const productsCollection = await getCollection('products');
     const invoicesCollection = await getCollection('invoices');
 
     switch (method) {
@@ -42,9 +42,9 @@ export default async function handler(req, res) {
       case 'POST':
         const { 
           returnNumber, 
-          medicineId, 
-          medicineName, 
-          medicineCode, 
+          productId, 
+          productName, 
+          productCode, 
           customerName, 
           customerPhone, 
           quantity, 
@@ -56,12 +56,12 @@ export default async function handler(req, res) {
         } = req.body;
 
         // Validate required fields
-        if (!returnNumber || !medicineId || !medicineName || !quantity || !reason) {
+        if (!returnNumber || !productId || !productName || !quantity || !reason) {
           return res.status(400).json({ message: 'Missing required fields' });
         }
 
-        // Get medicine price for return value calculation
-        const medicineData = await medicinesCollection.findOne({ _id: new ObjectId(medicineId) });
+        // Get product price for return value calculation
+        const productData = await productsCollection.findOne({ _id: new ObjectId(productId) });
         let returnValue = 0;
         
         // If return is from an invoice, calculate return value with discount applied
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
           try {
             const invoice = await invoicesCollection.findOne({ _id: new ObjectId(invoiceId) });
             if (invoice) {
-              const item = invoice.items.find(item => item.medicineId === medicineId);
+              const item = invoice.items.find(item => item.productId === productId);
               if (item) {
                                  // Calculate the proportion of the item being returned
                  const returnProportion = parseInt(quantity) / item.quantity;
@@ -84,7 +84,7 @@ export default async function handler(req, res) {
           } catch (error) {
             console.error('Error calculating return value with discount:', error);
             // Fallback to simple calculation
-            returnValue = medicineData ? (medicineData.sellingPrice * parseInt(quantity)) : 0;
+            returnValue = productData ? (productData.sellingPrice * parseInt(quantity)) : 0;
           }
         } else {
           // For returns not from invoice, use simple calculation
@@ -93,13 +93,13 @@ export default async function handler(req, res) {
 
         const newReturn = {
           returnNumber,
-          medicineId,
-          medicineName,
-          medicineCode,
+          productId,
+          productName,
+          productCode,
           customerName: customerName || '',
           customerPhone: customerPhone || '',
           quantity: parseInt(quantity),
-          price: medicineData ? medicineData.sellingPrice : 0,
+          price: productData ? productData.sellingPrice : 0,
           returnValue: returnValue,
           reason,
           notes: notes || '',
@@ -120,7 +120,7 @@ export default async function handler(req, res) {
             if (invoice) {
               // Find the item in the invoice and update its quantity
               const updatedItems = invoice.items.map(item => {
-                if (item.medicineId === medicineId) {
+                if (item.productId === productId) {
                   const newQuantity = Math.max(0, item.quantity - parseInt(quantity));
                   return {
                     ...item,
@@ -156,11 +156,11 @@ export default async function handler(req, res) {
           }
         }
         
-        // Automatically update medicine inventory (add back to stock)
-        if (medicineData) {
-          const newQuantity = medicineData.quantity + parseInt(quantity);
-          await medicinesCollection.updateOne(
-            { _id: new ObjectId(medicineId) },
+        // Automatically update product inventory (add back to stock)
+        if (productData) {
+          const newQuantity = productData.quantity + parseInt(quantity);
+          await productsCollection.updateOne(
+            { _id: new ObjectId(productId) },
             { $set: { quantity: newQuantity, updatedAt: new Date() } }
           );
         }

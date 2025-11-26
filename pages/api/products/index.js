@@ -28,12 +28,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const medicinesCollection = await getCollection('medicines');
+    const productsCollection = await getCollection('products');
 
     switch (method) {
       case 'GET':
-        const medicines = await medicinesCollection.find({}).toArray();
-        res.status(200).json(medicines);
+        const products = await productsCollection.find({}).toArray();
+        res.status(200).json(products);
         break;
 
       case 'POST':
@@ -45,20 +45,20 @@ export default async function handler(req, res) {
         }
 
         // Check for duplicate code
-        const existingMedicineByCode = await medicinesCollection.findOne({ code });
-        if (existingMedicineByCode) {
-          return res.status(400).json({ message: 'Medicine code already exists' });
+        const existingProductByCode = await productsCollection.findOne({ code });
+        if (existingProductByCode) {
+          return res.status(400).json({ message: 'Product code already exists' });
         }
 
         // Check for duplicate name (case insensitive)
-        const existingMedicineByName = await medicinesCollection.findOne({ 
+        const existingProductByName = await productsCollection.findOne({ 
           name: { $regex: new RegExp(`^${name}$`, 'i') } 
         });
-        if (existingMedicineByName) {
-          return res.status(400).json({ message: 'Medicine with this name already exists' });
+        if (existingProductByName) {
+          return res.status(400).json({ message: 'Product with this name already exists' });
         }
 
-        const newMedicine = {
+        const newProduct = {
           name,
           code,
           quantity: parseInt(quantity),
@@ -71,8 +71,8 @@ export default async function handler(req, res) {
           createdBy: user.userId,
         };
 
-        const result = await medicinesCollection.insertOne(newMedicine);
-        res.status(201).json({ _id: result.insertedId, ...newMedicine });
+        const result = await productsCollection.insertOne(newProduct);
+        res.status(201).json({ _id: result.insertedId, ...newProduct });
         break;
 
       default:

@@ -57,11 +57,14 @@ export default function Activities() {
 
   const getActionIcon = (action) => {
     switch (action) {
-      case 'MEDICINE_ADDED':
-        return '💊';
-      case 'MEDICINE_UPDATED':
+      case 'PRODUCT_ADDED':
+      case 'MEDICINE_ADDED': // Support old activity types for backward compatibility
+        return '📦';
+      case 'PRODUCT_UPDATED':
+      case 'MEDICINE_UPDATED': // Support old activity types for backward compatibility
         return '✏️';
-      case 'MEDICINE_DELETED':
+      case 'PRODUCT_DELETED':
+      case 'MEDICINE_DELETED': // Support old activity types for backward compatibility
         return '🗑️';
       case 'INVOICE_GENERATED':
         return '🧾';
@@ -141,9 +144,9 @@ export default function Activities() {
                 className="input-field"
               >
                 <option value="">All Actions</option>
-                <option value="MEDICINE_ADDED">Medicine Added</option>
-                <option value="MEDICINE_UPDATED">Medicine Updated</option>
-                <option value="MEDICINE_DELETED">Medicine Deleted</option>
+                <option value="PRODUCT_ADDED">Product Added</option>
+                <option value="PRODUCT_UPDATED">Product Updated</option>
+                <option value="PRODUCT_DELETED">Product Deleted</option>
                 <option value="INVOICE_GENERATED">Invoice Generated</option>
                 <option value="INVOICE_PRINTED">Invoice Printed</option>
                 <option value="INVOICE_DELETED">Invoice Deleted</option>
