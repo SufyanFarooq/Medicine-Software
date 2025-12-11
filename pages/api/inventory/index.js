@@ -30,16 +30,22 @@ export default async function handler(req, res) {
 
   try {
     const inventoryCollection = await getCollection('inventory_transactions');
-    const medicinesCollection = await getCollection('medicines');
+    const productsCollection = await getCollection('products');
 
     switch (method) {
       case 'GET':
-        const { medicineId, type, startDate, endDate } = req.query;
+        const { productId, medicineId, type, startDate, endDate } = req.query;
         
         let filter = {};
         
-        if (medicineId) {
-          filter.medicineId = new ObjectId(medicineId);
+        // Support both productId and medicineId for backward compatibility
+        const idToUse = productId || medicineId;
+        if (idToUse) {
+          // Support both new productId and old medicineId fields
+          filter.$or = [
+            { productId: new ObjectId(idToUse) },
+            { medicineId: new ObjectId(idToUse) }
+          ];
         }
         
         if (type) {
@@ -63,6 +69,7 @@ export default async function handler(req, res) {
 
       case 'POST':
         const { 
+          productId: transactionProductId,
           medicineId: transactionMedicineId, 
           type: transactionType, 
           quantity, 
@@ -77,8 +84,11 @@ export default async function handler(req, res) {
           date 
         } = req.body;
 
+        // Support both productId and medicineId for backward compatibility
+        const productIdToUse = transactionProductId || transactionMedicineId;
+
         // Validate required fields
-        if (!transactionMedicineId || !transactionType || !quantity || !unitPrice || !totalAmount) {
+        if (!productIdToUse || !transactionType || !quantity || !unitPrice || !totalAmount) {
           return res.status(400).json({ message: 'Missing required fields' });
         }
 
@@ -89,7 +99,7 @@ export default async function handler(req, res) {
 
         // Create transaction record
         const transaction = {
-          medicineId: new ObjectId(transactionMedicineId),
+          productId: new ObjectId(productIdToUse),
           type: transactionType,
           quantity: parseFloat(quantity),
           unitPrice: parseFloat(unitPrice),
@@ -119,15 +129,15 @@ export default async function handler(req, res) {
           break;
         }
 
-        // For other transactions (inflow, returns, etc.), update medicine quantities
-        const medicine = await medicinesCollection.findOne({ _id: new ObjectId(transactionMedicineId) });
-        if (!medicine) {
-          return res.status(404).json({ message: 'Medicine not found' });
+        // For other transactions (inflow, returns, etc.), update product quantities
+        const product = await productsCollection.findOne({ _id: new ObjectId(productIdToUse) });
+        if (!product) {
+          return res.status(404).json({ message: 'Product not found' });
         }
 
-        let newQuantity = medicine.quantity;
+        let newQuantity = product.quantity;
         if (transactionType === 'inflow') {
-          // For new medicine creation, SET the quantity instead of adding
+          // For new product creation, SET the quantity instead of adding
           if (referenceType === 'creation') {
             newQuantity = parseFloat(quantity);
           } else {
@@ -141,9 +151,9 @@ export default async function handler(req, res) {
           }
         }
 
-        // Update medicine quantity
-        await medicinesCollection.updateOne(
-          { _id: new ObjectId(transactionMedicineId) },
+        // Update product quantity
+        await productsCollection.updateOne(
+          { _id: new ObjectId(productIdToUse) },
           { 
             $set: { 
               quantity: newQuantity,

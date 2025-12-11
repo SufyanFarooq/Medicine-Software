@@ -199,7 +199,7 @@ export default function Layout({ children }) {
           </div>
           
           {/* User Info */}
-          <div className="px-4 py-4 border-b border-blue-200 bg-gradient-to-r from-blue-100 to-blue-50">
+          {/* <div className="px-4 py-4 border-b border-blue-200 bg-gradient-to-r from-blue-100 to-blue-50">
             <div className="flex items-center">
               <div className="flex-shrink-0">
                 <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-600 to-blue-700 flex items-center justify-center shadow-lg">
@@ -213,7 +213,7 @@ export default function Layout({ children }) {
                 <p className="text-xs text-blue-600 font-medium capitalize">{user.role?.replace('_', ' ') || 'User'}</p>
               </div>
             </div>
-          </div>
+          </div> */}
 
           <nav className="flex-1 space-y-2 px-3 py-4 overflow-y-auto">
             {navigation.map((item) => (
