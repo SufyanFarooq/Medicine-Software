@@ -25,7 +25,10 @@ INSTALLATION & SETUP
 1. INSTALL MONGODB:
    - Download and install MongoDB from the official website
    - Start MongoDB service:
-     * Windows: Run "mongod" in command prompt or install as service
+     * Windows: 
+       - RECOMMENDED: Run "setup-mongodb-service.bat" as Administrator
+         (This installs MongoDB as a Windows Service for auto-start on boot)
+       - OR: Run "mongod" in command prompt manually
      * Mac: brew services start mongodb-community
      * Linux: sudo systemctl start mongod
 
@@ -99,10 +102,12 @@ INVOICE FIELDS:
 TROUBLESHOOTING
 ---------------
 
-1. "MongoDB connection failed":
-   - Ensure MongoDB is running
+1. "MongoDB connection failed" or "ECONNREFUSED":
+   - Windows: Run "setup-mongodb-service.bat" as Administrator to install MongoDB as a service
+   - Ensure MongoDB is running (check Windows Services or run mongod manually)
    - Check if MongoDB is installed correctly
    - Verify connection string in lib/mongodb.js
+   - After Windows restart, MongoDB service should auto-start if installed as service
 
 2. "Port 3000 already in use":
    - Close other applications using port 3000
