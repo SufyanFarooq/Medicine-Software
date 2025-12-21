@@ -37,7 +37,7 @@ export default async function handler(req, res) {
         break;
 
       case 'POST':
-        const { invoiceNumber, items, subtotal, discount, total, date } = req.body;
+        const { invoiceNumber, items, subtotal, discount, total, date, customerName, customerId } = req.body;
 
         // Validate required fields
         if (!invoiceNumber || !items || !Array.isArray(items) || items.length === 0) {
@@ -51,6 +51,8 @@ export default async function handler(req, res) {
           discount: parseFloat(discount),
           total: parseFloat(total),
           date: new Date(date),
+          customerName: customerName || null,
+          customerId: customerId || null,
           createdAt: new Date(),
           updatedAt: new Date(),
           createdBy: user.userId,

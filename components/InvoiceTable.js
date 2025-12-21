@@ -14,10 +14,24 @@ export default function InvoiceTable({ products, settings = { discountPercentage
   const [originalQuantities, setOriginalQuantities] = useState({});
   const [pendingInvoices, setPendingInvoices] = useState([]);
   const [currentInvoiceId, setCurrentInvoiceId] = useState(null);
+  const [customerName, setCustomerName] = useState('');
+  const [customerId, setCustomerId] = useState(null);
+  const [customers, setCustomers] = useState([]);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [filteredCustomers, setFilteredCustomers] = useState([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [newCustomerData, setNewCustomerData] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    email: ''
+  });
 
   useEffect(() => {
     setFilteredProducts(products);
     generateInvoiceNumber();
+    fetchCustomers();
   }, [products]);
 
   useEffect(() => {
@@ -36,6 +50,79 @@ export default function InvoiceTable({ products, settings = { discountPercentage
     const timestamp = Date.now().toString().slice(-8);
     const random = Math.random().toString(36).substring(2, 5).toUpperCase();
     setInvoiceNumber(`INV${timestamp}${random}`);
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await apiRequest('/api/customers');
+      if (response.ok) {
+        const data = await response.json();
+        setCustomers(data);
+        setFilteredCustomers(data);
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (customerSearchTerm.trim()) {
+      const filtered = customers.filter(customer =>
+        customer.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+        (customer.phone && customer.phone.includes(customerSearchTerm)) ||
+        (customer.email && customer.email.toLowerCase().includes(customerSearchTerm.toLowerCase()))
+      );
+      setFilteredCustomers(filtered);
+    } else {
+      setFilteredCustomers(customers);
+    }
+  }, [customerSearchTerm, customers]);
+
+  const handleCustomerSelect = (customer) => {
+    setCustomerName(customer.name);
+    setCustomerId(customer._id);
+    setCustomerSearchTerm('');
+    setShowCustomerDropdown(false);
+  };
+
+  const handleCustomerSearch = (value) => {
+    setCustomerSearchTerm(value);
+    setShowCustomerDropdown(true);
+    if (!value.trim()) {
+      setCustomerName('');
+      setCustomerId(null);
+    }
+  };
+
+  const handleAddNewCustomer = async () => {
+    if (!newCustomerData.name.trim()) {
+      alert('Customer name is required');
+      return;
+    }
+
+    try {
+      const response = await apiRequest('/api/customers', {
+        method: 'POST',
+        body: JSON.stringify(newCustomerData)
+      });
+
+      if (response.ok) {
+        const newCustomer = await response.json();
+        await fetchCustomers();
+        setCustomerName(newCustomer.name);
+        setCustomerId(newCustomer._id);
+        setCustomerSearchTerm('');
+        setShowAddCustomerModal(false);
+        setNewCustomerData({ name: '', phone: '', address: '', email: '' });
+        setShowCustomerDropdown(false);
+      } else {
+        const data = await response.json();
+        alert(data.message || 'Failed to add customer');
+      }
+    } catch (error) {
+      console.error('Error adding customer:', error);
+      alert('Error adding customer');
+    }
   };
 
   const saveCurrentInvoiceToQueue = () => {
@@ -349,6 +436,12 @@ export default function InvoiceTable({ products, settings = { discountPercentage
       return;
     }
 
+    // Validate customer is selected
+    if (!customerName || !customerId) {
+      alert('Please select or add a customer before generating invoice');
+      return;
+    }
+
     // Validate quantities before generating invoice
     for (const item of selectedProducts) {
       const originalProduct = products.find(m => m._id === item._id);
@@ -358,19 +451,7 @@ export default function InvoiceTable({ products, settings = { discountPercentage
       }
     }
 
-    // Validate selling prices - cannot be less than purchase price
-    for (const item of selectedProducts) {
-      const originalProduct = products.find(m => m._id === item._id);
-      if (originalProduct) {
-        const sellingPrice = parseFloat(item.sellingPrice) || 0;
-        const purchasePrice = parseFloat(originalProduct.purchasePrice) || 0;
-        
-        if (sellingPrice < purchasePrice) {
-          alert(`Cannot generate invoice: ${originalProduct.name} selling price (${formatCurrency(sellingPrice)}) cannot be less than purchase price (${formatCurrency(purchasePrice)}). Please adjust the price before generating invoice.`);
-          return;
-        }
-      }
-    }
+    // Note: Purchase price validation removed - products can be sold below cost
 
     setLoading(true);
     try {
@@ -396,6 +477,8 @@ export default function InvoiceTable({ products, settings = { discountPercentage
 
       const invoiceData = {
         invoiceNumber,
+        customerName: customerName || null,
+        customerId: customerId || null,
         items: selectedProducts.map(item => ({
           productId: item._id,
           name: item.name,
@@ -525,6 +608,9 @@ export default function InvoiceTable({ products, settings = { discountPercentage
         onInvoiceGenerated(invoiceData);
         setSelectedProducts([]);
         setOriginalQuantities({});
+        setCustomerName('');
+        setCustomerId(null);
+        setCustomerSearchTerm('');
         generateInvoiceNumber();
       } else {
         alert('Failed to generate invoice');
@@ -542,6 +628,12 @@ export default function InvoiceTable({ products, settings = { discountPercentage
       return;
     }
 
+    // Validate customer is selected
+    if (!customerName || !customerId) {
+      alert('Please select or add a customer before printing invoice');
+      return;
+    }
+
     // Validate quantities before printing
     for (const item of selectedProducts) {
       const originalProduct = products.find(m => m._id === item._id);
@@ -551,25 +643,15 @@ export default function InvoiceTable({ products, settings = { discountPercentage
       }
     }
 
-    // Validate selling prices - cannot be less than purchase price
-    for (const item of selectedProducts) {
-      const originalProduct = products.find(m => m._id === item._id);
-      if (originalProduct) {
-        const sellingPrice = parseFloat(item.sellingPrice) || 0;
-        const purchasePrice = parseFloat(originalProduct.purchasePrice) || 0;
-        
-        if (sellingPrice < purchasePrice) {
-          alert(`Cannot print invoice: ${originalProduct.name} selling price (${formatCurrency(sellingPrice)}) cannot be less than purchase price (${formatCurrency(purchasePrice)}). Please adjust the price before printing.`);
-          return;
-        }
-      }
-    }
+    // Note: Purchase price validation removed - products can be sold below cost
 
     // First save the invoice to database
     setLoading(true);
     try {
       const invoiceData = {
         invoiceNumber,
+        customerName: customerName || null,
+        customerId: customerId || null,
         items: selectedProducts.map(item => ({
           productId: item._id,
           name: item.name,
@@ -667,6 +749,7 @@ export default function InvoiceTable({ products, settings = { discountPercentage
         // Clear the form after successful save and print
         setSelectedProducts([]);
         setOriginalQuantities({});
+        setCustomerName('');
         generateInvoiceNumber();
         
       } else {
@@ -889,6 +972,104 @@ function generatePlainTextReceipt() {
       console.error('Copy error:', error);
       alert('Failed to copy receipt: ' + error.message);
     }
+  };
+
+  // Handle Print Quotation - prints without saving
+  const handlePrintQuotation = () => {
+    if (selectedProducts.length === 0) {
+      alert('Please select products before printing quotation');
+      return;
+    }
+    const quotationText = generateQuotationReceipt();
+    printPlainText(quotationText);
+  };
+
+  // Quotation receipt generator (different format from invoice)
+  const generateQuotationReceipt = () => {
+    const currentDate = new Date();
+    const shopName = (settings.shopName || "Retail Shop").toUpperCase();
+    const shopAddress = settings.address || "Your Shop Address";
+    const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
+    const currentUser = getUser();
+
+    const subTotal = calculateSubtotal();
+    const discountAmt = calculateTotalDiscount();
+    const total = calculateTotal();
+
+    // ---- helpers (locked to 42 columns for 80mm) ----
+    const COLS = 42;
+    
+    const pad = (s, n, side = "end") => {
+      s = String(s);
+      const k = Math.max(n - s.length, 0);
+      return side === "start" ? " ".repeat(k) + s : s + " ".repeat(k);
+    };
+    
+    const line = (L, R) => {
+      const left = String(L).substring(0, 28);
+      const right = String(R).substring(0, 14);
+      return pad(left, 28, "end") + pad(right, 14, "start");
+    };
+    
+    const center = (t) => {
+      t = String(t);
+      const k = Math.max(Math.floor((COLS - t.length) / 2), 0);
+      return " ".repeat(k) + t;
+    };
+    
+    const sep = (ch = "-") => ch.repeat(COLS);
+
+    // ---- items block ----
+    let itemsText = "";
+    selectedProducts.forEach((item) => {
+      const price = +item.sellingPrice || 0;
+      const qty = parseInt(item.quantity) || 0;
+      const totalLine = (price * qty).toFixed(2);
+      
+      const nm = (item.name || "Unknown Item").toUpperCase();
+      const name = nm.length > 28 ? nm.slice(0, 25) + "..." : nm;
+
+      itemsText += line(name, `Rs${totalLine}`) + "\n";
+      itemsText += `  Qty: ${qty} × Rs${price.toFixed(2)}\n\n`;
+    });
+
+    // ---- quotation receipt text ----
+    return [
+      center(shopName),
+      center(shopAddress),
+      center(`Tel: ${phoneNumber}`),
+      "",
+      "=".repeat(COLS),
+      center("QUOTATION"),
+      "=".repeat(COLS),
+      "",
+      customerName ? line(`Customer: ${customerName}`, "") : "",
+      line(`Date: ${currentDate.toLocaleDateString()}`, ""),
+      line(`Time: ${currentDate.toLocaleTimeString()}`, ""),
+      line(`Prepared by: ${currentUser?.username || "Unknown"}`, ""),
+      "",
+      sep("-"),
+      line("Description", "Price"),
+      sep("-"),
+      "",
+      itemsText.trimEnd(),
+      "",
+      sep("-"),
+      line("Subtotal:", `Rs${subTotal.toFixed(2)}`),
+      line(`Discount (${settings.discountPercentage || 0}%):`, `-Rs${discountAmt.toFixed(2)}`),
+      sep("-"),
+      line("TOTAL:", `Rs${total.toFixed(2)}`),
+      "",
+      "=".repeat(COLS),
+      center("VALID FOR 7 DAYS"),
+      "=".repeat(COLS),
+      "",
+      center("This is a quotation only"),
+      center("No payment required"),
+      "",
+      center("Thank you for your interest!"),
+      ""
+    ].join("\n");
   };
 
   const generateSimplePrintContent = () => {
@@ -1406,6 +1587,67 @@ function generatePlainTextReceipt() {
               {selectedProducts.length} item{selectedProducts.length !== 1 ? 's' : ''} selected
             </div>
           </div>
+          
+          {/* Customer Selection */}
+          <div className="mb-4 relative">
+            <label htmlFor="customerSearch" className="block text-sm font-medium text-gray-700 mb-2">
+              Customer <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                id="customerSearch"
+                value={customerSearchTerm || customerName}
+                onChange={(e) => handleCustomerSearch(e.target.value)}
+                onFocus={() => setShowCustomerDropdown(true)}
+                placeholder="Search or add customer..."
+                className="input-field w-full pr-20"
+              />
+              {customerName && (
+                <button
+                  onClick={() => {
+                    setCustomerName('');
+                    setCustomerId(null);
+                    setCustomerSearchTerm('');
+                    setShowCustomerDropdown(false);
+                  }}
+                  className="absolute right-10 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-600"
+                  title="Clear customer"
+                >
+                  ✕
+                </button>
+              )}
+              <button
+                onClick={() => setShowAddCustomerModal(true)}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                title="Add new customer"
+              >
+                + Add
+              </button>
+            </div>
+            
+            {/* Customer Dropdown */}
+            {showCustomerDropdown && filteredCustomers.length > 0 && customerSearchTerm && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {filteredCustomers.map((customer) => (
+                  <div
+                    key={customer._id}
+                    onClick={() => handleCustomerSelect(customer)}
+                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                  >
+                    <div className="font-medium text-gray-900">{customer.name}</div>
+                    {customer.phone && (
+                      <div className="text-sm text-gray-500">Phone: {customer.phone}</div>
+                    )}
+                    {customer.email && (
+                      <div className="text-sm text-gray-500">Email: {customer.email}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {selectedProducts.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No products selected</p>
           ) : (
@@ -1516,7 +1758,7 @@ function generatePlainTextReceipt() {
               </div>
 
               {/* Actions */}
-              <div className="flex space-x-3 pt-4 sticky bottom-0 bg-white">
+              <div className="flex flex-wrap gap-2 pt-4 sticky bottom-0 bg-white">
                 <button
                   onClick={handleGenerateInvoice}
                   disabled={loading || selectedProducts.length === 0}
@@ -1531,14 +1773,13 @@ function generatePlainTextReceipt() {
                 >
                   Save to Queue
                 </button>
-                {/* <button
-                  onClick={handlePreviewInvoice}
+                <button
+                  onClick={handlePrintQuotation}
                   disabled={selectedProducts.length === 0}
-                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  👁️ Preview Receipt
-                </button> */}
-
+                  📄 Print & Quotation
+                </button>
                 <button
                   onClick={handlePrint}
                   disabled={selectedProducts.length === 0 || loading}
@@ -1551,6 +1792,83 @@ function generatePlainTextReceipt() {
           )}
         </div>
       </div>
+
+      {/* Add Customer Modal */}
+      {showAddCustomerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowAddCustomerModal(false)}>
+          <div className="bg-white rounded-lg p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold mb-4">Add New Customer</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Name *
+                </label>
+                <input
+                  type="text"
+                  value={newCustomerData.name}
+                  onChange={(e) => setNewCustomerData({ ...newCustomerData, name: e.target.value })}
+                  required
+                  className="input-field w-full"
+                  placeholder="Enter customer name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone
+                </label>
+                <input
+                  type="text"
+                  value={newCustomerData.phone}
+                  onChange={(e) => setNewCustomerData({ ...newCustomerData, phone: e.target.value })}
+                  className="input-field w-full"
+                  placeholder="Enter phone number"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={newCustomerData.email}
+                  onChange={(e) => setNewCustomerData({ ...newCustomerData, email: e.target.value })}
+                  className="input-field w-full"
+                  placeholder="Enter email address"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Address
+                </label>
+                <textarea
+                  value={newCustomerData.address}
+                  onChange={(e) => setNewCustomerData({ ...newCustomerData, address: e.target.value })}
+                  rows="3"
+                  className="input-field w-full"
+                  placeholder="Enter address"
+                />
+              </div>
+            </div>
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={handleAddNewCustomer}
+                className="btn-primary flex-1"
+              >
+                Add Customer
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddCustomerModal(false);
+                  setNewCustomerData({ name: '', phone: '', address: '', email: '' });
+                }}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

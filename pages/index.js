@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '../components/Layout';
 import Link from 'next/link';
-import { apiRequest } from '../lib/auth';
+import { apiRequest, getUser } from '../lib/auth';
 import { formatCurrency } from '../lib/currency';
+import { hasPermission } from '../lib/permissions';
 
 export default function Dashboard() {
+  const router = useRouter();
   const [stats, setStats] = useState({
     totalProducts: 0,
     lowStock: 0,
@@ -41,10 +44,18 @@ export default function Dashboard() {
   const [isLoadingCharts, setIsLoadingCharts] = useState(true);
 
   useEffect(() => {
+    // Check if user has permission to view dashboard
+    const user = getUser();
+    if (user && !hasPermission(user.role, 'canViewDashboard')) {
+      // Redirect to invoice generation page
+      router.push('/invoices/generate');
+      return;
+    }
+    
     fetchSettings();
     fetchStats();
     fetchRecentActivity();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     fetchChartData();
