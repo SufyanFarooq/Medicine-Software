@@ -74,9 +74,26 @@ export default function InvoiceTable({ products, settings = { discountPercentage
       );
       setFilteredCustomers(filtered);
     } else {
+      // Show all customers when no search term
       setFilteredCustomers(customers);
     }
   }, [customerSearchTerm, customers]);
+
+  // Close customer dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showCustomerDropdown && !event.target.closest('.customer-dropdown-container')) {
+        setShowCustomerDropdown(false);
+      }
+    };
+
+    if (showCustomerDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showCustomerDropdown]);
 
   const handleCustomerSelect = (customer) => {
     setCustomerName(customer.name);
@@ -91,6 +108,8 @@ export default function InvoiceTable({ products, settings = { discountPercentage
     if (!value.trim()) {
       setCustomerName('');
       setCustomerId(null);
+      // Show all customers when search is cleared
+      setFilteredCustomers(customers);
     }
   };
 
@@ -974,102 +993,460 @@ function generatePlainTextReceipt() {
     }
   };
 
-  // Handle Print Quotation - prints without saving
+  // Handle Print Quotation - A4 Format
   const handlePrintQuotation = () => {
     if (selectedProducts.length === 0) {
       alert('Please select products before printing quotation');
       return;
     }
-    const quotationText = generateQuotationReceipt();
-    printPlainText(quotationText);
+    printQuotationA4();
   };
 
-  // Quotation receipt generator (different format from invoice)
-  const generateQuotationReceipt = () => {
+  // Print Quotation in A4 Format
+  const printQuotationA4 = () => {
     const currentDate = new Date();
-    const shopName = (settings.shopName || "Retail Shop").toUpperCase();
+    const shopName = settings.shopName || "Medical Shop";
     const shopAddress = settings.address || "Your Shop Address";
     const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
+    const email = settings.email || "";
+    const logo = settings.logo || null;
     const currentUser = getUser();
 
+    // Calculate totals
     const subTotal = calculateSubtotal();
     const discountAmt = calculateTotalDiscount();
     const total = calculateTotal();
 
-    // ---- helpers (locked to 42 columns for 80mm) ----
-    const COLS = 42;
-    
-    const pad = (s, n, side = "end") => {
-      s = String(s);
-      const k = Math.max(n - s.length, 0);
-      return side === "start" ? " ".repeat(k) + s : s + " ".repeat(k);
-    };
-    
-    const line = (L, R) => {
-      const left = String(L).substring(0, 28);
-      const right = String(R).substring(0, 14);
-      return pad(left, 28, "end") + pad(right, 14, "start");
-    };
-    
-    const center = (t) => {
-      t = String(t);
-      const k = Math.max(Math.floor((COLS - t.length) / 2), 0);
-      return " ".repeat(k) + t;
-    };
-    
-    const sep = (ch = "-") => ch.repeat(COLS);
-
-    // ---- items block ----
-    let itemsText = "";
-    selectedProducts.forEach((item) => {
-      const price = +item.sellingPrice || 0;
-      const qty = parseInt(item.quantity) || 0;
-      const totalLine = (price * qty).toFixed(2);
-      
-      const nm = (item.name || "Unknown Item").toUpperCase();
-      const name = nm.length > 28 ? nm.slice(0, 25) + "..." : nm;
-
-      itemsText += line(name, `Rs${totalLine}`) + "\n";
-      itemsText += `  Qty: ${qty} × Rs${price.toFixed(2)}\n\n`;
+    // Format date and time
+    const formattedDate = currentDate.toLocaleDateString('en-GB', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+    const formattedTime = currentDate.toLocaleTimeString('en-GB', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
     });
 
-    // ---- quotation receipt text ----
-    return [
-      center(shopName),
-      center(shopAddress),
-      center(`Tel: ${phoneNumber}`),
-      "",
-      "=".repeat(COLS),
-      center("QUOTATION"),
-      "=".repeat(COLS),
-      "",
-      customerName ? line(`Customer: ${customerName}`, "") : "",
-      line(`Date: ${currentDate.toLocaleDateString()}`, ""),
-      line(`Time: ${currentDate.toLocaleTimeString()}`, ""),
-      line(`Prepared by: ${currentUser?.username || "Unknown"}`, ""),
-      "",
-      sep("-"),
-      line("Description", "Price"),
-      sep("-"),
-      "",
-      itemsText.trimEnd(),
-      "",
-      sep("-"),
-      line("Subtotal:", `Rs${subTotal.toFixed(2)}`),
-      line(`Discount (${settings.discountPercentage || 0}%):`, `-Rs${discountAmt.toFixed(2)}`),
-      sep("-"),
-      line("TOTAL:", `Rs${total.toFixed(2)}`),
-      "",
-      "=".repeat(COLS),
-      center("VALID FOR 7 DAYS"),
-      "=".repeat(COLS),
-      "",
-      center("This is a quotation only"),
-      center("No payment required"),
-      "",
-      center("Thank you for your interest!"),
-      ""
-    ].join("\n");
+    // Generate quotation number
+    const quotationNumber = `QT${Date.now().toString().slice(-8)}${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
+
+    // Build items table rows
+    const itemsRows = selectedProducts.map((item, index) => {
+      const sellingPrice = parseFloat(item.sellingPrice) || parseFloat(item.price) || 0;
+      const quantity = parseInt(item.quantity) || 0;
+      const itemTotal = sellingPrice * quantity;
+      
+      return `
+        <tr>
+          <td style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">${index + 1}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.name || item.code || 'N/A'}</td>
+          <td style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">${quantity}</td>
+          <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Rs ${sellingPrice.toFixed(2)}</td>
+          <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Rs ${itemTotal.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Enhanced HTML wrapper with A4 format styling for Quotation
+    const printContent = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Quotation - ${quotationNumber}</title>
+        <style>
+          @media print {
+            @page { 
+              size: A4;
+              margin: 15mm;
+            }
+            .no-print { display: none !important; }
+            body { 
+              background: white !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            .quotation-container {
+              box-shadow: none !important;
+              border: none !important;
+            }
+          }
+          * { 
+            -webkit-print-color-adjust: exact; 
+            print-color-adjust: exact; 
+          }
+          html, body {
+            margin: 0; 
+            padding: 0;
+            background: #fff; 
+            color: #000;
+            font-family: 'Arial', 'Helvetica', sans-serif;
+          }
+          body {
+            padding: 20px;
+            background: #f5f5f5;
+          }
+          .quotation-container {
+            max-width: 210mm;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+          }
+          .header {
+            border-bottom: 3px solid #0066cc;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+          }
+          .logo-container {
+            flex-shrink: 0;
+          }
+          .logo-container img {
+            max-width: 120px;
+            max-height: 120px;
+            object-fit: contain;
+          }
+          .header-content {
+            flex: 1;
+          }
+          .company-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #0066cc;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+          }
+          .company-details {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+          }
+          .quotation-title {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 30px 0;
+            color: #0066cc;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border: 2px solid #0066cc;
+            padding: 15px;
+            background: #f0f7ff;
+          }
+          .quotation-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            border-left: 4px solid #0066cc;
+          }
+          .info-left, .info-right {
+            flex: 1;
+          }
+          .info-label {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 12px;
+          }
+          .info-value {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+          }
+          .customer-info {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f0f7ff;
+            border-left: 4px solid #0066cc;
+            border-radius: 5px;
+          }
+          .customer-label {
+            font-weight: bold;
+            color: #0066cc;
+            margin-bottom: 8px;
+            font-size: 14px;
+          }
+          .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+          }
+          .items-table th {
+            background: #0066cc;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 13px;
+            text-transform: uppercase;
+          }
+          .items-table th:first-child {
+            text-align: center;
+            width: 50px;
+          }
+          .items-table th:nth-child(3),
+          .items-table td:nth-child(3) {
+            text-align: center;
+            width: 80px;
+          }
+          .items-table th:nth-child(4),
+          .items-table td:nth-child(4),
+          .items-table th:nth-child(5),
+          .items-table td:nth-child(5) {
+            text-align: right;
+            width: 120px;
+          }
+          .items-table td {
+            padding: 10px 8px;
+            font-size: 13px;
+          }
+          .items-table tbody tr:hover {
+            background: #f5f5f5;
+          }
+          .totals-section {
+            margin-top: 30px;
+            margin-left: auto;
+            width: 400px;
+          }
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #ddd;
+            font-size: 14px;
+          }
+          .total-row.total-final {
+            border-top: 2px solid #0066cc;
+            border-bottom: 2px solid #0066cc;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 15px 0;
+            margin-top: 10px;
+            color: #0066cc;
+          }
+          .total-label {
+            font-weight: bold;
+            color: #333;
+          }
+          .total-value {
+            color: #333;
+          }
+          .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 2px solid #0066cc;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+          }
+          .validity-notice {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            text-align: center;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-weight: bold;
+            color: #856404;
+            font-size: 16px;
+          }
+          .quotation-note {
+            background: #e7f3ff;
+            border-left: 4px solid #0066cc;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-size: 13px;
+            color: #004085;
+          }
+          .thank-you {
+            font-size: 18px;
+            font-weight: bold;
+            color: #0066cc;
+            margin: 20px 0;
+            text-transform: uppercase;
+          }
+          .print-button {
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            z-index: 1000;
+            background: #28a745; 
+            color: white; 
+            border: none; 
+            padding: 12px 24px;
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2); 
+            transition: all 0.3s ease;
+          }
+          .print-button:hover { 
+            background: #218838; 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+          }
+          .close-button {
+            position: fixed; 
+            top: 20px; 
+            right: 140px; 
+            z-index: 1000;
+            background: #dc3545; 
+            color: white; 
+            border: none; 
+            padding: 12px 24px;
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2); 
+            transition: all 0.3s ease;
+          }
+          .close-button:hover { 
+            background: #c82333; 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+          }
+          .info-text {
+            text-align: center; 
+            color: #666; 
+            margin: 20px 0; 
+            font-size: 12px;
+          }
+        </style>
+      </head>
+      <body>
+        <button class="print-button no-print" onclick="window.print()">🖨️ Print Quotation</button>
+        <button class="close-button no-print" onclick="window.close()">❌ Close</button>
+        
+        <div class="info-text no-print">
+          <strong>📄 Quotation Preview - A4 Format</strong><br>
+          Quotation: ${quotationNumber} | Date: ${formattedDate}<br>
+          <span style="color: #28a745; font-weight: bold;">🖨️ Click the Green Print Button to Print</span><br>
+          <span style="color: #666; font-size: 11px;">Or use Ctrl+P (Cmd+P on Mac) to print</span>
+        </div>
+        
+        <div class="quotation-container">
+          <div class="header">
+            ${logo ? `
+              <div class="logo-container">
+                <img src="${logo}" alt="${shopName} Logo" />
+              </div>
+            ` : ''}
+            <div class="header-content">
+              <div class="company-name">${shopName}</div>
+              <div class="company-details">
+                ${shopAddress}<br>
+                ${phoneNumber ? `Tel: ${phoneNumber}` : ''}${email ? ` | Email: ${email}` : ''}
+              </div>
+            </div>
+          </div>
+          
+          <div class="quotation-title">Quotation</div>
+          
+          <div class="quotation-info">
+            <div class="info-left">
+              <div class="info-label">Quotation Number:</div>
+              <div class="info-value">${quotationNumber}</div>
+              <div class="info-label">Date:</div>
+              <div class="info-value">${formattedDate}</div>
+              <div class="info-label">Time:</div>
+              <div class="info-value">${formattedTime}</div>
+            </div>
+            <div class="info-right">
+              <div class="info-label">Prepared by:</div>
+              <div class="info-value">${currentUser?.username || "Unknown"}</div>
+              ${customerName ? `
+                <div class="info-label">Customer:</div>
+                <div class="info-value">${customerName}</div>
+              ` : ''}
+            </div>
+          </div>
+          
+          ${customerName ? `
+            <div class="customer-info">
+              <div class="customer-label">Customer Details:</div>
+              <div class="info-value">${customerName}</div>
+            </div>
+          ` : ''}
+          
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>S.No.</th>
+                <th>Description</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsRows}
+            </tbody>
+          </table>
+          
+          <div class="totals-section">
+            <div class="total-row">
+              <span class="total-label">Subtotal:</span>
+              <span class="total-value">Rs ${subTotal.toFixed(2)}</span>
+            </div>
+            ${discountAmt > 0 ? `
+              <div class="total-row">
+                <span class="total-label">Discount (${settings.discountPercentage || 0}%):</span>
+                <span class="total-value">- Rs ${discountAmt.toFixed(2)}</span>
+              </div>
+            ` : ''}
+            <div class="total-row total-final">
+              <span class="total-label">Total Amount:</span>
+              <span class="total-value">Rs ${total.toFixed(2)}</span>
+            </div>
+          </div>
+          
+          <div class="validity-notice">
+            ⏰ This quotation is valid for 7 days from the date of issue
+          </div>
+          
+          <div class="quotation-note">
+            <strong>Note:</strong> This is a quotation only. No payment is required at this stage. 
+            Prices and availability are subject to change without notice. 
+            Please contact us to confirm your order.
+          </div>
+          
+          <div class="footer">
+            <div class="thank-you">Thank You for Your Interest!</div>
+            <div>This is a computer generated quotation.</div>
+            <div style="margin-top: 10px;">Powered by Codebridge | Contact: +92 308 2283845</div>
+          </div>
+        </div>
+        
+        <script>
+          // No auto-print - let user control when to print
+          // User can click the print button or use Ctrl+P
+        </script>
+      </body>
+    </html>`;
+
+    // Open print window with modern approach
+    const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+    if (printWindow) {
+      printWindow.document.open();
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      
+      // Wait for content to load then focus the window
+      printWindow.onload = () => {
+        printWindow.focus();
+        // No auto-print - let user control when to print
+      };
+    }
   };
 
   const generateSimplePrintContent = () => {
@@ -1188,6 +1565,8 @@ function generatePlainTextReceipt() {
     const shopName = settings.shopName || "Medical Shop";
     const shopAddress = settings.address || "Your Shop Address";
     const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
+    const email = settings.email || "";
+    const logo = settings.logo || null;
     const currentUser = getUser();
 
     // Calculate totals
@@ -1195,160 +1574,248 @@ function generatePlainTextReceipt() {
     const discountAmt = calculateTotalDiscount();
     const total = calculateTotal();
 
-    // Helper functions for proper 42-column formatting
-    const COLS = 42;
-    const center = (text) => {
-      const padding = Math.max(0, Math.floor((COLS - text.length) / 2));
-      return ' '.repeat(padding) + text;
-    };
-    const repeat = (char) => char.repeat(COLS);
-    const line = (left, right) => {
-      const leftText = String(left).substring(0, 28);
-      const rightText = String(right).substring(0, 14);
-      return leftText.padEnd(28) + rightText.padStart(14);
-    };
+    // Format date and time
+    const formattedDate = currentDate.toLocaleDateString('en-GB', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+    const formattedTime = currentDate.toLocaleTimeString('en-GB', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
 
-    // Build items block with proper formatting and spacing
-    const itemsBlock = selectedProducts.map(item => {
-      // Ensure we have valid price values with fallbacks
+    // Build items table rows
+    const itemsRows = selectedProducts.map((item, index) => {
       const sellingPrice = parseFloat(item.sellingPrice) || parseFloat(item.price) || 0;
       const quantity = parseInt(item.quantity) || 0;
       const itemTotal = sellingPrice * quantity;
       
-      // Use proper 42-column formatting with Rs currency
-      const itemName = (item.name || 'Unknown Item').substring(0, 28);
-      const priceStr = `Rs${itemTotal.toFixed(2)}`;
-      const qtyStr = `Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}`;
-      
-      return [
-        line(itemName, priceStr),
-        `  ${qtyStr}`,
-        ""  // Add empty line for spacing between items
-      ].join('\n');
-    }).join('\n');
+      return `
+        <tr>
+          <td style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">${index + 1}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.name || item.code || 'N/A'}</td>
+          <td style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">${quantity}</td>
+          <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Rs ${sellingPrice.toFixed(2)}</td>
+          <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Rs ${itemTotal.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
 
-    // Build a professional receipt body with strict 42-column layout
-    const receiptText = [
-      center(shopName.toUpperCase()),
-      center(shopAddress),
-      center(`Tel: ${phoneNumber}`),
-      "",
-      repeat("*"),
-      center("CASH RECEIPT"),
-      repeat("*"),
-      "",
-      `Invoice: ${invoiceNumber}`,
-      `Date: ${currentDate.toLocaleDateString()}`,
-      `Time: ${currentDate.toLocaleTimeString()}`,
-      `Cashier: ${currentUser?.username || "Unknown"}`,
-      "",
-      repeat("-"),
-      "Description                    Price",
-      repeat("-"),
-      "",
-      itemsBlock,
-      repeat("-"),
-      line("Subtotal:", `Rs${subTotal.toFixed(2)}`),
-      line(`Discount (${settings.discountPercentage || 0}%):`, `-Rs${discountAmt.toFixed(2)}`),
-      repeat("-"),
-      line("TOTAL:", `Rs${total.toFixed(2)}`),
-      "",
-      line("Cash:", `Rs${total.toFixed(2)}`),
-      line("Change:", `Rs0.00`),
-      "",
-      repeat("*"),
-      center("THANK YOU!"),
-      repeat("*"),
-      "",
-      center("Powered by Codebridge"),
-      center("Contact: +92 308 2283845"),
-    ].join('\n');
-
-
-
-  // Enhanced HTML wrapper with print button and better styling
+  // Enhanced HTML wrapper with A4 format styling
   const printContent = `
   <!doctype html>
   <html>
     <head>
       <meta charset="utf-8" />
-      <title>Receipt - ${invoiceNumber}</title>
+      <title>Invoice - ${invoiceNumber}</title>
       <style>
         @media print {
           @page { 
-            size: 76mm auto; 
-            margin: 2mm; 
+            size: A4;
+            margin: 15mm;
           }
           .no-print { display: none !important; }
           body { 
-            background: white !important; 
-            color: black !important;
-            font-size: 11px !important;
-            line-height: 1.2 !important;
+            background: white !important;
             margin: 0 !important;
             padding: 0 !important;
           }
-          .receipt-container {
-            border: none !important;
+          .invoice-container {
             box-shadow: none !important;
-            padding: 3mm !important;
-            width: 74mm !important;
-            margin: 0 !important;
-            background: white !important;
-          }
-          pre {
-            font-family: "Courier New", "Lucida Console", "Monaco", monospace !important;
-            font-size: 11px !important;
-            line-height: 1.2 !important;
-            white-space: pre !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            color: #000000 !important;
-            background: white !important;
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            font-weight: bold !important;
-          }
-          * {
-            color: black !important;
-            background: white !important;
+            border: none !important;
           }
         }
-        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        * { 
+          -webkit-print-color-adjust: exact; 
+          print-color-adjust: exact; 
+        }
         html, body {
-          margin: 0; padding: 0;
-          background: #fff; color: #000;
+          margin: 0; 
+          padding: 0;
+          background: #fff; 
+          color: #000;
+          font-family: 'Arial', 'Helvetica', sans-serif;
         }
         body {
-          width: 100%; max-width: 800px; margin: 0 auto; padding: 20px;
-          font-family: "Courier New", "Lucida Console", "Monaco", monospace;
-          font-size: 12px; line-height: 1.2;
-          text-rendering: optimizeLegibility;
-          background: #f8f9fa;
+          padding: 20px;
+          background: #f5f5f5;
         }
-        .receipt-container {
-          width: 76mm; margin: 0 auto; padding: 6px 6px 10px 6px;
-          border: 2px solid #333; background: #fff;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-          font-family: "Courier New", "Lucida Console", "Monaco", monospace;
-          font-size: 11px; line-height: 1.2;
-          color: #000000;
+        .invoice-container {
+          max-width: 210mm;
+          margin: 0 auto;
+          background: white;
+          padding: 30px;
+          box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
-        pre {
-          margin: 0;
-          white-space: pre-wrap;
-          word-wrap: break-word;
-          color: #000000;
+        .header {
+          border-bottom: 3px solid #333;
+          padding-bottom: 20px;
+          margin-bottom: 30px;
+          display: flex;
+          align-items: flex-start;
+          gap: 20px;
+        }
+        .logo-container {
+          flex-shrink: 0;
+        }
+        .logo-container img {
+          max-width: 120px;
+          max-height: 120px;
+          object-fit: contain;
+        }
+        .header-content {
+          flex: 1;
+        }
+        .company-name {
+          font-size: 28px;
           font-weight: bold;
-          font-size: 11px;
-          line-height: 1.2;
+          color: #333;
+          margin-bottom: 10px;
+          text-transform: uppercase;
+        }
+        .company-details {
+          font-size: 12px;
+          color: #666;
+          line-height: 1.6;
+        }
+        .invoice-title {
+          text-align: center;
+          font-size: 24px;
+          font-weight: bold;
+          margin: 30px 0;
+          color: #333;
+          text-transform: uppercase;
+          letter-spacing: 2px;
+        }
+        .invoice-info {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 30px;
+          padding: 20px;
+          background: #f9f9f9;
+          border-radius: 5px;
+        }
+        .info-left, .info-right {
+          flex: 1;
+        }
+        .info-label {
+          font-weight: bold;
+          color: #333;
+          margin-bottom: 5px;
+          font-size: 12px;
+        }
+        .info-value {
+          color: #666;
+          font-size: 14px;
+          margin-bottom: 10px;
+        }
+        .customer-info {
+          margin-bottom: 20px;
+          padding: 15px;
+          background: #f9f9f9;
+          border-left: 4px solid #333;
+        }
+        .customer-label {
+          font-weight: bold;
+          color: #333;
+          margin-bottom: 8px;
+          font-size: 14px;
+        }
+        .items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 20px 0;
+        }
+        .items-table th {
+          background: #333;
+          color: white;
+          padding: 12px;
+          text-align: left;
+          font-weight: bold;
+          font-size: 13px;
+          text-transform: uppercase;
+        }
+        .items-table th:first-child {
+          text-align: center;
+          width: 50px;
+        }
+        .items-table th:nth-child(3),
+        .items-table td:nth-child(3) {
+          text-align: center;
+          width: 80px;
+        }
+        .items-table th:nth-child(4),
+        .items-table td:nth-child(4),
+        .items-table th:nth-child(5),
+        .items-table td:nth-child(5) {
+          text-align: right;
+          width: 120px;
+        }
+        .items-table td {
+          padding: 10px 8px;
+          font-size: 13px;
+        }
+        .items-table tbody tr:hover {
+          background: #f5f5f5;
+        }
+        .totals-section {
+          margin-top: 30px;
+          margin-left: auto;
+          width: 400px;
+        }
+        .total-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 10px 0;
+          border-bottom: 1px solid #ddd;
+          font-size: 14px;
+        }
+        .total-row.total-final {
+          border-top: 2px solid #333;
+          border-bottom: 2px solid #333;
+          font-size: 18px;
+          font-weight: bold;
+          padding: 15px 0;
+          margin-top: 10px;
+        }
+        .total-label {
+          font-weight: bold;
+          color: #333;
+        }
+        .total-value {
+          color: #333;
+        }
+        .footer {
+          margin-top: 50px;
+          padding-top: 20px;
+          border-top: 2px solid #ddd;
+          text-align: center;
+          color: #666;
+          font-size: 12px;
+        }
+        .thank-you {
+          font-size: 18px;
+          font-weight: bold;
+          color: #333;
+          margin: 20px 0;
+          text-transform: uppercase;
         }
         .print-button {
-          position: fixed; top: 20px; right: 20px; z-index: 1000;
-          background: #28a745; color: white; border: none; padding: 12px 24px;
-          border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: all 0.3s ease;
+          position: fixed; 
+          top: 20px; 
+          right: 20px; 
+          z-index: 1000;
+          background: #28a745; 
+          color: white; 
+          border: none; 
+          padding: 12px 24px;
+          border-radius: 8px; 
+          cursor: pointer; 
+          font-size: 16px; 
+          font-weight: bold;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.2); 
+          transition: all 0.3s ease;
         }
         .print-button:hover { 
           background: #218838; 
@@ -1356,10 +1823,20 @@ function generatePlainTextReceipt() {
           box-shadow: 0 6px 12px rgba(0,0,0,0.3);
         }
         .close-button {
-          position: fixed; top: 20px; right: 140px; z-index: 1000;
-          background: #dc3545; color: white; border: none; padding: 12px 24px;
-          border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: all 0.3s ease;
+          position: fixed; 
+          top: 20px; 
+          right: 140px; 
+          z-index: 1000;
+          background: #dc3545; 
+          color: white; 
+          border: none; 
+          padding: 12px 24px;
+          border-radius: 8px; 
+          cursor: pointer; 
+          font-size: 16px; 
+          font-weight: bold;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.2); 
+          transition: all 0.3s ease;
         }
         .close-button:hover { 
           background: #c82333; 
@@ -1367,23 +1844,98 @@ function generatePlainTextReceipt() {
           box-shadow: 0 6px 12px rgba(0,0,0,0.3);
         }
         .info-text {
-          text-align: center; color: #666; margin: 20px 0; font-size: 12px;
+          text-align: center; 
+          color: #666; 
+          margin: 20px 0; 
+          font-size: 12px;
         }
       </style>
     </head>
     <body>
-      <button class="print-button no-print" onclick="window.print()">🖨️ Print Receipt</button>
+      <button class="print-button no-print" onclick="window.print()">🖨️ Print Invoice</button>
       <button class="close-button no-print" onclick="window.close()">❌ Close</button>
       
       <div class="info-text no-print">
-        <strong>📄 Receipt Preview</strong><br>
-        Invoice: ${invoiceNumber} | Date: ${new Date().toLocaleDateString()}<br>
+        <strong>📄 Invoice Preview - A4 Format</strong><br>
+        Invoice: ${invoiceNumber} | Date: ${formattedDate}<br>
         <span style="color: #28a745; font-weight: bold;">🖨️ Click the Green Print Button to Print</span><br>
         <span style="color: #666; font-size: 11px;">Or use Ctrl+P (Cmd+P on Mac) to print</span>
       </div>
       
-      <div class="receipt-container">
-        <pre>${receiptText}</pre>
+      <div class="invoice-container">
+        <div class="header">
+          ${logo ? `
+            <div class="logo-container">
+              <img src="${logo}" alt="${shopName} Logo" />
+            </div>
+          ` : ''}
+          <div class="header-content">
+            <div class="company-name">${shopName}</div>
+            <div class="company-details">
+              ${shopAddress}<br>
+              ${phoneNumber ? `Tel: ${phoneNumber}` : ''}${email ? ` | Email: ${email}` : ''}
+            </div>
+          </div>
+        </div>
+        
+        <div class="invoice-title">Tax Invoice</div>
+        
+        <div class="invoice-info">
+          <div class="info-left">
+            <div class="info-label">Invoice Number:</div>
+            <div class="info-value">${invoiceNumber}</div>
+            <div class="info-label">Date:</div>
+            <div class="info-value">${formattedDate}</div>
+            <div class="info-label">Time:</div>
+            <div class="info-value">${formattedTime}</div>
+          </div>
+          <div class="info-right">
+            <div class="info-label">Cashier:</div>
+            <div class="info-value">${currentUser?.username || "Unknown"}</div>
+            ${customerName ? `
+              <div class="info-label">Customer:</div>
+              <div class="info-value">${customerName}</div>
+            ` : ''}
+          </div>
+        </div>
+        
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>S.No.</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit Price</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsRows}
+          </tbody>
+        </table>
+        
+        <div class="totals-section">
+          <div class="total-row">
+            <span class="total-label">Subtotal:</span>
+            <span class="total-value">Rs ${subTotal.toFixed(2)}</span>
+          </div>
+          ${discountAmt > 0 ? `
+            <div class="total-row">
+              <span class="total-label">Discount (${settings.discountPercentage || 0}%):</span>
+              <span class="total-value">- Rs ${discountAmt.toFixed(2)}</span>
+            </div>
+          ` : ''}
+          <div class="total-row total-final">
+            <span class="total-label">Total Amount:</span>
+            <span class="total-value">Rs ${total.toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <div class="thank-you">Thank You for Your Business!</div>
+          <div>This is a computer generated invoice.</div>
+          <div style="margin-top: 10px;">Powered by Codebridge | Contact: +92 308 2283845</div>
+        </div>
       </div>
       
       <script>
@@ -1589,7 +2141,7 @@ function generatePlainTextReceipt() {
           </div>
           
           {/* Customer Selection */}
-          <div className="mb-4 relative">
+          <div className="mb-4 relative customer-dropdown-container">
             <label htmlFor="customerSearch" className="block text-sm font-medium text-gray-700 mb-2">
               Customer <span className="text-red-500">*</span>
             </label>
@@ -1601,25 +2153,29 @@ function generatePlainTextReceipt() {
                 onChange={(e) => handleCustomerSearch(e.target.value)}
                 onFocus={() => setShowCustomerDropdown(true)}
                 placeholder="Search or add customer..."
-                className="input-field w-full pr-20"
+                className={`input-field w-full ${customerName ? 'pr-24' : 'pr-20'}`}
               />
               {customerName && (
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setCustomerName('');
                     setCustomerId(null);
                     setCustomerSearchTerm('');
                     setShowCustomerDropdown(false);
                   }}
-                  className="absolute right-10 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-600"
+                  className="absolute right-16 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-600 text-lg w-6 h-6 flex items-center justify-center"
                   title="Clear customer"
                 >
                   ✕
                 </button>
               )}
               <button
-                onClick={() => setShowAddCustomerModal(true)}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowAddCustomerModal(true);
+                }}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-blue-600 hover:text-blue-800 text-sm font-medium px-2 py-1"
                 title="Add new customer"
               >
                 + Add
@@ -1627,23 +2183,29 @@ function generatePlainTextReceipt() {
             </div>
             
             {/* Customer Dropdown */}
-            {showCustomerDropdown && filteredCustomers.length > 0 && customerSearchTerm && (
+            {showCustomerDropdown && filteredCustomers.length > 0 && (
               <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                {filteredCustomers.map((customer) => (
-                  <div
-                    key={customer._id}
-                    onClick={() => handleCustomerSelect(customer)}
-                    className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                  >
-                    <div className="font-medium text-gray-900">{customer.name}</div>
-                    {customer.phone && (
-                      <div className="text-sm text-gray-500">Phone: {customer.phone}</div>
-                    )}
-                    {customer.email && (
-                      <div className="text-sm text-gray-500">Email: {customer.email}</div>
-                    )}
+                {filteredCustomers.length === 0 ? (
+                  <div className="p-3 text-sm text-gray-500 text-center">
+                    No customers found
                   </div>
-                ))}
+                ) : (
+                  filteredCustomers.map((customer) => (
+                    <div
+                      key={customer._id}
+                      onClick={() => handleCustomerSelect(customer)}
+                      className="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="font-medium text-gray-900">{customer.name}</div>
+                      {customer.phone && (
+                        <div className="text-sm text-gray-500">Phone: {customer.phone}</div>
+                      )}
+                      {customer.email && (
+                        <div className="text-sm text-gray-500">Email: {customer.email}</div>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>

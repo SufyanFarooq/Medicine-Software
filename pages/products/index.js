@@ -10,11 +10,28 @@ export default function Products() {
   const [searchTerm, setSearchTerm] = useState('');
   const [topSellingItems, setTopSellingItems] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   useEffect(() => {
     fetchProducts();
     fetchTopSellingItems();
   }, []);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openMenuId && !event.target.closest('.action-menu-container') && !event.target.closest('.action-menu')) {
+        setOpenMenuId(null);
+      }
+    };
+
+    if (openMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [openMenuId]);
 
   const fetchProducts = async () => {
     try {
@@ -291,7 +308,7 @@ export default function Products() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="table-header">Name</th>
@@ -306,8 +323,16 @@ export default function Products() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredProducts.map((product) => (
                     <tr key={product._id} className="hover:bg-gray-50">
-                      <td className="table-cell font-medium">{product.name}</td>
-                      <td className="table-cell">{product.code}</td>
+                      <td className="table-cell font-medium max-w-xs">
+                        <div className="truncate" title={product.name}>
+                          {product.name}
+                        </div>
+                      </td>
+                      <td className="table-cell max-w-xs">
+                        <div className="truncate" title={product.code}>
+                          {product.code}
+                        </div>
+                      </td>
                       <td className="table-cell">
                         <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                           product.quantity <= 10 
@@ -324,29 +349,51 @@ export default function Products() {
                       <td className="table-cell">
                         {new Date(product.expiryDate).toLocaleDateString()}
                       </td>
-                      <td className="table-cell">
-                        <div className="flex space-x-3">
-                          <Link
-                            href={`/products/${product._id}`}
-                            className="text-blue-600 hover:text-blue-900 text-lg cursor-pointer transition-colors duration-200"
-                            title="View Details"
-                          >
-                            👁️
-                          </Link>
-                          <Link
-                            href={`/products/${product._id}/edit`}
-                            className="text-green-600 hover:text-green-900 text-lg cursor-pointer transition-colors duration-200"
-                            title="Edit Product"
-                          >
-                            ✏️
-                          </Link>
+                      <td className="table-cell relative">
+                        <div className="relative action-menu-container">
                           <button
-                            onClick={() => handleDelete(product._id)}
-                            className="text-red-600 hover:text-red-900 text-lg cursor-pointer transition-colors duration-200"
-                            title="Delete Product"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(openMenuId === product._id ? null : product._id);
+                            }}
+                            className="text-gray-600 hover:text-gray-900 text-xl cursor-pointer transition-colors duration-200 focus:outline-none px-2 py-1"
+                            title="Actions"
                           >
-                            🗑️
+                            ⋮
                           </button>
+                          {openMenuId === product._id && (
+                            <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200 action-menu">
+                              <div className="py-1">
+                                <Link
+                                  href={`/products/${product._id}`}
+                                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center cursor-pointer"
+                                  onClick={() => setOpenMenuId(null)}
+                                >
+                                  <span className="mr-2">👁️</span>
+                                  View Product
+                                </Link>
+                                <Link
+                                  href={`/products/${product._id}/edit`}
+                                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center cursor-pointer"
+                                  onClick={() => setOpenMenuId(null)}
+                                >
+                                  <span className="mr-2">✏️</span>
+                                  Edit Product
+                                </Link>
+                                <button
+                                  onClick={() => {
+                                    setOpenMenuId(null);
+                                    handleDelete(product._id);
+                                  }}
+                                  className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center cursor-pointer"
+                                  type="button"
+                                >
+                                  <span className="mr-2">🗑️</span>
+                                  Delete Product
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -365,6 +412,60 @@ export default function Products() {
         }
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
+        }
+        .table-cell {
+          max-width: 200px;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+        }
+        table {
+          table-layout: fixed;
+          width: 100%;
+        }
+        table th:first-child,
+        table td:first-child {
+          width: 25%;
+        }
+        table th:nth-child(2),
+        table td:nth-child(2) {
+          width: 12%;
+        }
+        table th:nth-child(3),
+        table td:nth-child(3) {
+          width: 10%;
+        }
+        table th:nth-child(4),
+        table td:nth-child(4),
+        table th:nth-child(5),
+        table td:nth-child(5) {
+          width: 12%;
+        }
+        table th:nth-child(6),
+        table td:nth-child(6) {
+          width: 12%;
+        }
+        table th:last-child,
+        table td:last-child {
+          width: 8%;
+        }
+        .action-menu-container {
+          overflow: visible !important;
+          position: relative !important;
+        }
+        .action-menu-container > div {
+          overflow: visible !important;
+        }
+        table td {
+          overflow: visible !important;
+        }
+        table {
+          overflow: visible !important;
+        }
+        .card {
+          overflow: visible !important;
+        }
+        .card > div {
+          overflow: visible !important;
         }
       `}</style>
     </Layout>

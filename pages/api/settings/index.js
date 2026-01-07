@@ -42,6 +42,8 @@ export default async function handler(req, res) {
           shopName: 'Retail Shop',
           contactNumber: '',
           address: '',
+          email: '',
+          logo: null,
           createdAt: new Date(),
           updatedAt: new Date()
         };
@@ -52,7 +54,7 @@ export default async function handler(req, res) {
         break;
 
       case 'PUT':
-        const { currency, discountPercentage, shopName, contactNumber, address } = req.body;
+        const { currency, discountPercentage, shopName, contactNumber, address, logo, email } = req.body;
         
         // Validate input
         if (!currency || discountPercentage === undefined || !shopName) {
@@ -64,18 +66,30 @@ export default async function handler(req, res) {
         }
 
         // Update settings
+        const updateData = {
+          currency,
+          discountPercentage: parseFloat(discountPercentage),
+          shopName,
+          contactNumber: contactNumber || '',
+          address: address || '',
+          updatedAt: new Date(),
+          updatedBy: user.userId,
+        };
+
+        // Add logo if provided
+        if (logo !== undefined) {
+          updateData.logo = logo || null;
+        }
+
+        // Add email if provided
+        if (email !== undefined) {
+          updateData.email = email || '';
+        }
+
         const result = await settingsCollection.updateOne(
           {},
           { 
-            $set: { 
-              currency,
-              discountPercentage: parseFloat(discountPercentage),
-              shopName,
-              contactNumber: contactNumber || '',
-              address: address || '',
-              updatedAt: new Date(),
-              updatedBy: user.userId,
-            }
+            $set: updateData
           },
           { upsert: true }
         );

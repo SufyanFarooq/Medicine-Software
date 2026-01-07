@@ -6,148 +6,263 @@ import { formatCurrency } from '../../lib/currency';
 import { getUser, hasPermission } from '../../lib/auth';
 import { canPerformAction } from '../../lib/permissions';
 
-// Print invoice function - COMPLETELY REWRITTEN for perfect readability
+// Print invoice function - A4 Format Bill Pad Style
 const printInvoice = (invoice, settings = {}, currentUser = null) => {
   const currentDate = new Date();
   const shopName = settings.shopName || "Medical Shop";
   const shopAddress = settings.address || "Your Shop Address";
   const phoneNumber = settings.contactNumber || "+92 XXX XXXXXXX";
-
-  // SIMPLE and RELIABLE helper functions
-  const center = (text) => {
-    const width = 42;
-    const padding = Math.max(0, Math.floor((width - text.length) / 2));
-    return ' '.repeat(padding) + text;
-  };
+  const email = settings.email || "";
+  const logo = settings.logo || null;
   
-  const repeat = (char) => char.repeat(42);
-  
-  const line = (left, right) => {
-    const leftText = String(left).substring(0, 28);
-    const rightText = String(right).substring(0, 14);
-    return leftText.padEnd(28) + rightText.padStart(14);
-  };
+  // Format date and time
+  const invoiceDate = new Date(invoice.date);
+  const formattedDate = invoiceDate.toLocaleDateString('en-GB', { 
+    day: '2-digit', 
+    month: '2-digit', 
+    year: 'numeric' 
+  });
+  const formattedTime = invoiceDate.toLocaleTimeString('en-GB', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
 
-  // Build items block with SIMPLE formatting
-  const itemsBlock = invoice.items.map(item => {
+  // Build items table rows
+  const itemsRows = invoice.items.map((item, index) => {
     const sellingPrice = parseFloat(item.sellingPrice) || parseFloat(item.price) || 0;
     const quantity = parseInt(item.quantity) || 0;
     const itemTotal = sellingPrice * quantity;
     
-    return [
-      line(item.name, `Rs${itemTotal.toFixed(2)}`),
-      `  Qty: ${quantity} × Rs${sellingPrice.toFixed(2)}`,
-      ""
-    ].join('\n');
-  }).join('\n');
+    return `
+      <tr>
+        <td style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">${index + 1}</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.name || item.code || 'N/A'}</td>
+        <td style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">${quantity}</td>
+        <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Rs ${sellingPrice.toFixed(2)}</td>
+        <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Rs ${itemTotal.toFixed(2)}</td>
+      </tr>
+    `;
+  }).join('');
 
-  // Build receipt with PERFECT 42-column layout
-  const receiptText = [
-    center(shopName.toUpperCase()),
-    center(shopAddress),
-    center(`Tel: ${phoneNumber}`),
-    "",
-    repeat("*"),
-    center("CASH RECEIPT"),
-    repeat("*"),
-    "",
-    `Invoice: ${invoice.invoiceNumber}`,
-    `Date: ${new Date(invoice.date).toLocaleDateString()}`,
-    `Time: ${new Date(invoice.date).toLocaleTimeString()}`,
-    `Cashier: ${currentUser?.username || "Unknown"}`,
-    "",
-    repeat("-"),
-    "Description                    Price",
-    repeat("-"),
-    "",
-    itemsBlock,
-    repeat("-"),
-    line("Subtotal:", `Rs${parseFloat(invoice.subtotal || 0).toFixed(2)}`),
-    line(`Discount (${settings.discountPercentage || 0}%):`, `-Rs${parseFloat(invoice.discount || 0).toFixed(2)}`),
-    repeat("-"),
-    line("TOTAL:", `Rs${parseFloat(invoice.total || 0).toFixed(2)}`),
-    "",
-    line("Cash:", `Rs${parseFloat(invoice.total || 0).toFixed(2)}`),
-    line("Change:", "Rs0.00"),
-    "",
-    repeat("*"),
-    center("THANK YOU!"),
-    repeat("*"),
-    "",
-    center("Powered by Codebridge"),
-    center("Contact: +92 308 2283845"),
-    ""
-  ].join('\n');
+  // Calculate totals
+  const subtotal = parseFloat(invoice.subtotal || 0);
+  const discount = parseFloat(invoice.discount || 0);
+  const total = parseFloat(invoice.total || 0);
 
-  // Enhanced HTML wrapper with print button and better styling
+  // Enhanced HTML wrapper with A4 format styling
   const printContent = `
   <!doctype html>
   <html>
     <head>
       <meta charset="utf-8" />
-      <title>Receipt - ${invoice.invoiceNumber}</title>
+      <title>Invoice - ${invoice.invoiceNumber}</title>
       <style>
         @media print {
           @page { 
-            size: 76mm auto; 
-            margin: 2mm; 
+            size: A4;
+            margin: 15mm;
           }
           .no-print { display: none !important; }
           body { 
-            background: white !important; 
-            font-size: 11px !important;
-            line-height: 1.2 !important;
-            color: #000000 !important;
-          }
-          .receipt-container {
-            border: none !important;
-            box-shadow: none !important;
-            padding: 3mm !important;
-            width: 74mm !important;
-          }
-          pre {
-            font-family: "Courier New", "Lucida Console", "Monaco", monospace !important;
-            font-size: 11px !important;
-            line-height: 1.2 !important;
-            white-space: pre !important;
+            background: white !important;
             margin: 0 !important;
             padding: 0 !important;
-            color: #000000 !important;
-            font-weight: bold !important;
+          }
+          .invoice-container {
+            box-shadow: none !important;
+            border: none !important;
           }
         }
-        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        * { 
+          -webkit-print-color-adjust: exact; 
+          print-color-adjust: exact; 
+        }
         html, body {
-          margin: 0; padding: 0;
-          background: #fff; color: #000;
+          margin: 0; 
+          padding: 0;
+          background: #fff; 
+          color: #000;
+          font-family: 'Arial', 'Helvetica', sans-serif;
         }
         body {
-          width: 100%; max-width: 800px; margin: 0 auto; padding: 20px;
-          font-family: "Courier New", "Lucida Console", "Monaco", monospace;
-          font-size: 12px; line-height: 1.2;
-          text-rendering: optimizeLegibility;
-          background: #f8f9fa;
+          padding: 20px;
+          background: #f5f5f5;
         }
-        .receipt-container {
-          width: 76mm; margin: 0 auto; padding: 6px 6px 10px 6px;
-          border: 2px solid #333; background: #fff;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-          font-family: "Courier New", "Lucida Console", "Monaco", monospace;
-          font-size: 11px; line-height: 1.2;
-          color: #000000;
+        .invoice-container {
+          max-width: 210mm;
+          margin: 0 auto;
+          background: white;
+          padding: 30px;
+          box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
-        pre {
-          margin: 0;
-          white-space: pre-wrap;
-          word-wrap: break-word;
-          color: #000000;
+        .header {
+          border-bottom: 3px solid #333;
+          padding-bottom: 20px;
+          margin-bottom: 30px;
+          display: flex;
+          align-items: flex-start;
+          gap: 20px;
+        }
+        .logo-container {
+          flex-shrink: 0;
+        }
+        .logo-container img {
+          max-width: 120px;
+          max-height: 120px;
+          object-fit: contain;
+        }
+        .header-content {
+          flex: 1;
+        }
+        .company-name {
+          font-size: 28px;
           font-weight: bold;
+          color: #333;
+          margin-bottom: 10px;
+          text-transform: uppercase;
+        }
+        .company-details {
+          font-size: 12px;
+          color: #666;
+          line-height: 1.6;
+        }
+        .invoice-title {
+          text-align: center;
+          font-size: 24px;
+          font-weight: bold;
+          margin: 30px 0;
+          color: #333;
+          text-transform: uppercase;
+          letter-spacing: 2px;
+        }
+        .invoice-info {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 30px;
+          padding: 20px;
+          background: #f9f9f9;
+          border-radius: 5px;
+        }
+        .info-left, .info-right {
+          flex: 1;
+        }
+        .info-label {
+          font-weight: bold;
+          color: #333;
+          margin-bottom: 5px;
+          font-size: 12px;
+        }
+        .info-value {
+          color: #666;
+          font-size: 14px;
+          margin-bottom: 10px;
+        }
+        .customer-info {
+          margin-bottom: 20px;
+          padding: 15px;
+          background: #f9f9f9;
+          border-left: 4px solid #333;
+        }
+        .customer-label {
+          font-weight: bold;
+          color: #333;
+          margin-bottom: 8px;
+          font-size: 14px;
+        }
+        .items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 20px 0;
+        }
+        .items-table th {
+          background: #333;
+          color: white;
+          padding: 12px;
+          text-align: left;
+          font-weight: bold;
+          font-size: 13px;
+          text-transform: uppercase;
+        }
+        .items-table th:first-child {
+          text-align: center;
+          width: 50px;
+        }
+        .items-table th:nth-child(3),
+        .items-table td:nth-child(3) {
+          text-align: center;
+          width: 80px;
+        }
+        .items-table th:nth-child(4),
+        .items-table td:nth-child(4),
+        .items-table th:nth-child(5),
+        .items-table td:nth-child(5) {
+          text-align: right;
+          width: 120px;
+        }
+        .items-table td {
+          padding: 10px 8px;
+          font-size: 13px;
+        }
+        .items-table tbody tr:hover {
+          background: #f5f5f5;
+        }
+        .totals-section {
+          margin-top: 30px;
+          margin-left: auto;
+          width: 400px;
+        }
+        .total-row {
+          display: flex;
+          justify-content: space-between;
+          padding: 10px 0;
+          border-bottom: 1px solid #ddd;
+          font-size: 14px;
+        }
+        .total-row.total-final {
+          border-top: 2px solid #333;
+          border-bottom: 2px solid #333;
+          font-size: 18px;
+          font-weight: bold;
+          padding: 15px 0;
+          margin-top: 10px;
+        }
+        .total-label {
+          font-weight: bold;
+          color: #333;
+        }
+        .total-value {
+          color: #333;
+        }
+        .footer {
+          margin-top: 50px;
+          padding-top: 20px;
+          border-top: 2px solid #ddd;
+          text-align: center;
+          color: #666;
+          font-size: 12px;
+        }
+        .thank-you {
+          font-size: 18px;
+          font-weight: bold;
+          color: #333;
+          margin: 20px 0;
+          text-transform: uppercase;
         }
         .print-button {
-          position: fixed; top: 20px; right: 20px; z-index: 1000;
-          background: #28a745; color: white; border: none; padding: 12px 24px;
-          border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: all 0.3s ease;
+          position: fixed; 
+          top: 20px; 
+          right: 20px; 
+          z-index: 1000;
+          background: #28a745; 
+          color: white; 
+          border: none; 
+          padding: 12px 24px;
+          border-radius: 8px; 
+          cursor: pointer; 
+          font-size: 16px; 
+          font-weight: bold;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.2); 
+          transition: all 0.3s ease;
         }
         .print-button:hover { 
           background: #218838; 
@@ -155,10 +270,20 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
           box-shadow: 0 6px 12px rgba(0,0,0,0.3);
         }
         .close-button {
-          position: fixed; top: 20px; right: 140px; z-index: 1000;
-          background: #dc3545; color: white; border: none; padding: 12px 24px;
-          border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: all 0.3s ease;
+          position: fixed; 
+          top: 20px; 
+          right: 140px; 
+          z-index: 1000;
+          background: #dc3545; 
+          color: white; 
+          border: none; 
+          padding: 12px 24px;
+          border-radius: 8px; 
+          cursor: pointer; 
+          font-size: 16px; 
+          font-weight: bold;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.2); 
+          transition: all 0.3s ease;
         }
         .close-button:hover { 
           background: #c82333; 
@@ -166,23 +291,98 @@ const printInvoice = (invoice, settings = {}, currentUser = null) => {
           box-shadow: 0 6px 12px rgba(0,0,0,0.3);
         }
         .info-text {
-          text-align: center; color: #666; margin: 20px 0; font-size: 12px;
+          text-align: center; 
+          color: #666; 
+          margin: 20px 0; 
+          font-size: 12px;
         }
       </style>
     </head>
     <body>
-      <button class="print-button no-print" onclick="window.print()">🖨️ Print Receipt</button>
+      <button class="print-button no-print" onclick="window.print()">🖨️ Print Invoice</button>
       <button class="close-button no-print" onclick="window.close()">❌ Close</button>
       
       <div class="info-text no-print">
-        <strong>📄 Receipt Preview</strong><br>
-        Invoice: ${invoice.invoiceNumber} | Date: ${new Date(invoice.date).toLocaleDateString()}<br>
+        <strong>📄 Invoice Preview - A4 Format</strong><br>
+        Invoice: ${invoice.invoiceNumber} | Date: ${formattedDate}<br>
         <span style="color: #28a745; font-weight: bold;">🖨️ Click the Green Print Button to Print</span><br>
         <span style="color: #666; font-size: 11px;">Or use Ctrl+P (Cmd+P on Mac) to print</span>
       </div>
       
-      <div class="receipt-container">
-        <pre>${receiptText}</pre>
+      <div class="invoice-container">
+        <div class="header">
+          ${logo ? `
+            <div class="logo-container">
+              <img src="${logo}" alt="${shopName} Logo" />
+            </div>
+          ` : ''}
+          <div class="header-content">
+            <div class="company-name">${shopName}</div>
+            <div class="company-details">
+              ${shopAddress}<br>
+              ${phoneNumber ? `Tel: ${phoneNumber}` : ''}${email ? ` | Email: ${email}` : ''}
+            </div>
+          </div>
+        </div>
+        
+        <div class="invoice-title">Tax Invoice</div>
+        
+        <div class="invoice-info">
+          <div class="info-left">
+            <div class="info-label">Invoice Number:</div>
+            <div class="info-value">${invoice.invoiceNumber}</div>
+            <div class="info-label">Date:</div>
+            <div class="info-value">${formattedDate}</div>
+            <div class="info-label">Time:</div>
+            <div class="info-value">${formattedTime}</div>
+          </div>
+          <div class="info-right">
+            <div class="info-label">Cashier:</div>
+            <div class="info-value">${currentUser?.username || "Unknown"}</div>
+            ${invoice.customerName ? `
+              <div class="info-label">Customer:</div>
+              <div class="info-value">${invoice.customerName}</div>
+            ` : ''}
+          </div>
+        </div>
+        
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>S.No.</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit Price</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsRows}
+          </tbody>
+        </table>
+        
+        <div class="totals-section">
+          <div class="total-row">
+            <span class="total-label">Subtotal:</span>
+            <span class="total-value">Rs ${subtotal.toFixed(2)}</span>
+          </div>
+          ${discount > 0 ? `
+            <div class="total-row">
+              <span class="total-label">Discount (${settings.discountPercentage || 0}%):</span>
+              <span class="total-value">- Rs ${discount.toFixed(2)}</span>
+            </div>
+          ` : ''}
+          <div class="total-row total-final">
+            <span class="total-label">Total Amount:</span>
+            <span class="total-value">Rs ${total.toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <div class="thank-you">Thank You for Your Business!</div>
+          <div>This is a computer generated invoice.</div>
+          <div style="margin-top: 10px;">Powered by Codebridge | Contact: +92 308 2283845</div>
+        </div>
       </div>
       
       <script>

@@ -12,7 +12,9 @@ export default function Settings() {
     discountPercentage: 3,
     shopName: 'Medical Shop',
     contactNumber: '',
-    address: ''
+    address: '',
+    email: '',
+    logo: null
   });
   const [users, setUsers] = useState([]);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -302,6 +304,71 @@ export default function Settings() {
             <h3 className="text-lg font-medium text-gray-900 mb-4">🏪 Company Information</h3>
             <p className="text-sm text-gray-600 mb-4">Update your shop details that will appear on invoices and receipts</p>
             <div className="space-y-4">
+              {/* Logo Upload Section */}
+              <div>
+                <label htmlFor="logo" className="block text-sm font-medium text-gray-700 mb-2">
+                  Company Logo
+                </label>
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0">
+                    {settings.logo ? (
+                      <img
+                        src={settings.logo}
+                        alt="Company Logo"
+                        className="h-24 w-24 object-contain border border-gray-300 rounded-lg p-2 bg-white"
+                      />
+                    ) : (
+                      <div className="h-24 w-24 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
+                        <span className="text-gray-400 text-xs text-center px-2">No Logo</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      id="logo"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          // Check file size (max 2MB)
+                          if (file.size > 2 * 1024 * 1024) {
+                            setMessage('Logo file size must be less than 2MB');
+                            setTimeout(() => setMessage(''), 3000);
+                            return;
+                          }
+                          // Check file type
+                          if (!file.type.startsWith('image/')) {
+                            setMessage('Please select a valid image file');
+                            setTimeout(() => setMessage(''), 3000);
+                            return;
+                          }
+                          // Convert to base64
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setSettings(prev => ({ ...prev, logo: reader.result }));
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="input-field"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Upload company logo (PNG, JPG, max 2MB). Logo will appear on invoices top left.
+                    </p>
+                    {settings.logo && (
+                      <button
+                        type="button"
+                        onClick={() => setSettings(prev => ({ ...prev, logo: null }))}
+                        className="mt-2 text-sm text-red-600 hover:text-red-800"
+                      >
+                        Remove Logo
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label htmlFor="shopName" className="block text-sm font-medium text-gray-700 mb-2">
                   Shop Name
@@ -327,6 +394,20 @@ export default function Settings() {
                   onChange={(e) => setSettings(prev => ({ ...prev, contactNumber: e.target.value }))}
                   className="input-field"
                   placeholder="Enter contact number"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  value={settings.email || ''}
+                  onChange={(e) => setSettings(prev => ({ ...prev, email: e.target.value }))}
+                  className="input-field"
+                  placeholder="Enter email address"
                 />
               </div>
 
